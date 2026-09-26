@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum InvoiceStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  unitPrice Float
+  stockQty  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  invoiceItems InvoiceItem[]
+}
+
+model Outlet {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  createdAt DateTime @default(now())
+
+  invoices Invoice[]
+  payments PaymentCollection[]
+}
+
+model Staff {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  createdAt DateTime @default(now())
+
+  invoices Invoice[]
+  payments PaymentCollection[]
+}
+
+/// Invoice ids are human-readable, e.g. INV-1001.
+model Invoice {
+  id          String        @id
+  outletId    String
+  staffId     String
+  totalAmount Float
+  paidAmount  Float         @default(0)
+  balanceDue  Float
+  status      InvoiceStatus @default(UNPAID)
+  createdAt   DateTime      @default(now())
+
+  outlet   Outlet              @relation(fields: [outletId], references: [id])
+  staff    Staff               @relation(fields: [staffId], references: [id])
+  items    InvoiceItem[]
+  payments PaymentCollection[]
+
+  @@index([outletId, createdAt])
+  @@index([staffId])
+}
+
+model InvoiceItem {
+  id        String @id @default(cuid())
+  invoiceId String
+  productId String
+  quantity  Int
+  unitPrice Float
+  subtotal  Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model PaymentCollection {
+  id            String        @id @default(cuid())
+  outletId      String
+  staffId       String
+  invoiceId     String?
+  amount        Float
+  paymentMethod PaymentMethod
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  outlet  Outlet   @relation(fields: [outletId], references: [id])
+  staff   Staff    @relation(fields: [staffId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@index([outletId])
+  @@index([staffId])
+}
