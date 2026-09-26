@@ -1,37 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
+   matches it: warm cream surface, dark-navy sidebar, olive/gold/rose/teal accents,
+   Space Grotesk + DM Mono type. Light theme only — this app has no dark-mode toggle. */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 :root {
-  color-scheme: dark;
+  --background: 40 25% 94%;
+  --foreground: 225 31% 16%;
+  --border: 37 17% 84%;
+  --card: 42 33% 98%;
+  --card-foreground: 225 31% 16%;
+  --sidebar: 225 31% 16%;
+  --sidebar-foreground: 42 33% 96%;
+  --sidebar-border: 225 24% 23%;
+  --sidebar-primary: 71 78% 63%;
+  --sidebar-primary-foreground: 225 31% 16%;
+  --sidebar-accent: 225 24% 23%;
+  --sidebar-accent-foreground: 42 33% 96%;
+  --primary: 225 31% 16%;
+  --primary-foreground: 42 33% 98%;
+  --secondary: 36 24% 89%;
+  --secondary-foreground: 225 31% 16%;
+  --muted: 38 20% 90%;
+  --muted-foreground: 225 12% 47%;
+  --accent: 71 78% 63%;
+  --accent-foreground: 225 31% 16%;
+  --input: 37 17% 80%;
+  --ring: 225 31% 16%;
+  /* Status pastels, matched to the reference's badges (Paid/Partial/Unpaid, low-stock). */
+  --success: #d7e878;
+  --success-foreground: #547328;
+  --warning: #f9dfc4;
+  --warning-foreground: #965a29;
+  --danger: #f5d6d0;
+  --danger-foreground: #a14f42;
+  --info: #cfe8e2;
+  --info-foreground: #2f6f60;
+  --app-font-sans: 'Space Grotesk', sans-serif;
+  --app-font-mono: 'DM Mono', monospace;
+  --radius: .7rem;
+  --shadow-card: 0 4px 18px hsl(225 31% 16% / .055);
+  --shadow-float: 0 18px 45px hsl(225 31% 16% / .12);
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--app-font-sans);
 }
+
+.font-mono-app {
+  font-family: var(--app-font-mono);
+}
+
+/* Faint background grid, matching the reference's main content area. */
+.ops-grid {
+  background-image: linear-gradient(hsl(var(--foreground) / .035) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / .035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.app-enter { animation: app-enter .45s cubic-bezier(.2,.8,.2,1) both; }
+.app-rise { animation: app-rise .5s cubic-bezier(.2,.8,.2,1) both; }
+.focus-ring:focus-visible { outline: 3px solid hsl(var(--accent) / .7); outline-offset: 3px; }
+@keyframes app-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes app-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-800 bg-slate-900;
+    @apply rounded-2xl border border-border bg-card shadow-[var(--shadow-card)];
   }
   .input {
-    @apply w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-800/60 disabled:text-slate-500;
+    @apply w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground/70 focus:border-foreground/70 focus:ring-2 focus:ring-accent/30 disabled:bg-muted disabled:text-muted-foreground;
   }
   .label {
-    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-transform disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0;
   }
   /* Use together with .btn, e.g. className="btn btn-primary" */
   .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-500;
+    @apply bg-primary text-primary-foreground hover:-translate-y-0.5;
   }
   .btn-secondary {
-    @apply border border-slate-700 bg-slate-800/60 text-slate-200 hover:bg-slate-800;
+    @apply border border-border bg-card text-foreground hover:border-foreground/30;
   }
   .th {
-    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+    @apply px-4 py-3 text-left text-[10px] font-normal uppercase tracking-[.12em] text-muted-foreground;
+    font-family: var(--app-font-mono);
   }
   .td {
-    @apply px-4 py-3 text-sm text-slate-200;
+    @apply px-4 py-3 text-sm text-foreground;
   }
 }

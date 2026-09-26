@@ -7,13 +7,13 @@ import {
   IndianRupee,
   Loader2,
   LogOut,
+  Menu,
   Package,
   ReceiptText,
   RefreshCw,
   ShoppingCart,
   Store,
   UserCog,
-  UserRound,
   Users,
   Wallet,
   Wallet2,
@@ -49,28 +49,29 @@ type TabId = "sale" | "orders" | "ledgers" | "payments" | "staff" | "inventory" 
 interface TabDef {
   id: TabId;
   label: string;
+  helper: string;
   icon: LucideIcon;
 }
 
 // Which tabs each role sees, in order. The server enforces the same rules on every route.
 const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   admin: [
-    { id: "sale", label: "New Sale", icon: ShoppingCart },
-    { id: "orders", label: "Orders", icon: ClipboardList },
-    { id: "ledgers", label: "Outlet Ledgers", icon: Store },
-    { id: "payments", label: "Payments", icon: Wallet2 },
-    { id: "staff", label: "Staff Performance", icon: Users },
-    { id: "inventory", label: "Stock", icon: Package },
-    { id: "users", label: "Users", icon: UserCog },
+    { id: "sale", label: "New Sale", helper: "Record a sale", icon: ShoppingCart },
+    { id: "orders", label: "Orders", helper: "Dispatch queue", icon: ClipboardList },
+    { id: "ledgers", label: "Outlet Ledgers", helper: "Collect dues", icon: Store },
+    { id: "payments", label: "Payments", helper: "Collections", icon: Wallet2 },
+    { id: "staff", label: "Staff Performance", helper: "Track the crew", icon: Users },
+    { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
+    { id: "users", label: "Users", helper: "Accounts & roles", icon: UserCog },
   ],
   stock: [
-    { id: "orders", label: "Orders to dispatch", icon: ClipboardList },
-    { id: "payments", label: "Collect Payment", icon: Wallet2 },
-    { id: "inventory", label: "Stock", icon: Package },
+    { id: "orders", label: "Orders to dispatch", helper: "Dispatch queue", icon: ClipboardList },
+    { id: "payments", label: "Collect Payment", helper: "Collections", icon: Wallet2 },
+    { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
   ],
   agent: [
-    { id: "sale", label: "New order", icon: ShoppingCart },
-    { id: "orders", label: "My orders", icon: ClipboardList },
+    { id: "sale", label: "New order", helper: "Record a sale", icon: ShoppingCart },
+    { id: "orders", label: "My orders", helper: "Track your orders", icon: ClipboardList },
   ],
 };
 
@@ -105,6 +106,20 @@ async function loadData(role: Role): Promise<DashboardData> {
   return { products, outlets, orders, staff, routes, reports, movements };
 }
 
+function Brand({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
+        <ReceiptText size={18} strokeWidth={2.5} />
+      </div>
+      <div>
+        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>DSRMT</p>
+        {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">billing &amp; dispatch</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [booting, setBooting] = useState(true);
@@ -113,6 +128,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [mobileNav, setMobileNav] = useState(false);
 
   const signOut = useCallback((message?: string) => {
     clearToken();
@@ -165,7 +181,7 @@ export default function Dashboard() {
 
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 text-slate-400">
+      <div className="flex min-h-screen items-center justify-center gap-2 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading…
       </div>
     );
@@ -186,151 +202,237 @@ export default function Dashboard() {
   }
 
   const metrics = data?.reports?.dashboard;
+  const isAgent = user.role === "agent";
   const initials = user.name
     .split(/\s+/)
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
-      {/* Soft ambient glow, purely decorative. */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-blue-600/10 blur-3xl" />
-
-      <header className="relative border-b border-slate-800/80 bg-slate-900/60 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-xl bg-blue-600 p-2 text-white">
-              <ReceiptText className="h-5 w-5" />
-            </div>
-            <h1 className="truncate text-lg font-semibold leading-tight">DSRMT Billing</h1>
+    <div className="ops-app flex min-h-screen">
+      {/* Desktop sidebar — admin/stock only. Agents are phone-first, so they never see it. */}
+      {!isAgent && (
+        <aside className="hidden md:flex w-[248px] shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground">
+          <Brand />
+          <div className="mt-10 flex-1">
+            <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
+            <nav className="space-y-1">
+              {tabs.map(({ id, label, helper, icon: Icon }) => {
+                const active = tab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setTab(id)}
+                    className={`focus-ring group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                      active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    }`}
+                  >
+                    <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">{label}</span>
+                      <span className={`block text-[10px] ${active ? "opacity-60" : "opacity-45"}`}>{helper}</span>
+                    </span>
+                    {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}
+                  </button>
+                );
+              })}
+            </nav>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/70 p-4">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-sidebar-foreground/70">
+              <span className="h-2 w-2 rounded-full bg-sidebar-primary" />
+              Connected
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/50">Changes save straight to the live database.</p>
+          </div>
+          <div className="mt-5 flex items-center gap-3 px-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{user.name}</p>
+              <p className="text-[11px] text-sidebar-foreground/45">{ROLE_LABEL[user.role]}</p>
+            </div>
             <button
-              className="rounded-full border border-slate-800 bg-slate-900 p-2.5 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
-              onClick={() => void refresh()}
-              disabled={refreshing}
-              title="Refresh"
-              aria-label="Refresh"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              className="rounded-full border border-slate-800 bg-slate-900 p-2.5 text-slate-500 transition hover:bg-red-500/15 hover:text-red-400"
               onClick={() => signOut()}
+              className="focus-ring shrink-0 rounded-lg p-1.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               title="Sign out"
               aria-label="Sign out"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut size={16} />
             </button>
-            <div className="ml-1 flex items-center gap-2.5 rounded-full border border-slate-800 bg-slate-900 py-1 pl-1 pr-3.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-semibold text-white">
-                {initials || <UserRound className="h-4 w-4" />}
-              </span>
-              <span className="hidden min-w-0 leading-tight sm:block">
-                <span className="block truncate text-sm font-medium text-slate-100">{user.name}</span>
-                <span className="block text-xs text-slate-500">{ROLE_LABEL[user.role]}</span>
-              </span>
+          </div>
+        </aside>
+      )}
+
+      <main className="ops-grid min-w-0 flex-1">
+        <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
+          <header className="flex h-[76px] items-center justify-between border-b border-foreground/10">
+            {isAgent ? (
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                  <ReceiptText size={18} />
+                </div>
+                <h1 className="text-lg font-bold tracking-[-.03em]">DSRMT</h1>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 md:hidden">
+                  <button
+                    className="focus-ring rounded-lg p-2 hover:bg-foreground/5"
+                    onClick={() => setMobileNav((v) => !v)}
+                    aria-label="Open navigation"
+                  >
+                    <Menu size={20} />
+                  </button>
+                  <Brand compact />
+                </div>
+                <div className="hidden md:block">
+                  <p className="font-mono-app text-[10px] uppercase tracking-[.2em] text-muted-foreground">{today}</p>
+                  <h1 className="mt-1 text-xl font-bold tracking-[-.03em]">
+                    Welcome, {user.name.split(/\s+/)[0]} <span className="text-muted-foreground">/</span>{" "}
+                    <span className="text-muted-foreground">{ROLE_LABEL[user.role].toLowerCase()}</span>
+                  </h1>
+                </div>
+              </>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                className="focus-ring rounded-full p-2.5 text-muted-foreground transition hover:bg-foreground/5"
+                onClick={() => void refresh()}
+                disabled={refreshing}
+                title="Refresh"
+                aria-label="Refresh"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+              </button>
+              {isAgent && (
+                <button
+                  className="focus-ring rounded-full p-2.5 text-muted-foreground transition hover:bg-danger/20 hover:text-danger-foreground"
+                  onClick={() => signOut()}
+                  title="Sign out"
+                  aria-label="Sign out"
+                >
+                  <LogOut size={16} />
+                </button>
+              )}
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
+                {initials}
+              </div>
             </div>
+          </header>
+
+          {!isAgent && mobileNav && (
+            <div className="app-enter border-b border-foreground/10 py-3 md:hidden">
+              <nav className="grid grid-cols-2 gap-2">
+                {tabs.map(({ id, label, icon: Icon }) => {
+                  const active = tab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setTab(id);
+                        setMobileNav(false);
+                      }}
+                      className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                        active ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => signOut()}
+                  className="focus-ring flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
+                >
+                  <LogOut size={18} />
+                  <span className="text-sm font-semibold">Sign out</span>
+                </button>
+              </nav>
+            </div>
+          )}
+
+          {user.role === "admin" && (
+            <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} tone="lime" />
+              <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="gold" />
+              <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
+              <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="teal" />
+            </section>
+          )}
+
+          {isAgent && (
+            <div className="mt-5">
+              <p className="text-2xl font-bold tracking-[-.03em]">Welcome, {user.name.split(/\s+/)[0]}</p>
+              <p className="mt-1 text-sm text-muted-foreground">Your outlets, orders and today&apos;s dispatch queue</p>
+              {/* Only two things an agent ever needs: big, unmissable, thumb-friendly. */}
+              <nav className="mt-4 grid grid-cols-2 gap-3">
+                {tabs.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setTab(id)}
+                    className={`flex h-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-sm font-semibold transition active:scale-[0.98] ${
+                      tab === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          )}
+
+          <div className={isAgent ? "app-enter mt-5" : "app-enter py-2"}>
+            {error && (
+              <div className="mb-4">
+                <Alert kind="error">{error}</Alert>
+              </div>
+            )}
+
+            {!data ? (
+              !error && (
+                <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+                </div>
+              )
+            ) : (
+              <>
+                {tab === "sale" &&
+                  (isAgent ? (
+                    <AgentOrderForm data={data} user={user} onSaved={refresh} />
+                  ) : (
+                    <SaleForm data={data} user={user} onSaved={refresh} />
+                  ))}
+                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
+                {tab === "ledgers" && data.reports && (
+                  <OutletLedgers
+                    data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
+                    onSaved={refresh}
+                  />
+                )}
+                {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
+                {tab === "staff" && <StaffPerformanceView />}
+                {tab === "inventory" && (
+                  <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
+                )}
+                {tab === "users" && (
+                  <UsersManager
+                    staff={data.staff}
+                    user={user}
+                    onSaved={refresh}
+                    onOwnTokenChanged={(token) => setToken(token)}
+                  />
+                )}
+              </>
+            )}
           </div>
         </div>
-      </header>
-
-      <main className="relative mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-50">Welcome, {user.name.split(/\s+/)[0]}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {user.role === "admin"
-              ? "Here's your billing & dispatch overview"
-              : user.role === "stock"
-                ? "Orders waiting to dispatch and payments to collect"
-                : "Your outlets, orders and today's dispatch queue"}
-          </p>
-        </div>
-
-        {user.role === "admin" && (
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} />
-            <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="emerald" />
-            <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="amber" />
-            <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="sky" />
-          </section>
-        )}
-
-        {user.role === "agent" ? (
-          // Only two things an agent ever needs: big, unmissable, thumb-friendly.
-          <nav className="grid grid-cols-2 gap-3">
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`flex h-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-sm font-semibold transition active:scale-[0.98] ${
-                  tab === id
-                    ? "border-blue-500 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                    : "border-slate-800 bg-slate-900 text-slate-400"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {label}
-              </button>
-            ))}
-          </nav>
-        ) : (
-          <nav className="flex gap-1 overflow-x-auto rounded-full border border-slate-800 bg-slate-900 p-1">
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition sm:flex-1 sm:justify-center ${
-                  tab === id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </nav>
-        )}
-
-        {error && <Alert kind="error">{error}</Alert>}
-
-        {!data ? (
-          !error && (
-            <div className="flex items-center justify-center gap-2 py-20 text-slate-400">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading…
-            </div>
-          )
-        ) : (
-          <>
-            {tab === "sale" &&
-              (user.role === "agent" ? (
-                <AgentOrderForm data={data} user={user} onSaved={refresh} />
-              ) : (
-                <SaleForm data={data} user={user} onSaved={refresh} />
-              ))}
-            {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
-            {tab === "ledgers" && data.reports && (
-              <OutletLedgers
-                data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
-                onSaved={refresh}
-              />
-            )}
-            {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
-            {tab === "staff" && <StaffPerformanceView />}
-            {tab === "inventory" && (
-              <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
-            )}
-            {tab === "users" && (
-              <UsersManager
-                staff={data.staff}
-                user={user}
-                onSaved={refresh}
-                onOwnTokenChanged={(token) => setToken(token)}
-              />
-            )}
-          </>
-        )}
       </main>
     </div>
   );

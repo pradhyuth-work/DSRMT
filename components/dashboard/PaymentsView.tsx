@@ -71,7 +71,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
         </button>
       </div>
 
-      <StatCard label={`Total ${payments ? `(${payments.length})` : ""}`} value={formatMoney(total)} icon={Wallet2} tone="emerald" />
+      <StatCard label={`Total ${payments ? `(${payments.length})` : ""}`} value={formatMoney(total)} icon={Wallet2} tone="lime" />
 
       {error && <Alert kind="error">{error}</Alert>}
 
