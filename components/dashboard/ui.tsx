@@ -16,10 +16,10 @@ export function StatCard({
   tone?: "indigo" | "emerald" | "amber" | "sky";
 }) {
   const tones = {
-    indigo: "bg-indigo-50 text-indigo-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    sky: "bg-sky-50 text-sky-600",
+    indigo: "bg-blue-500/15 text-blue-400",
+    emerald: "bg-emerald-500/15 text-emerald-400",
+    amber: "bg-amber-500/15 text-amber-400",
+    sky: "bg-sky-500/15 text-sky-400",
   } as const;
   return (
     <div className="card flex items-center gap-4 p-4">
@@ -27,7 +27,7 @@ export function StatCard({
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
         <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
       </div>
     </div>
@@ -54,17 +54,17 @@ export function Modal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
+        className="max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-slate-900 shadow-xl sm:max-w-lg sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
           <h2 className="text-base font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
+          <button onClick={onClose} className="rounded-md p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-400" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -76,9 +76,9 @@ export function Modal({
 
 export function Alert({ kind, children }: { kind: "error" | "success" | "warning"; children: React.ReactNode }) {
   const styles = {
-    error: "border-red-200 bg-red-50 text-red-700",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    warning: "border-amber-200 bg-amber-50 text-amber-800",
+    error: "border-red-500/30 bg-red-500/15 text-red-400",
+    success: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
+    warning: "border-amber-500/30 bg-amber-500/15 text-amber-300",
   } as const;
   const Icon = kind === "success" ? CheckCircle2 : AlertTriangle;
   return (
@@ -91,24 +91,24 @@ export function Alert({ kind, children }: { kind: "error" | "success" | "warning
 
 export function StatusBadge({ status }: { status: InvoiceStatus }) {
   const styles: Record<InvoiceStatus, string> = {
-    PAID: "bg-emerald-100 text-emerald-700",
-    PARTIAL: "bg-amber-100 text-amber-700",
-    UNPAID: "bg-red-100 text-red-700",
+    PAID: "bg-emerald-500/15 text-emerald-400",
+    PARTIAL: "bg-amber-500/15 text-amber-400",
+    UNPAID: "bg-red-500/15 text-red-400",
   };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${styles[status]}`}>{status}</span>;
 }
 
 export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
   const styles: Record<FulfilmentStatus, string> = {
-    PENDING: "bg-sky-100 text-sky-700",
-    DISPATCHED: "bg-indigo-100 text-indigo-700",
-    CANCELLED: "bg-slate-200 text-slate-600",
+    PENDING: "bg-sky-500/15 text-sky-400",
+    DISPATCHED: "bg-blue-500/15 text-blue-300",
+    CANCELLED: "bg-slate-700 text-slate-400",
   };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${styles[status]}`}>{status}</span>;
 }
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
-  return <div className="px-4 py-10 text-center text-sm text-slate-500">{children}</div>;
+  return <div className="px-4 py-10 text-center text-sm text-slate-400">{children}</div>;
 }
 
 export function formatDate(iso: string): string {

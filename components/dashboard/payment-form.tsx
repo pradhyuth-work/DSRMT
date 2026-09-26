@@ -74,9 +74,9 @@ export function CollectPaymentForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm">
-        <span className="text-amber-800">Outstanding balance</span>
-        <span className="font-semibold tabular-nums text-amber-800">{formatMoney(target.balance)}</span>
+      <div className="flex items-center justify-between rounded-lg bg-amber-500/15 px-3 py-2 text-sm">
+        <span className="text-amber-300">Outstanding balance</span>
+        <span className="font-semibold tabular-nums text-amber-300">{formatMoney(target.balance)}</span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -123,17 +123,17 @@ export function CollectPaymentForm({
       <div>
         <p className="label">Settlement preview (oldest first)</p>
         {target.openInvoices.length === 0 ? (
-          <p className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-500">No outstanding invoices.</p>
+          <p className="rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-400">No outstanding invoices.</p>
         ) : (
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 text-sm">
+          <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800 text-sm">
             {preview.map((p) => (
-              <li key={p.id} className={`flex items-center justify-between px-3 py-2 ${p.applied > 0 ? "" : "text-slate-400"}`}>
+              <li key={p.id} className={`flex items-center justify-between px-3 py-2 ${p.applied > 0 ? "" : "text-slate-500"}`}>
                 <span>
                   <span className="font-mono text-xs">{p.id}</span>{" "}
-                  <span className="text-xs text-slate-400">{formatDate(p.createdAt)}</span>
+                  <span className="text-xs text-slate-500">{formatDate(p.createdAt)}</span>
                 </span>
                 <span className="tabular-nums">
-                  {formatMoney(p.applied)} <span className="text-xs text-slate-400">→ {formatMoney(p.after)} left</span>
+                  {formatMoney(p.applied)} <span className="text-xs text-slate-500">→ {formatMoney(p.after)} left</span>
                 </span>
               </li>
             ))}

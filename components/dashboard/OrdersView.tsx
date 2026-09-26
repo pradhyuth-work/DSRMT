@@ -74,7 +74,7 @@ export default function OrdersView({
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-              filter === f.id ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              filter === f.id ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800/60"
             }`}
           >
             {f.label} <span className="opacity-70">({counts[f.id]})</span>
@@ -98,7 +98,7 @@ export default function OrdersView({
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold">{o.id}</p>
                     <p className="truncate font-medium">{o.outletName}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
                     </p>
@@ -109,40 +109,40 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                <ul className="my-3 space-y-1 border-y border-slate-100 py-2 text-sm">
+                <ul className="my-3 space-y-1 border-y border-slate-800 py-2 text-sm">
                   {o.items.map((i) => (
                     <li key={i.productId} className="flex justify-between gap-2">
                       <span className="min-w-0 truncate">
                         {i.quantity} × {i.productName}
                       </span>
-                      <span className="shrink-0 tabular-nums text-slate-600">{formatMoney(i.subtotal)}</span>
+                      <span className="shrink-0 tabular-nums text-slate-400">{formatMoney(i.subtotal)}</span>
                     </li>
                   ))}
                 </ul>
 
                 <dl className="grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <dt className="text-slate-500">Total</dt>
+                    <dt className="text-slate-400">Total</dt>
                     <dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Paid</dt>
-                    <dd className="tabular-nums text-emerald-700">{formatMoney(o.paidAmount)}</dd>
+                    <dt className="text-slate-400">Paid</dt>
+                    <dd className="tabular-nums text-emerald-400">{formatMoney(o.paidAmount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Balance</dt>
-                    <dd className="tabular-nums text-amber-700">{formatMoney(o.balanceDue)}</dd>
+                    <dt className="text-slate-400">Balance</dt>
+                    <dd className="tabular-nums text-amber-400">{formatMoney(o.balanceDue)}</dd>
                   </div>
                 </dl>
 
                 {o.dispatchedAt && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-400">
                     Dispatched {formatDate(o.dispatchedAt)}
                     {o.dispatchedByName && <> by {o.dispatchedByName}</>}
                   </p>
                 )}
                 {o.cancelledAt && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-400">
                     Cancelled {formatDate(o.cancelledAt)}
                     {o.cancelledByName && <> by {o.cancelledByName}</>}
                   </p>
@@ -166,7 +166,7 @@ export default function OrdersView({
                   )}
                   {canCancel(o) && (
                     <button
-                      className="btn btn-secondary text-red-600"
+                      className="btn btn-secondary text-red-400"
                       disabled={busy}
                       onClick={() => {
                         const extra = o.fulfilmentStatus === "DISPATCHED" ? " Its stock will be returned." : "";
@@ -254,13 +254,13 @@ function EditOrderForm({
         </select>
       </div>
 
-      <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+      <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800">
         {lines.map((l) => {
           const p = productById.get(l.productId);
           return (
             <li key={l.productId} className="flex items-center gap-2 px-3 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate">{p?.name ?? l.productId}</span>
-              <button type="button" className="rounded p-1 hover:bg-slate-100" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
+              <button type="button" className="rounded p-1 hover:bg-slate-800" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
                 <Minus className="h-4 w-4" />
               </button>
               <input
@@ -271,12 +271,12 @@ function EditOrderForm({
                 onChange={(e) => setQty(l.productId, Number.parseInt(e.target.value, 10) || 1)}
                 aria-label={`Quantity of ${p?.name ?? "item"}`}
               />
-              <button type="button" className="rounded p-1 hover:bg-slate-100" onClick={() => setQty(l.productId, l.quantity + 1)} aria-label="Increase">
+              <button type="button" className="rounded p-1 hover:bg-slate-800" onClick={() => setQty(l.productId, l.quantity + 1)} aria-label="Increase">
                 <Plus className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                className="rounded p-1 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
                 disabled={lines.length === 1}
                 onClick={() => setLines((prev) => prev.filter((x) => x.productId !== l.productId))}
                 aria-label="Remove item"
@@ -310,8 +310,8 @@ function EditOrderForm({
         </button>
       </div>
 
-      <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-        <span className="text-slate-600">New total</span>
+      <div className="flex justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm">
+        <span className="text-slate-400">New total</span>
         <span className="font-semibold tabular-nums">{formatMoney(total)}</span>
       </div>
       {tooLow && <Alert kind="warning">The new total is less than the {formatMoney(order.paidAmount)} already paid.</Alert>}

@@ -64,22 +64,22 @@ export default function UsersManager({
           return (
             <div key={s.id} className={`card space-y-3 p-4 ${s.active ? "" : "opacity-70"}`}>
               <div className="flex items-start gap-3">
-                <div className="rounded-full bg-indigo-50 p-2 text-indigo-600">
+                <div className="rounded-full bg-blue-500/15 p-2 text-blue-400">
                   <UserRound className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-semibold">
                     <span className="truncate">{s.name}</span>
-                    {isMe && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700">You</span>}
-                    {!s.active && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Disabled</span>}
-                    {!s.canLogin && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">No login</span>}
+                    {isMe && <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-300">You</span>}
+                    {!s.active && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-400">Disabled</span>}
+                    {!s.canLogin && <span className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">No login</span>}
                   </p>
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-xs text-slate-400">
                     {s.username ? `@${s.username}` : "No username"}
                     {s.phone && <> · {s.phone}</>}
                   </p>
                 </div>
-                {busy && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                {busy && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
               </div>
 
               <div className="grid gap-2 sm:grid-cols-3">
@@ -241,7 +241,7 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
   return (
     <form onSubmit={submit} className="card h-fit space-y-4 p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <UserPlus className="h-5 w-5 text-indigo-600" /> Add user
+        <UserPlus className="h-5 w-5 text-blue-400" /> Add user
       </h2>
       <div>
         <label className="label" htmlFor="u-name">Name</label>

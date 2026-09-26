@@ -44,7 +44,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+      <Calendar className="h-4 w-4 shrink-0 text-slate-500" />
       <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
           <button key={p.label} type="button" className="btn btn-secondary px-2.5 py-1 text-xs" onClick={() => applyPreset(p.days)}>
@@ -60,7 +60,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
           onChange={(e) => onChange({ ...value, from: e.target.value ? startOfDayIso(e.target.value) : undefined })}
           aria-label="From date"
         />
-        <span className="text-slate-400">–</span>
+        <span className="text-slate-500">–</span>
         <input
           type="date"
           className="input w-auto py-1.5 text-sm"

@@ -35,12 +35,12 @@ export default function LoginScreen({
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-xl bg-indigo-600 p-3 text-white">
+          <div className="rounded-xl bg-blue-600 p-3 text-white">
             <ReceiptText className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-xl font-semibold">DSRMT Billing</h1>
-            <p className="text-sm text-slate-500">Sign in to continue</p>
+            <p className="text-sm text-slate-400">Sign in to continue</p>
           </div>
         </div>
 
@@ -79,7 +79,7 @@ export default function LoginScreen({
             Sign in
           </button>
         </form>
-        <p className="text-center text-xs text-slate-500">Accounts are created by an admin. Ask them if you can&apos;t sign in.</p>
+        <p className="text-center text-xs text-slate-400">Accounts are created by an admin. Ask them if you can&apos;t sign in.</p>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Store,
   UserCog,
+  UserRound,
   Users,
   Wallet,
   Wallet2,
@@ -159,7 +160,7 @@ export default function Dashboard() {
 
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 text-slate-500">
+      <div className="flex min-h-screen items-center justify-center gap-2 text-slate-400">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading…
       </div>
     );
@@ -180,36 +181,69 @@ export default function Dashboard() {
   }
 
   const metrics = data?.reports?.dashboard;
+  const initials = user.name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="relative min-h-screen overflow-x-hidden">
+      {/* Soft ambient glow, purely decorative. */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-blue-600/10 blur-3xl" />
+
+      <header className="relative border-b border-slate-800/80 bg-slate-900/60 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-lg bg-indigo-600 p-2 text-white">
+            <div className="rounded-xl bg-blue-600 p-2 text-white">
               <ReceiptText className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-semibold leading-tight">DSRMT Billing</h1>
-              <p className="truncate text-xs text-slate-500">
-                {user.name} · {ROLE_LABEL[user.role]}
-              </p>
-            </div>
+            <h1 className="truncate text-lg font-semibold leading-tight">DSRMT Billing</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button className="btn btn-secondary px-3" onClick={() => void refresh()} disabled={refreshing} aria-label="Refresh">
+            <button
+              className="rounded-full border border-slate-800 bg-slate-900 p-2.5 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              title="Refresh"
+              aria-label="Refresh"
+            >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
             </button>
-            <button className="btn btn-secondary px-3" onClick={() => signOut()} aria-label="Sign out">
+            <button
+              className="rounded-full border border-slate-800 bg-slate-900 p-2.5 text-slate-500 transition hover:bg-red-500/15 hover:text-red-400"
+              onClick={() => signOut()}
+              title="Sign out"
+              aria-label="Sign out"
+            >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
             </button>
+            <div className="ml-1 flex items-center gap-2.5 rounded-full border border-slate-800 bg-slate-900 py-1 pl-1 pr-3.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-semibold text-white">
+                {initials || <UserRound className="h-4 w-4" />}
+              </span>
+              <span className="hidden min-w-0 leading-tight sm:block">
+                <span className="block truncate text-sm font-medium text-slate-100">{user.name}</span>
+                <span className="block text-xs text-slate-500">{ROLE_LABEL[user.role]}</span>
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      <main className="relative mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-50">Welcome, {user.name.split(/\s+/)[0]}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {user.role === "admin"
+              ? "Here's your billing & dispatch overview"
+              : user.role === "stock"
+                ? "Orders waiting to dispatch and payments to collect"
+                : "Your outlets, orders and today's dispatch queue"}
+          </p>
+        </div>
+
         {user.role === "admin" && (
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} />
@@ -219,13 +253,13 @@ export default function Dashboard() {
           </section>
         )}
 
-        <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <nav className="flex gap-1 overflow-x-auto rounded-full border border-slate-800 bg-slate-900 p-1">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-1 sm:justify-center ${
-                tab === id ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition sm:flex-1 sm:justify-center ${
+                tab === id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -238,7 +272,7 @@ export default function Dashboard() {
 
         {!data ? (
           !error && (
-            <div className="flex items-center justify-center gap-2 py-20 text-slate-500">
+            <div className="flex items-center justify-center gap-2 py-20 text-slate-400">
               <Loader2 className="h-5 w-5 animate-spin" /> Loading…
             </div>
           )
