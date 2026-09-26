@@ -35,6 +35,7 @@ import { clearToken, getToken, setToken } from "./session";
 import { Alert, StatCard } from "./ui";
 import LoginScreen from "./LoginScreen";
 import SaleForm from "./SaleForm";
+import AgentOrderForm from "./AgentOrderForm";
 import OrdersView from "./OrdersView";
 import OutletLedgers from "./OutletLedgers";
 import PaymentsView from "./PaymentsView";
@@ -253,20 +254,40 @@ export default function Dashboard() {
           </section>
         )}
 
-        <nav className="flex gap-1 overflow-x-auto rounded-full border border-slate-800 bg-slate-900 p-1">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition sm:flex-1 sm:justify-center ${
-                tab === id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
+        {user.role === "agent" ? (
+          // Only two things an agent ever needs: big, unmissable, thumb-friendly.
+          <nav className="grid grid-cols-2 gap-3">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`flex h-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-sm font-semibold transition active:scale-[0.98] ${
+                  tab === id
+                    ? "border-blue-500 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                    : "border-slate-800 bg-slate-900 text-slate-400"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <nav className="flex gap-1 overflow-x-auto rounded-full border border-slate-800 bg-slate-900 p-1">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition sm:flex-1 sm:justify-center ${
+                  tab === id ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {error && <Alert kind="error">{error}</Alert>}
 
@@ -278,7 +299,12 @@ export default function Dashboard() {
           )
         ) : (
           <>
-            {tab === "sale" && <SaleForm data={data} user={user} onSaved={refresh} />}
+            {tab === "sale" &&
+              (user.role === "agent" ? (
+                <AgentOrderForm data={data} user={user} onSaved={refresh} />
+              ) : (
+                <SaleForm data={data} user={user} onSaved={refresh} />
+              ))}
             {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
             {tab === "ledgers" && data.reports && (
               <OutletLedgers data={{ reports: data.reports, staff: data.staff, outlets: data.outlets }} onSaved={refresh} />

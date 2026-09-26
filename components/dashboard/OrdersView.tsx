@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Ban, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
@@ -31,6 +31,7 @@ export default function OrdersView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
 
   const orders = useMemo(() => {
@@ -151,7 +152,7 @@ export default function OrdersView({
                 <div className="mt-auto flex flex-wrap gap-2 pt-3">
                   {canDispatch && o.fulfilmentStatus === "PENDING" && (
                     <button
-                      className="btn btn-primary flex-1"
+                      className="btn btn-primary h-11 flex-1 text-sm"
                       disabled={busy}
                       onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${o.id} dispatched — stock deducted`)}
                     >
@@ -160,22 +161,17 @@ export default function OrdersView({
                     </button>
                   )}
                   {canEdit(o) && (
-                    <button className="btn btn-secondary" disabled={busy} onClick={() => setEditing(o)}>
+                    <button className="btn btn-secondary h-11 text-sm" disabled={busy} onClick={() => setEditing(o)}>
                       <Pencil className="h-4 w-4" /> Edit
                     </button>
                   )}
                   {canCancel(o) && (
                     <button
-                      className="btn btn-secondary text-red-400"
+                      className="btn btn-secondary h-11 flex-1 text-sm text-red-400"
                       disabled={busy}
-                      onClick={() => {
-                        const extra = o.fulfilmentStatus === "DISPATCHED" ? " Its stock will be returned." : "";
-                        if (window.confirm(`Cancel order ${o.id}?${extra}`)) {
-                          void run(o.id, () => api.cancelOrder(o.id), `${o.id} cancelled`);
-                        }
-                      }}
+                      onClick={() => setConfirmingCancel(o)}
                     >
-                      <Ban className="h-4 w-4" /> Cancel
+                      <Ban className="h-4 w-4" /> Cancel order
                     </button>
                   )}
                 </div>
@@ -197,6 +193,40 @@ export default function OrdersView({
               await onSaved();
             }}
           />
+        )}
+      </Modal>
+
+      <Modal open={!!confirmingCancel} title="Cancel this order?" onClose={() => setConfirmingCancel(null)}>
+        {confirmingCancel && (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-xl bg-amber-500/15 p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+              <div className="text-sm">
+                <p className="font-semibold">{confirmingCancel.id} — {confirmingCancel.outletName}</p>
+                <p className="mt-1 text-slate-300">
+                  {formatMoney(confirmingCancel.totalAmount)}
+                  {confirmingCancel.fulfilmentStatus === "DISPATCHED" && " · its stock will be returned"}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="btn btn-secondary h-12 text-base" onClick={() => setConfirmingCancel(null)}>
+                Keep order
+              </button>
+              <button
+                className="btn h-12 bg-red-600 text-base text-white hover:bg-red-500"
+                disabled={busyId === confirmingCancel.id}
+                onClick={() => {
+                  const order = confirmingCancel;
+                  setConfirmingCancel(null);
+                  void run(order.id, () => api.cancelOrder(order.id), `${order.id} cancelled`);
+                }}
+              >
+                {busyId === confirmingCancel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                Yes, cancel
+              </button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>
