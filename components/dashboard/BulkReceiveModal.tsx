@@ -166,14 +166,14 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         />
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground">
         Give a <b>productCode</b> that already exists to add <b>quantity</b> to that product (leave name/price blank).
         Leave productCode blank, or use a new one, to create a product — then name and unitPrice are required.
       </p>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-800">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-800/60">
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="min-w-full divide-y divide-border text-sm">
+          <thead className="bg-secondary">
             <tr>
               <th className="th">Code</th>
               <th className="th">Name (new only)</th>
@@ -182,9 +182,9 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
               <th className="th w-8" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800">
+          <tbody className="divide-y divide-border">
             {rows.map((r, i) => (
-              <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-red-500/15" : ""}>
+              <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
                 <td className="p-1">
                   <input className="input py-1" value={r.productCode} onChange={(e) => update(r.key, { productCode: e.target.value })} placeholder="#" />
                 </td>
@@ -200,7 +200,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
                 <td className="p-1">
                   <button
                     type="button"
-                    className="rounded p-1.5 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-30"
                     disabled={rows.length === 1}
                     onClick={() => setRows((prev) => prev.filter((x) => x.key !== r.key))}
                     aria-label="Remove row"
@@ -209,7 +209,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
                   </button>
                 </td>
                 {rowErrors.has(i + 1) && (
-                  <td colSpan={5} className="px-2 pb-1 text-xs text-red-400">{rowErrors.get(i + 1)}</td>
+                  <td colSpan={5} className="px-2 pb-1 text-xs text-danger-foreground">{rowErrors.get(i + 1)}</td>
                 )}
               </tr>
             ))}

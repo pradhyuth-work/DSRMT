@@ -71,11 +71,11 @@ export default function RoutesManager({
       ) : (
         <ul className="space-y-2">
           {routes.map((r) => (
-            <li key={r.id} className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-800/60 p-3">
-              <RouteIcon className="h-4 w-4 shrink-0 text-blue-400" />
+            <li key={r.id} className="flex items-center gap-2 rounded-xl border border-border bg-secondary p-3">
+              <RouteIcon className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{r.name}</p>
-                <p className="text-xs text-slate-500">{r.outletCount} outlet{r.outletCount === 1 ? "" : "s"}</p>
+                <p className="text-xs text-muted-foreground">{r.outletCount} outlet{r.outletCount === 1 ? "" : "s"}</p>
               </div>
               <select
                 className="input w-40 py-1.5 text-sm"
@@ -93,7 +93,7 @@ export default function RoutesManager({
                 ))}
               </select>
               <button
-                className="rounded-lg p-2 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
+                className="rounded-lg p-2 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-30"
                 disabled={r.outletCount > 0 || busyId === r.id}
                 onClick={() => void remove(r)}
                 title={r.outletCount > 0 ? "Move its outlets off this route first" : "Delete route"}
@@ -156,7 +156,7 @@ function AddRouteForm({
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         Add
       </button>
-      {error && <p className="text-sm text-red-400 sm:basis-full">{error}</p>}
+      {error && <p className="text-sm text-danger-foreground sm:basis-full">{error}</p>}
     </form>
   );
 }

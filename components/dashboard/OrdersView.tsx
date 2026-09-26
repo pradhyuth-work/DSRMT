@@ -75,7 +75,7 @@ export default function OrdersView({
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-              filter === f.id ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800/60"
+              filter === f.id ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground hover:bg-secondary"
             }`}
           >
             {f.label} <span className="opacity-70">({counts[f.id]})</span>
@@ -99,7 +99,7 @@ export default function OrdersView({
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold">{o.id}</p>
                     <p className="truncate font-medium">{o.outletName}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
                     </p>
@@ -110,40 +110,40 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                <ul className="my-3 space-y-1 border-y border-slate-800 py-2 text-sm">
+                <ul className="my-3 space-y-1 border-y border-border py-2 text-sm">
                   {o.items.map((i) => (
                     <li key={i.productId} className="flex justify-between gap-2">
                       <span className="min-w-0 truncate">
                         {i.quantity} × {i.productName}
                       </span>
-                      <span className="shrink-0 tabular-nums text-slate-400">{formatMoney(i.subtotal)}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{formatMoney(i.subtotal)}</span>
                     </li>
                   ))}
                 </ul>
 
                 <dl className="grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <dt className="text-slate-400">Total</dt>
+                    <dt className="text-muted-foreground">Total</dt>
                     <dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Paid</dt>
-                    <dd className="tabular-nums text-emerald-400">{formatMoney(o.paidAmount)}</dd>
+                    <dt className="text-muted-foreground">Paid</dt>
+                    <dd className="tabular-nums text-success-foreground">{formatMoney(o.paidAmount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Balance</dt>
-                    <dd className="tabular-nums text-amber-400">{formatMoney(o.balanceDue)}</dd>
+                    <dt className="text-muted-foreground">Balance</dt>
+                    <dd className="tabular-nums text-warning-foreground">{formatMoney(o.balanceDue)}</dd>
                   </div>
                 </dl>
 
                 {o.dispatchedAt && (
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Dispatched {formatDate(o.dispatchedAt)}
                     {o.dispatchedByName && <> by {o.dispatchedByName}</>}
                   </p>
                 )}
                 {o.cancelledAt && (
-                  <p className="mt-2 text-xs text-slate-400">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Cancelled {formatDate(o.cancelledAt)}
                     {o.cancelledByName && <> by {o.cancelledByName}</>}
                   </p>
@@ -167,7 +167,7 @@ export default function OrdersView({
                   )}
                   {canCancel(o) && (
                     <button
-                      className="btn btn-secondary h-11 flex-1 text-sm text-red-400"
+                      className="btn btn-secondary h-11 flex-1 text-sm text-danger-foreground"
                       disabled={busy}
                       onClick={() => setConfirmingCancel(o)}
                     >
@@ -199,11 +199,11 @@ export default function OrdersView({
       <Modal open={!!confirmingCancel} title="Cancel this order?" onClose={() => setConfirmingCancel(null)}>
         {confirmingCancel && (
           <div className="space-y-5">
-            <div className="flex items-start gap-3 rounded-xl bg-amber-500/15 p-4">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+            <div className="flex items-start gap-3 rounded-xl bg-warning p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
               <div className="text-sm">
                 <p className="font-semibold">{confirmingCancel.id} — {confirmingCancel.outletName}</p>
-                <p className="mt-1 text-slate-300">
+                <p className="mt-1 text-foreground">
                   {formatMoney(confirmingCancel.totalAmount)}
                   {confirmingCancel.fulfilmentStatus === "DISPATCHED" && " · its stock will be returned"}
                 </p>
@@ -214,7 +214,7 @@ export default function OrdersView({
                 Keep order
               </button>
               <button
-                className="btn h-12 bg-red-600 text-base text-white hover:bg-red-500"
+                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
                 disabled={busyId === confirmingCancel.id}
                 onClick={() => {
                   const order = confirmingCancel;
@@ -284,13 +284,13 @@ function EditOrderForm({
         </select>
       </div>
 
-      <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800">
+      <ul className="divide-y divide-border rounded-lg border border-border">
         {lines.map((l) => {
           const p = productById.get(l.productId);
           return (
             <li key={l.productId} className="flex items-center gap-2 px-3 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate">{p?.name ?? l.productId}</span>
-              <button type="button" className="rounded p-1 hover:bg-slate-800" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
+              <button type="button" className="rounded p-1 hover:bg-secondary" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
                 <Minus className="h-4 w-4" />
               </button>
               <input
@@ -301,12 +301,12 @@ function EditOrderForm({
                 onChange={(e) => setQty(l.productId, Number.parseInt(e.target.value, 10) || 1)}
                 aria-label={`Quantity of ${p?.name ?? "item"}`}
               />
-              <button type="button" className="rounded p-1 hover:bg-slate-800" onClick={() => setQty(l.productId, l.quantity + 1)} aria-label="Increase">
+              <button type="button" className="rounded p-1 hover:bg-secondary" onClick={() => setQty(l.productId, l.quantity + 1)} aria-label="Increase">
                 <Plus className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                className="rounded p-1 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
+                className="rounded p-1 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-30"
                 disabled={lines.length === 1}
                 onClick={() => setLines((prev) => prev.filter((x) => x.productId !== l.productId))}
                 aria-label="Remove item"
@@ -340,8 +340,8 @@ function EditOrderForm({
         </button>
       </div>
 
-      <div className="flex justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm">
-        <span className="text-slate-400">New total</span>
+      <div className="flex justify-between rounded-lg bg-secondary px-3 py-2 text-sm">
+        <span className="text-muted-foreground">New total</span>
         <span className="font-semibold tabular-nums">{formatMoney(total)}</span>
       </div>
       {tooLow && <Alert kind="warning">The new total is less than the {formatMoney(order.paidAmount)} already paid.</Alert>}

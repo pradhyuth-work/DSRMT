@@ -77,13 +77,13 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
 
       <div className="card overflow-hidden">
         {loading && !payments ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+          <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" /> Loading…
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800">
-              <thead className="bg-slate-800/60">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-secondary">
                 <tr>
                   <th className="th">Date</th>
                   <th className="th">Outlet</th>
@@ -94,16 +94,16 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                   <th className="th text-right">Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {(payments ?? []).map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/60">
-                    <td className="td whitespace-nowrap text-slate-400">{formatDate(p.createdAt)}</td>
+                  <tr key={p.id} className="hover:bg-secondary">
+                    <td className="td whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
                     <td className="td font-medium">{p.outletName}</td>
                     {isAdmin && <td className="td">{p.staffName}</td>}
                     <td className="td">{p.paymentMethod}</td>
                     <td className="td font-mono text-xs">{p.invoiceId ?? "—"}</td>
-                    <td className="td max-w-48 truncate text-slate-400">{p.notes ?? ""}</td>
-                    <td className="td text-right font-semibold tabular-nums text-emerald-400">{formatMoney(p.amount)}</td>
+                    <td className="td max-w-48 truncate text-muted-foreground">{p.notes ?? ""}</td>
+                    <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(p.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -172,7 +172,7 @@ function CollectPaymentFlow({
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-6 text-slate-400">
+        <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading balance…
         </div>
       )}

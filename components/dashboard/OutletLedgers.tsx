@@ -65,7 +65,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
       {/* Always-visible search + filter bar. */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             className="input pl-9"
             placeholder="Search outlets by name or phone…"
@@ -90,8 +90,8 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800">
-            <thead className="bg-slate-800/60">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-secondary">
               <tr>
                 <th className="th w-8" />
                 <th className="th">Outlet</th>
@@ -102,16 +102,16 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                 <th className="th text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-border">
               {filtered.map((l) => {
                 const isOpen = expanded === l.outletId;
                 return (
                   <Fragment key={l.outletId}>
-                    <tr className="hover:bg-slate-800/60">
+                    <tr className="hover:bg-secondary">
                       <td className="td">
                         <button
                           onClick={() => setExpanded(isOpen ? null : l.outletId)}
-                          className="rounded p-1 text-slate-500 hover:bg-slate-700"
+                          className="rounded p-1 text-muted-foreground hover:bg-secondary"
                           aria-label={isOpen ? "Hide ledger" : "Show ledger"}
                         >
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -119,7 +119,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                       </td>
                       <td className="td">
                         <p className="font-medium">{l.outletName}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-muted-foreground">
                           {l.phone} · {l.openInvoices.length} open invoice{l.openInvoices.length === 1 ? "" : "s"}
                         </p>
                       </td>
@@ -138,8 +138,8 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                         </select>
                       </td>
                       <td className="td text-right tabular-nums">{formatMoney(l.totalBilled)}</td>
-                      <td className="td text-right tabular-nums text-emerald-400">{formatMoney(l.totalPaid)}</td>
-                      <td className={`td text-right font-semibold tabular-nums ${l.balance > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                      <td className="td text-right tabular-nums text-success-foreground">{formatMoney(l.totalPaid)}</td>
+                      <td className={`td text-right font-semibold tabular-nums ${l.balance > 0 ? "text-warning-foreground" : "text-muted-foreground"}`}>
                         {formatMoney(l.balance)}
                       </td>
                       <td className="td text-right">
@@ -158,7 +158,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} className="bg-slate-800/60 px-4 py-3">
+                        <td colSpan={7} className="bg-secondary px-4 py-3">
                           <LedgerTable ledger={l} />
                         </td>
                       </tr>
@@ -217,8 +217,8 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
 function LedgerTable({ ledger }: { ledger: OutletLedger }) {
   if (ledger.entries.length === 0) return <EmptyState>No transactions for this outlet yet.</EmptyState>;
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
-      <table className="min-w-full divide-y divide-slate-800 text-sm">
+    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <table className="min-w-full divide-y divide-border text-sm">
         <thead>
           <tr>
             <th className="th">Date</th>
@@ -229,14 +229,14 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
             <th className="th text-right">Running Balance</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800">
+        <tbody className="divide-y divide-border">
           {ledger.entries.map((e, i) => (
             <tr key={`${e.reference}-${e.type}-${i}`}>
-              <td className="td whitespace-nowrap text-slate-400">{formatDate(e.date)}</td>
+              <td className="td whitespace-nowrap text-muted-foreground">{formatDate(e.date)}</td>
               <td className="td font-mono text-xs">{e.reference}</td>
               <td className="td">{e.description}</td>
               <td className="td text-right tabular-nums">{e.debit ? formatMoney(e.debit) : ""}</td>
-              <td className="td text-right tabular-nums text-emerald-400">{e.credit ? formatMoney(e.credit) : ""}</td>
+              <td className="td text-right tabular-nums text-success-foreground">{e.credit ? formatMoney(e.credit) : ""}</td>
               <td className="td text-right font-medium tabular-nums">{formatMoney(e.runningBalance)}</td>
             </tr>
           ))}
@@ -287,7 +287,7 @@ function AddOutletForm({ routes, onDone }: { routes: RouteDTO[]; onDone: (messag
             <option key={r.id} value={r.id}>{routeLabel(r)}</option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-slate-400">Only that route's agent will see this outlet when creating an order.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Only that route's agent will see this outlet when creating an order.</p>
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>

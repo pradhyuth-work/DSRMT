@@ -36,7 +36,7 @@ export function AdjustStockForm({ product, onDone }: { product: ProductDTO; onDo
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted-foreground">
         Current stock: <span className="font-semibold tabular-nums">{current}</span>
       </p>
       <div className="grid grid-cols-2 gap-2">
@@ -61,7 +61,7 @@ export function AdjustStockForm({ product, onDone }: { product: ProductDTO; onDo
           maxLength={200}
         />
       </div>
-      <p className={`text-sm ${after < 0 ? "font-medium text-red-400" : "text-slate-400"}`}>
+      <p className={`text-sm ${after < 0 ? "font-medium text-danger-foreground" : "text-muted-foreground"}`}>
         After adjustment: <span className="font-semibold tabular-nums">{after}</span>
         {after < 0 && " — stock can't go below zero"}
       </p>
@@ -106,7 +106,7 @@ export function EditProductForm({ product, onDone }: { product: ProductDTO; onDo
         <label className="label" htmlFor="ep-price">Unit price (₹)</label>
         <input id="ep-price" type="number" min={0.01} step="0.01" className="input" value={price} onChange={(e) => setPrice(e.target.value)} />
       </div>
-      <p className="text-xs text-slate-400">Price changes apply to new orders only; existing orders keep their prices.</p>
+      <p className="text-xs text-muted-foreground">Price changes apply to new orders only; existing orders keep their prices.</p>
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}

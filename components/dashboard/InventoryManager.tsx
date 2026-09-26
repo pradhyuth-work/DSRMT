@@ -70,8 +70,8 @@ export default function InventoryManager({
 
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800">
-              <thead className="bg-slate-800/60">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-secondary">
                 <tr>
                   <th className="th">#</th>
                   <th className="th">Product</th>
@@ -81,10 +81,10 @@ export default function InventoryManager({
                   {canManage && <th className="th text-right">Manage</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {products.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/60">
-                    <td className="td text-slate-500">#{p.productCode}</td>
+                  <tr key={p.id} className="hover:bg-secondary">
+                    <td className="td text-muted-foreground">#{p.productCode}</td>
                     <td className="td font-medium">{p.name}</td>
                     <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
                     <td className="td text-right">
@@ -132,27 +132,27 @@ export default function InventoryManager({
         </div>
 
         <div className="card">
-          <h2 className="flex items-center gap-2 border-b border-slate-800 px-5 py-3 font-semibold">
-            <History className="h-4 w-4 text-blue-400" /> Stock movements
+          <h2 className="flex items-center gap-2 border-b border-border px-5 py-3 font-semibold">
+            <History className="h-4 w-4 text-primary" /> Stock movements
           </h2>
           {movements.length === 0 ? (
             <EmptyState>No stock movements yet.</EmptyState>
           ) : (
-            <ul className="max-h-96 divide-y divide-slate-800 overflow-y-auto">
+            <ul className="max-h-96 divide-y divide-border overflow-y-auto">
               {movements.map((m) => (
                 <li key={m.id} className="flex items-start justify-between gap-3 px-5 py-2.5 text-sm">
                   <div className="min-w-0">
                     <p className="truncate font-medium">{m.productName}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       {MOVEMENT_LABEL[m.type]}
                       {m.invoiceId && <> · {m.invoiceId}</>}
                       {m.reason && <> · {m.reason}</>}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {formatDate(m.createdAt)} · {m.staffName}
                     </p>
                   </div>
-                  <span className={`shrink-0 font-semibold tabular-nums ${m.change > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  <span className={`shrink-0 font-semibold tabular-nums ${m.change > 0 ? "text-success-foreground" : "text-danger-foreground"}`}>
                     {m.change > 0 ? "+" : ""}
                     {m.change}
                   </span>
@@ -184,7 +184,7 @@ export default function InventoryManager({
 
 function StockBadge({ qty }: { qty: number }) {
   const style =
-    qty === 0 ? "bg-red-500/15 text-red-400" : qty < LOW_STOCK_THRESHOLD ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400";
+    qty === 0 ? "bg-danger text-danger-foreground" : qty < LOW_STOCK_THRESHOLD ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${style}`}>{qty}</span>;
 }
 
@@ -263,7 +263,7 @@ function AddProductForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
   return (
     <form onSubmit={submit} className="card h-fit space-y-4 p-5">
       <h2 className="flex items-center gap-2 font-semibold">
-        <PackagePlus className="h-5 w-5 text-blue-400" /> Add product
+        <PackagePlus className="h-5 w-5 text-primary" /> Add product
       </h2>
       <div>
         <label className="label" htmlFor="p-name">Name</label>
@@ -282,7 +282,7 @@ function AddProductForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
       <div>
         <label className="label" htmlFor="p-code">Product ID</label>
         <input id="p-code" type="number" min={1} step={1} className="input" value={productCode} onChange={(e) => setProductCode(e.target.value)} placeholder="Optional — next free number by default" />
-        <p className="mt-1 text-xs text-slate-400">If this number is already used, that product (and every later one) shifts up by one.</p>
+        <p className="mt-1 text-xs text-muted-foreground">If this number is already used, that product (and every later one) shifts up by one.</p>
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>

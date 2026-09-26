@@ -144,19 +144,19 @@ export default function SaleForm({
           ) : (
             <div>
               <span className="label">Order taken by</span>
-              <p className="rounded-lg bg-slate-800/60 px-3 py-2 text-sm">{user.name}</p>
+              <p className="rounded-lg bg-secondary px-3 py-2 text-sm">{user.name}</p>
             </div>
           )}
         </div>
 
         <div className="card">
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <h2 className="font-semibold">Items</h2>
             <button type="button" className="btn btn-secondary py-1.5" onClick={() => setLines((p) => [...p, newLine()])}>
               <Plus className="h-4 w-4" /> Add item
             </button>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border">
             {computed.map(({ line, product, subtotal, insufficient, remaining }) => (
               <div key={line.key} className="grid grid-cols-12 items-start gap-3 px-5 py-4">
                 <div className="col-span-12 sm:col-span-6">
@@ -175,13 +175,13 @@ export default function SaleForm({
                     ))}
                   </select>
                   {product && insufficient && (
-                    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-red-400">
+                    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-danger-foreground">
                       <AlertTriangle className="h-3.5 w-3.5" />
                       {remaining === null ? "Out of stock" : `Only ${product.stockQty} in stock — short by ${-remaining}`}
                     </p>
                   )}
                   {product && !insufficient && remaining !== null && remaining < LOW_STOCK_THRESHOLD && (
-                    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-amber-400">
+                    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning-foreground">
                       <AlertTriangle className="h-3.5 w-3.5" />
                       Low stock: {remaining} left after this sale
                     </p>
@@ -192,20 +192,20 @@ export default function SaleForm({
                     type="number"
                     min={1}
                     step={1}
-                    className={`input ${insufficient ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                    className={`input ${insufficient ? "border-danger-foreground focus:border-danger-foreground focus:ring-danger-foreground/30" : ""}`}
                     value={line.quantity}
                     onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
                     aria-label="Quantity"
                   />
                 </div>
                 <div className="col-span-6 pt-2 text-right text-sm tabular-nums sm:col-span-3">
-                  <span className="text-slate-500">{product ? `${formatMoney(product.unitPrice)} × ` : ""}</span>
+                  <span className="text-muted-foreground">{product ? `${formatMoney(product.unitPrice)} × ` : ""}</span>
                   <span className="font-semibold">{formatMoney(subtotal)}</span>
                 </div>
                 <div className="col-span-2 flex justify-end sm:col-span-1">
                   <button
                     type="button"
-                    className="rounded-md p-2 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-30"
+                    className="rounded-md p-2 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-30"
                     onClick={() => setLines((p) => p.filter((l) => l.key !== line.key))}
                     disabled={lines.length === 1}
                     aria-label="Remove line"
@@ -224,10 +224,10 @@ export default function SaleForm({
           <h2 className="font-semibold">Bill summary</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-400">Items</dt>
+              <dt className="text-muted-foreground">Items</dt>
               <dd className="tabular-nums">{computed.reduce((s, c) => s + (c.validQty && c.product ? c.qty : 0), 0)} units</dd>
             </div>
-            <div className="flex justify-between border-t border-slate-800 pt-2 text-base font-semibold">
+            <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
               <dt>Total</dt>
               <dd className="tabular-nums">{formatMoney(total)}</dd>
             </div>
@@ -237,7 +237,7 @@ export default function SaleForm({
             <div className="col-span-2">
               <div className="mb-1 flex items-center justify-between">
                 <label className="label mb-0" htmlFor="paid">Paid now</label>
-                <button type="button" className="text-xs font-medium text-blue-400 hover:underline" onClick={() => setPaid(String(total))}>
+                <button type="button" className="text-xs font-medium text-primary hover:underline" onClick={() => setPaid(String(total))}>
                   Pay in full
                 </button>
               </div>
@@ -264,18 +264,18 @@ export default function SaleForm({
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm">
-            <span className="text-slate-400">Balance due</span>
+          <div className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Balance due</span>
             <span className="flex items-center gap-2">
               {total > 0 && !overpaid && <StatusBadge status={statusFor(total, paidNum)} />}
-              <span className={`font-semibold tabular-nums ${balance > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+              <span className={`font-semibold tabular-nums ${balance > 0 ? "text-warning-foreground" : "text-success-foreground"}`}>
                 {formatMoney(Math.max(balance, 0))}
               </span>
             </span>
           </div>
 
           {blockers.length > 0 && total > 0 && (
-            <ul className="space-y-0.5 text-xs text-slate-400">
+            <ul className="space-y-0.5 text-xs text-muted-foreground">
               {blockers.map((b) => <li key={b}>• {b}</li>)}
             </ul>
           )}
