@@ -6,6 +6,7 @@ import type { PaymentMethod, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, formatDate } from "./ui";
+import { Combobox } from "./Combobox";
 
 export interface CollectPaymentTarget {
   outletId: string;
@@ -97,11 +98,12 @@ export function CollectPaymentForm({
         {staffOptions && (
           <div>
             <label className="label" htmlFor="pay-staff">Collected by</label>
-            <select id="pay-staff" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-              {staffOptions.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <Combobox
+              id="pay-staff"
+              value={staffId}
+              onChange={setStaffId}
+              options={staffOptions.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </div>
         )}
         <div>

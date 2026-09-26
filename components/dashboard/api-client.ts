@@ -2,9 +2,10 @@ import type {
   AdjustStockInput,
   ApiError,
   AuthUser,
+  BulkOutletInput,
+  BulkOutletResponse,
   BulkReceiveInput,
   BulkReceiveResponse,
-  CreateOutletInput,
   CreatePaymentInput,
   CreatePaymentResponse,
   CreateProductInput,
@@ -27,6 +28,8 @@ import type {
   RouteDTO,
   CreateRouteInput,
   UpdateRouteInput,
+  SalesReportQuery,
+  SalesReportResponse,
   StaffDTO,
   StockMovementDTO,
   UpdateOrderInput,
@@ -77,7 +80,7 @@ const patch = <T>(url: string, body: unknown) => send<T>("PATCH", url, body);
 const enc = encodeURIComponent;
 
 /** Builds a query string from a plain object, dropping undefined/empty values. */
-function qs(params?: ReportsQuery | PaymentsQuery): string {
+function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery): string {
   if (!params) return "";
   const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
@@ -97,7 +100,7 @@ export const api = {
   stockMovements: () => request<StockMovementDTO[]>("/api/stock-movements"),
 
   outlets: () => request<OutletDTO[]>("/api/outlets"),
-  createOutlet: (input: CreateOutletInput) => post<OutletDTO>("/api/outlets", input),
+  bulkCreateOutlets: (input: BulkOutletInput) => post<BulkOutletResponse>("/api/outlets/bulk-create", input),
   updateOutlet: (id: string, input: UpdateOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}`, input),
   outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
 
@@ -107,6 +110,7 @@ export const api = {
   deleteRoute: (id: string) => request<{ ok: true }>(`/api/routes/${enc(id)}`, { method: "DELETE" }),
 
   reports: (query?: ReportsQuery) => request<ReportsResponse>(`/api/reports${qs(query)}`),
+  salesReport: (query?: SalesReportQuery) => request<SalesReportResponse>(`/api/reports/sales${qs(query)}`),
   payments: (query?: PaymentsQuery) => request<PaymentDTO[]>(`/api/payments${qs(query)}`),
   createPayment: (input: CreatePaymentInput) => post<CreatePaymentResponse>("/api/payments", input),
 

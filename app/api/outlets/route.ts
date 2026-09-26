@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { errorResponse } from "@/lib/api";
 import { ALL_ROLES, authorize } from "@/lib/auth";
-import { createOutletSchema } from "@/lib/validation";
 import { outletSelect, toOutletDTO } from "@/lib/outlets";
 import type { OutletDTO } from "@/lib/types";
 
@@ -29,22 +28,3 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
-  try {
-    await authorize(req, ["admin"]);
-    const input = await parseBody(req, createOutletSchema);
-
-    if (input.routeId) {
-      const route = await prisma.route.findUnique({ where: { id: input.routeId }, select: { id: true } });
-      if (!route) throw new HttpError(400, "Route not found");
-    }
-
-    const outlet = await prisma.outlet.create({
-      data: { name: input.name, phone: input.phone, routeId: input.routeId },
-      select: outletSelect,
-    });
-    return NextResponse.json(toOutletDTO(outlet), { status: 201 });
-  } catch (err) {
-    return errorResponse(err);
-  }
-}

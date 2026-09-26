@@ -77,6 +77,8 @@ model Outlet {
   id        String   @id @default(cuid())
   name      String
   phone     String
+  address   String   @default("")
+  gstNumber String?
   routeId   String?
   createdAt DateTime @default(now())
 

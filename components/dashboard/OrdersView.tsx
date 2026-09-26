@@ -6,6 +6,7 @@ import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, StatusBadge, formatDate } from "./ui";
+import { Combobox } from "./Combobox";
 import type { DashboardData } from "./Dashboard";
 
 type Filter = FulfilmentStatus | "ALL";
@@ -277,11 +278,13 @@ function EditOrderForm({
     <form onSubmit={submit} className="space-y-4">
       <div>
         <label className="label" htmlFor="edit-outlet">Outlet</label>
-        <select id="edit-outlet" className="input" value={outletId} onChange={(e) => setOutletId(e.target.value)}>
-          {data.outlets.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
+        <Combobox
+          id="edit-outlet"
+          value={outletId}
+          onChange={setOutletId}
+          ariaLabel="Outlet"
+          options={data.outlets.map((o) => ({ value: o.id, label: o.name }))}
+        />
       </div>
 
       <ul className="divide-y divide-border rounded-lg border border-border">
@@ -319,14 +322,16 @@ function EditOrderForm({
       </ul>
 
       <div className="flex gap-2">
-        <select className="input" value={addProductId} onChange={(e) => setAddProductId(e.target.value)} aria-label="Add product">
-          <option value="">Add a product…</option>
-          {data.products
+        <Combobox
+          className="flex-1"
+          value={addProductId}
+          onChange={setAddProductId}
+          placeholder="Add a product…"
+          ariaLabel="Add product"
+          options={data.products
             .filter((p) => !lines.some((l) => l.productId === p.id))
-            .map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-        </select>
+            .map((p) => ({ value: p.id, label: p.name }))}
+        />
         <button
           type="button"
           className="btn btn-secondary"

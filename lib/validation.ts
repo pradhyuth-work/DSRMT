@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type {
   AdjustStockInput,
+  BulkOutletInput,
   BulkReceiveInput,
-  CreateOutletInput,
   CreatePaymentInput,
   CreateProductInput,
   CreateRouteInput,
@@ -33,6 +33,20 @@ const username = z
 const password = z.string().min(8, "Password must be at least 8 characters").max(128);
 const personName = z.string().trim().min(1, "Name is required").max(80);
 const phone = z.string().trim().max(20);
+const address = z.string().trim().max(240);
+// GSTIN is 15 alphanumeric characters; not validating the internal structure (state code,
+// PAN, checksum, …) since real-world entries vary — just enough to catch obvious typos.
+// An empty string means "no GST on file" and is treated the same as omitting it.
+const gstNumber = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[0-9A-Z]{15}$/, "GST number must be 15 characters")
+    .nullable()
+    .optional(),
+);
 const productCode = z.coerce.number().int().positive();
 const dateStr = z.string().trim().min(1).pipe(z.coerce.date());
 
@@ -132,23 +146,35 @@ export const resetPasswordSchema = z.object({ password }) satisfies z.ZodType<
   unknown
 >;
 
-export const createOutletSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(120),
-  phone: phone.default(""),
-  routeId: id.nullable(),
-}) satisfies z.ZodType<CreateOutletInput, z.ZodTypeDef, unknown>;
-
 export const updateOutletSchema = z
   .object({
     name: z.string().trim().min(1, "Name is required").max(120).optional(),
     phone: phone.optional(),
+    address: address.optional(),
+    gstNumber,
     routeId: id.nullable().optional(),
   })
-  .refine((v) => v.name !== undefined || v.phone !== undefined || v.routeId !== undefined, "Nothing to update") satisfies z.ZodType<
-  UpdateOutletInput,
-  z.ZodTypeDef,
-  unknown
->;
+  .refine(
+    (v) => v.name !== undefined || v.phone !== undefined || v.address !== undefined || v.gstNumber !== undefined || v.routeId !== undefined,
+    "Nothing to update",
+  ) satisfies z.ZodType<UpdateOutletInput, z.ZodTypeDef, unknown>;
+
+const bulkOutletRowSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  phone: z.string().trim().max(20).optional(),
+  address: z.string().trim().max(240).optional(),
+  gstNumber: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .optional()
+    .refine((v) => !v || /^[0-9A-Z]{15}$/.test(v), "GST number must be 15 characters"),
+  routeName: z.string().trim().max(120).optional(),
+});
+
+export const bulkOutletSchema = z.object({
+  rows: z.array(bulkOutletRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
+}) satisfies z.ZodType<BulkOutletInput, z.ZodTypeDef, unknown>;
 
 export const createRouteSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -177,4 +203,10 @@ export const paymentsQuerySchema = z.object({
 export const reportsQuerySchema = z.object({
   from: dateStr.optional(),
   to: dateStr.optional(),
+});
+
+export const salesReportQuerySchema = z.object({
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+  outletId: id.optional(),
 });

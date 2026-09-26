@@ -5,6 +5,7 @@ import { Loader2, Plus, Route as RouteIcon, Trash2 } from "lucide-react";
 import type { RouteDTO, StaffDTO } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert, EmptyState } from "./ui";
+import { Combobox } from "./Combobox";
 
 /**
  * Route CRUD: create, (re)assign the one field agent tied to it, and delete (only once
@@ -77,21 +78,23 @@ export default function RoutesManager({
                 <p className="truncate text-sm font-medium">{r.name}</p>
                 <p className="text-xs text-muted-foreground">{r.outletCount} outlet{r.outletCount === 1 ? "" : "s"}</p>
               </div>
-              <select
-                className="input w-40 py-1.5 text-sm"
+              <Combobox
+                className="w-40"
                 value={r.agentId ?? ""}
                 disabled={busyId === r.id}
-                onChange={(e) => void reassign(r, e.target.value)}
-                aria-label={`Agent for ${r.name}`}
-              >
-                <option value="">— Unassigned —</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id} disabled={takenAgentIds.has(a.id) && a.id !== r.agentId}>
-                    {a.name}
-                    {takenAgentIds.has(a.id) && a.id !== r.agentId ? " (on another route)" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => void reassign(r, v)}
+                ariaLabel={`Agent for ${r.name}`}
+                placeholder="— Unassigned —"
+                options={[
+                  { value: "", label: "— Unassigned —" },
+                  ...agents.map((a) => ({
+                    value: a.id,
+                    label: a.name,
+                    disabled: takenAgentIds.has(a.id) && a.id !== r.agentId,
+                    description: takenAgentIds.has(a.id) && a.id !== r.agentId ? "On another route" : undefined,
+                  })),
+                ]}
+              />
               <button
                 className="rounded-lg p-2 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-30"
                 disabled={r.outletCount > 0 || busyId === r.id}
@@ -143,15 +146,22 @@ function AddRouteForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
       <input className="input flex-1" placeholder="New route name" value={name} onChange={(e) => setName(e.target.value)} />
-      <select className="input sm:w-44" value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="Agent for new route">
-        <option value="">— Unassigned —</option>
-        {agents.map((a) => (
-          <option key={a.id} value={a.id} disabled={takenAgentIds.has(a.id)}>
-            {a.name}
-            {takenAgentIds.has(a.id) ? " (on another route)" : ""}
-          </option>
-        ))}
-      </select>
+      <Combobox
+        className="sm:w-44"
+        value={agentId}
+        onChange={setAgentId}
+        ariaLabel="Agent for new route"
+        placeholder="— Unassigned —"
+        options={[
+          { value: "", label: "— Unassigned —" },
+          ...agents.map((a) => ({
+            value: a.id,
+            label: a.name,
+            disabled: takenAgentIds.has(a.id),
+            description: takenAgentIds.has(a.id) ? "On another route" : undefined,
+          })),
+        ]}
+      />
       <button type="submit" className="btn btn-primary sm:w-auto" disabled={!name.trim() || busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         Add

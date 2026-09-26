@@ -22,7 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const outlet = await prisma.outlet.update({
       where: { id },
-      data: { name: input.name, phone: input.phone, routeId: input.routeId },
+      data: { name: input.name, phone: input.phone, address: input.address, gstNumber: input.gstNumber, routeId: input.routeId },
       select: outletSelect,
     });
     return NextResponse.json(toOutletDTO(outlet));

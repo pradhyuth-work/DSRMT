@@ -8,6 +8,7 @@ import { api } from "./api-client";
 import { Alert, EmptyState, Modal, StatCard, formatDate } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { CollectPaymentForm, type CollectPaymentTarget } from "./payment-form";
+import { Combobox } from "./Combobox";
 
 /**
  * The payments ledger. Admin sees every collection, filterable by outlet, collector and
@@ -50,19 +51,23 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <select className="input w-auto" value={outletId} onChange={(e) => setOutletId(e.target.value)} aria-label="Filter by outlet">
-            <option value="">All outlets</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
+          <Combobox
+            className="w-44"
+            value={outletId}
+            onChange={setOutletId}
+            ariaLabel="Filter by outlet"
+            placeholder="All outlets"
+            options={[{ value: "", label: "All outlets" }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
+          />
           {isAdmin && (
-            <select className="input w-auto" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Filter by who collected it">
-              <option value="">Collected by anyone</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <Combobox
+              className="w-44"
+              value={staffId}
+              onChange={setStaffId}
+              ariaLabel="Filter by who collected it"
+              placeholder="Collected by anyone"
+              options={[{ value: "", label: "Collected by anyone" }, ...staff.map((s) => ({ value: s.id, label: s.name }))]}
+            />
           )}
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
@@ -163,12 +168,13 @@ function CollectPaymentFlow({
     <div className="space-y-4">
       <div>
         <label className="label" htmlFor="cp-outlet">Outlet</label>
-        <select id="cp-outlet" className="input" value={outletId} onChange={(e) => void pick(e.target.value)} autoFocus>
-          <option value="">Select outlet…</option>
-          {outlets.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
+        <Combobox
+          id="cp-outlet"
+          value={outletId}
+          onChange={(v) => void pick(v)}
+          placeholder="Select outlet…"
+          options={outlets.map((o) => ({ value: o.id, label: o.name }))}
+        />
       </div>
 
       {loading && (

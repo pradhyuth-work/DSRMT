@@ -11,6 +11,7 @@ import {
   Package,
   ReceiptText,
   RefreshCw,
+  BarChart3,
   ShoppingCart,
   Store,
   UserCog,
@@ -43,8 +44,9 @@ import PaymentsView from "./PaymentsView";
 import StaffPerformanceView from "./StaffPerformance";
 import InventoryManager from "./InventoryManager";
 import UsersManager from "./UsersManager";
+import SalesReports from "./SalesReports";
 
-type TabId = "sale" | "orders" | "ledgers" | "payments" | "staff" | "inventory" | "users";
+type TabId = "sale" | "orders" | "ledgers" | "payments" | "staff" | "inventory" | "users" | "reports";
 
 interface TabDef {
   id: TabId;
@@ -61,6 +63,7 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "ledgers", label: "Outlet Ledgers", helper: "Collect dues", icon: Store },
     { id: "payments", label: "Payments", helper: "Collections", icon: Wallet2 },
     { id: "staff", label: "Staff Performance", helper: "Track the crew", icon: Users },
+    { id: "reports", label: "Reports", helper: "Sales breakdowns", icon: BarChart3 },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
     { id: "users", label: "Users", helper: "Accounts & roles", icon: UserCog },
   ],
@@ -418,6 +421,7 @@ export default function Dashboard() {
                 )}
                 {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
                 {tab === "staff" && <StaffPerformanceView />}
+                {tab === "reports" && <SalesReports outlets={data.outlets} />}
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}

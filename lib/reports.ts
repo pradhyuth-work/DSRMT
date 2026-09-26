@@ -1,6 +1,15 @@
 import { prisma } from "./prisma";
 import { round2 } from "./money";
-import type { LedgerEntry, OutletLedger, ReportsResponse, StaffPerformance } from "./types";
+import type {
+  LedgerEntry,
+  OutletLedger,
+  OutletSalesRow,
+  ProductSalesRow,
+  ReportsResponse,
+  SalesReportResponse,
+  SkuMatrixResponse,
+  StaffPerformance,
+} from "./types";
 
 // Cancelled orders never have payments (cancelling is refused once money is collected),
 // so excluding them from billing keeps every total consistent.
@@ -126,4 +135,122 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
     outletLedgers,
     staffPerformance,
   };
+}
+
+export interface SalesReportFilters {
+  from?: Date;
+  to?: Date;
+  outletId?: string;
+}
+
+/**
+ * The admin "Sales reports" view: orders and payments dated within `filters.from`/`to`
+ * (same accrual-vs-cash split as staffPerformance), optionally narrowed to one outlet.
+ * By-product and SKU-matrix quantities come from invoice line items, not payments.
+ */
+export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReportResponse> {
+  const dateFilter = filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined;
+  const invoiceWhere = { ...notCancelled, createdAt: dateFilter, outletId: filters.outletId };
+  const paymentWhere = { createdAt: dateFilter, outletId: filters.outletId };
+
+  const [invoices, payments] = await Promise.all([
+    prisma.invoice.findMany({
+      where: invoiceWhere,
+      select: {
+        id: true,
+        totalAmount: true,
+        outletId: true,
+        outlet: { select: { name: true } },
+        items: {
+          select: {
+            productId: true,
+            quantity: true,
+            subtotal: true,
+            product: { select: { name: true, unitPrice: true } },
+          },
+        },
+      },
+    }),
+    prisma.paymentCollection.groupBy({ by: ["outletId"], where: paymentWhere, _sum: { amount: true } }),
+  ]);
+
+  const totalSales = round2(invoices.reduce((s, inv) => s + inv.totalAmount, 0));
+  const totalPayments = round2(payments.reduce((s, p) => s + (p._sum.amount ?? 0), 0));
+  const paymentsByOutlet = new Map(payments.map((p) => [p.outletId, round2(p._sum.amount ?? 0)]));
+
+  const productAgg = new Map<string, { productName: string; unitPrice: number; orders: Set<string>; qtySold: number; revenue: number }>();
+  const outletAgg = new Map<string, { outletName: string; orders: number; grossSales: number }>();
+
+  for (const inv of invoices) {
+    const outlet = outletAgg.get(inv.outletId) ?? { outletName: inv.outlet.name, orders: 0, grossSales: 0 };
+    outlet.orders += 1;
+    outlet.grossSales = round2(outlet.grossSales + inv.totalAmount);
+    outletAgg.set(inv.outletId, outlet);
+
+    for (const item of inv.items) {
+      const p = productAgg.get(item.productId) ?? {
+        productName: item.product.name,
+        unitPrice: item.product.unitPrice,
+        orders: new Set<string>(),
+        qtySold: 0,
+        revenue: 0,
+      };
+      p.orders.add(inv.id);
+      p.qtySold += item.quantity;
+      p.revenue = round2(p.revenue + item.subtotal);
+      productAgg.set(item.productId, p);
+    }
+  }
+
+  const byProduct: ProductSalesRow[] = [...productAgg.entries()]
+    .map(([productId, p]) => ({
+      productId,
+      productName: p.productName,
+      unitPrice: p.unitPrice,
+      orders: p.orders.size,
+      qtySold: p.qtySold,
+      revenue: p.revenue,
+      pctOfTotal: totalSales > 0 ? round2((p.revenue / totalSales) * 100) : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  const byOutlet: OutletSalesRow[] = [...outletAgg.entries()]
+    .map(([outletId, o]) => {
+      const paymentsReceived = paymentsByOutlet.get(outletId) ?? 0;
+      return {
+        outletId,
+        outletName: o.outletName,
+        orders: o.orders,
+        grossSales: o.grossSales,
+        paymentsReceived,
+        balance: round2(o.grossSales - paymentsReceived),
+      };
+    })
+    .sort((a, b) => b.grossSales - a.grossSales);
+
+  const skuOutlets = [...outletAgg.entries()]
+    .map(([id, o]) => ({ id, name: o.outletName, total: 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const skuProducts = byProduct
+    .map((p) => ({ id: p.productId, name: p.productName, total: 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const outletIndex = new Map(skuOutlets.map((o, i) => [o.id, i]));
+  const productIndex = new Map(skuProducts.map((p, i) => [p.id, i]));
+  const cells: number[][] = skuOutlets.map(() => skuProducts.map(() => 0));
+
+  for (const inv of invoices) {
+    const oi = outletIndex.get(inv.outletId);
+    if (oi === undefined) continue;
+    for (const item of inv.items) {
+      const pi = productIndex.get(item.productId);
+      if (pi === undefined) continue;
+      cells[oi][pi] += item.quantity;
+      skuOutlets[oi].total += item.quantity;
+      skuProducts[pi].total += item.quantity;
+    }
+  }
+
+  const skuMatrix: SkuMatrixResponse = { outlets: skuOutlets, products: skuProducts, cells };
+
+  return { ordersCount: invoices.length, totalSales, totalPayments, byProduct, byOutlet, skuMatrix };
 }

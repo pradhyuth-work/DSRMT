@@ -6,6 +6,7 @@ import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2, statusFor } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, StatusBadge } from "./ui";
+import { Combobox } from "./Combobox";
 import type { DashboardData } from "./Dashboard";
 
 const LOW_STOCK_THRESHOLD = 10;
@@ -124,22 +125,27 @@ export default function SaleForm({
         <div className="card grid gap-4 p-5 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="outlet">Outlet</label>
-            <select id="outlet" className="input" value={outletId} onChange={(e) => setOutletId(e.target.value)} disabled={outlets.length === 0}>
-              <option value="">Select outlet…</option>
-              {outlets.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
+            <Combobox
+              id="outlet"
+              value={outletId}
+              onChange={setOutletId}
+              disabled={outlets.length === 0}
+              placeholder="Select outlet…"
+              ariaLabel="Outlet"
+              options={outlets.map((o) => ({ value: o.id, label: o.name }))}
+            />
           </div>
           {choosesStaff ? (
             <div>
               <label className="label" htmlFor="staff">Sales Staff</label>
-              <select id="staff" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-                <option value="">Select staff…</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              <Combobox
+                id="staff"
+                value={staffId}
+                onChange={setStaffId}
+                placeholder="Select staff…"
+                ariaLabel="Sales Staff"
+                options={staff.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
           ) : (
             <div>
@@ -160,20 +166,18 @@ export default function SaleForm({
             {computed.map(({ line, product, subtotal, insufficient, remaining }) => (
               <div key={line.key} className="grid grid-cols-12 items-start gap-3 px-5 py-4">
                 <div className="col-span-12 sm:col-span-6">
-                  <select
-                    className="input"
+                  <Combobox
                     value={line.productId}
-                    onChange={(e) => updateLine(line.key, { productId: e.target.value })}
-                    aria-label="Product"
-                  >
-                    <option value="">Select product…</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id} disabled={!p.inStock}>
-                        {p.name} — {formatMoney(p.unitPrice)} (
-                        {p.stockQty === undefined ? (p.inStock ? "in stock" : "out of stock") : `${p.stockQty} in stock`})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => updateLine(line.key, { productId: v })}
+                    placeholder="Select product…"
+                    ariaLabel="Product"
+                    options={products.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      disabled: !p.inStock,
+                      description: `${formatMoney(p.unitPrice)} · ${p.stockQty === undefined ? (p.inStock ? "in stock" : "out of stock") : `${p.stockQty} in stock`}`,
+                    }))}
+                  />
                   {product && insufficient && (
                     <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-danger-foreground">
                       <AlertTriangle className="h-3.5 w-3.5" />

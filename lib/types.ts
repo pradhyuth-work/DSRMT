@@ -39,6 +39,8 @@ export interface OutletDTO {
   id: string;
   name: string;
   phone: string;
+  address: string;
+  gstNumber: string | null;
   routeId: string | null;
   routeName: string | null;
   /** Derived from the outlet's route, if any. */
@@ -46,16 +48,36 @@ export interface OutletDTO {
   agentName: string | null;
 }
 
-export interface CreateOutletInput {
-  name: string;
-  phone: string;
-  routeId: string | null;
-}
-
 export interface UpdateOutletInput {
   name?: string;
   phone?: string;
+  address?: string;
+  gstNumber?: string | null;
   routeId?: string | null;
+}
+
+export interface BulkOutletRow {
+  name: string;
+  phone?: string;
+  address?: string;
+  gstNumber?: string;
+  /** Matched by exact (case-insensitive) name against an existing route. Blank = no route. */
+  routeName?: string;
+}
+
+export interface BulkOutletInput {
+  rows: BulkOutletRow[];
+}
+
+export interface BulkOutletResultRow {
+  row: number;
+  outletId: string;
+  outletName: string;
+  routeName: string | null;
+}
+
+export interface BulkOutletResponse {
+  results: BulkOutletResultRow[];
 }
 
 export interface RouteDTO {
@@ -339,6 +361,47 @@ export interface ReportsResponse {
   dashboard: DashboardMetrics;
   outletLedgers: OutletLedger[];
   staffPerformance: StaffPerformance[];
+}
+
+export interface SalesReportQuery {
+  from?: string;
+  to?: string;
+  outletId?: string;
+}
+
+export interface ProductSalesRow {
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  orders: number;
+  qtySold: number;
+  revenue: number;
+  pctOfTotal: number;
+}
+
+export interface OutletSalesRow {
+  outletId: string;
+  outletName: string;
+  orders: number;
+  grossSales: number;
+  paymentsReceived: number;
+  balance: number;
+}
+
+export interface SkuMatrixResponse {
+  outlets: { id: string; name: string; total: number }[];
+  products: { id: string; name: string; total: number }[];
+  /** cells[outletIndex][productIndex] = quantity sold, aligned to the outlets/products arrays above. */
+  cells: number[][];
+}
+
+export interface SalesReportResponse {
+  ordersCount: number;
+  totalSales: number;
+  totalPayments: number;
+  byProduct: ProductSalesRow[];
+  byOutlet: OutletSalesRow[];
+  skuMatrix: SkuMatrixResponse;
 }
 
 export interface ApiError {

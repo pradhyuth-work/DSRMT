@@ -1,13 +1,15 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, HandCoins, Loader2, Plus, Route as RouteIcon, Search, Store } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, HandCoins, Plus, Route as RouteIcon, Search } from "lucide-react";
 import type { OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
 import { CollectPaymentForm } from "./payment-form";
 import RoutesManager from "./RoutesManager";
+import BulkOutletModal from "./BulkOutletModal";
+import { Combobox } from "./Combobox";
 
 interface LedgerData {
   reports: ReportsResponse;
@@ -17,11 +19,6 @@ interface LedgerData {
 }
 
 const UNASSIGNED = "__unassigned__";
-
-/** A route's label in a picker: its name plus who's currently on it, so picking one is informed. */
-function routeLabel(r: RouteDTO): string {
-  return `${r.name}${r.agentName ? ` — ${r.agentName}` : " — Unassigned"}`;
-}
 
 export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onSaved: () => Promise<void> }) {
   const ledgers = data.reports.outletLedgers;
@@ -73,13 +70,18 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input sm:w-56" value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} aria-label="Filter by field agent">
-          <option value="">All field agents</option>
-          <option value={UNASSIGNED}>Unassigned</option>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
-          ))}
-        </select>
+        <Combobox
+          className="sm:w-56"
+          value={agentFilter}
+          onChange={setAgentFilter}
+          ariaLabel="Filter by field agent"
+          placeholder="All field agents"
+          options={[
+            { value: "", label: "All field agents" },
+            { value: UNASSIGNED, label: "Unassigned" },
+            ...agents.map((a) => ({ value: a.id, label: a.name })),
+          ]}
+        />
         <button className="btn btn-secondary sm:w-auto" onClick={() => setManagingRoutes(true)}>
           <RouteIcon className="h-4 w-4" /> Manage routes
         </button>
@@ -123,19 +125,18 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                           {l.phone} · {l.openInvoices.length} open invoice{l.openInvoices.length === 1 ? "" : "s"}
                         </p>
                       </td>
-                      <td className="td">
-                        <select
-                          className="input py-1.5 text-sm"
+                      <td className="td min-w-40">
+                        <Combobox
                           value={l.routeId ?? ""}
+                          onChange={(v) => void reassignRoute(l.outletId, v)}
                           disabled={reassigning === l.outletId}
-                          onChange={(e) => void reassignRoute(l.outletId, e.target.value)}
-                          aria-label={`Route for ${l.outletName}`}
-                        >
-                          <option value="">— No route —</option>
-                          {data.routes.map((r) => (
-                            <option key={r.id} value={r.id}>{routeLabel(r)}</option>
-                          ))}
-                        </select>
+                          ariaLabel={`Route for ${l.outletName}`}
+                          placeholder="— No route —"
+                          options={[
+                            { value: "", label: "— No route —" },
+                            ...data.routes.map((r) => ({ value: r.id, label: r.name, description: r.agentName ?? "Unassigned" })),
+                          ]}
+                        />
                       </td>
                       <td className="td text-right tabular-nums">{formatMoney(l.totalBilled)}</td>
                       <td className="td text-right tabular-nums text-success-foreground">{formatMoney(l.totalPaid)}</td>
@@ -189,8 +190,8 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
         )}
       </Modal>
 
-      <Modal open={addingOutlet} title="Add outlet" onClose={() => setAddingOutlet(false)}>
-        <AddOutletForm
+      <Modal open={addingOutlet} title="Add outlets" onClose={() => setAddingOutlet(false)}>
+        <BulkOutletModal
           routes={data.routes}
           onDone={async (message) => {
             setAddingOutlet(false);
@@ -246,54 +247,3 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
   );
 }
 
-function AddOutletForm({ routes, onDone }: { routes: RouteDTO[]; onDone: (message: string) => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [routeId, setRouteId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const valid = name.trim().length > 0;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const created = await api.createOutlet({ name: name.trim(), phone: phone.trim(), routeId: routeId || null });
-      await onDone(`Added ${created.name}${created.agentName ? ` (on ${created.routeName}, ${created.agentName}'s route)` : ""}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add outlet");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-4">
-      <div>
-        <label className="label" htmlFor="o-name">Name</label>
-        <input id="o-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-      </div>
-      <div>
-        <label className="label" htmlFor="o-phone">Phone</label>
-        <input id="o-phone" type="tel" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
-      </div>
-      <div>
-        <label className="label" htmlFor="o-route">Route</label>
-        <select id="o-route" className="input" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
-          <option value="">— No route —</option>
-          {routes.map((r) => (
-            <option key={r.id} value={r.id}>{routeLabel(r)}</option>
-          ))}
-        </select>
-        <p className="mt-1 text-xs text-muted-foreground">Only that route's agent will see this outlet when creating an order.</p>
-      </div>
-      {error && <Alert kind="error">{error}</Alert>}
-      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
-        Add outlet
-      </button>
-    </form>
-  );
-}
