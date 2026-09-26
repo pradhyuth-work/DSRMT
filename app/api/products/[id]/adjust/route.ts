@@ -8,7 +8,7 @@ import { toProductDTO } from "@/lib/products";
 /** Manual stock correction (up or down) with a required reason. Never allows negative stock. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authorize(req, ["admin", "stock"]);
+    const user = await authorize(req, ["admin"]);
     const { id } = await params;
     const { change, reason } = await parseBody(req, adjustStockSchema);
 

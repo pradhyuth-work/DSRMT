@@ -9,7 +9,7 @@ import { toProductDTO } from "@/lib/products";
 /** Edit a product's name or price. Stock changes go through /restock or /adjust. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authorize(req, ["admin", "stock"]);
+    const user = await authorize(req, ["admin"]);
     const { id } = await params;
     const input = await parseBody(req, updateProductSchema);
 

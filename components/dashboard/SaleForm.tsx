@@ -118,10 +118,13 @@ export default function SaleForm({
   return (
     <form onSubmit={submit} className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
+        {!choosesStaff && outlets.length === 0 && (
+          <Alert kind="warning">You don&apos;t have any outlets assigned yet. Ask an admin to assign one to you.</Alert>
+        )}
         <div className="card grid gap-4 p-5 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="outlet">Outlet</label>
-            <select id="outlet" className="input" value={outletId} onChange={(e) => setOutletId(e.target.value)}>
+            <select id="outlet" className="input" value={outletId} onChange={(e) => setOutletId(e.target.value)} disabled={outlets.length === 0}>
               <option value="">Select outlet…</option>
               {outlets.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>

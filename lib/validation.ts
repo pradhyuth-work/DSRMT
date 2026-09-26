@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type {
   AdjustStockInput,
+  BulkReceiveInput,
+  CreateOutletInput,
   CreatePaymentInput,
   CreateProductInput,
   CreateSaleInput,
@@ -9,6 +11,7 @@ import type {
   ResetPasswordInput,
   RestockInput,
   UpdateOrderInput,
+  UpdateOutletInput,
   UpdateProductInput,
   UpdateStaffInput,
 } from "./types";
@@ -28,6 +31,8 @@ const username = z
 const password = z.string().min(8, "Password must be at least 8 characters").max(128);
 const personName = z.string().trim().min(1, "Name is required").max(80);
 const phone = z.string().trim().max(20);
+const productCode = z.coerce.number().int().positive();
+const dateStr = z.string().trim().min(1).pipe(z.coerce.date());
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
@@ -53,7 +58,9 @@ export const updateOrderSchema = z
 
 export const createPaymentSchema = z.object({
   outletId: id,
-  staffId: id,
+  // Required for admins (who choose which staff member collected it); ignored for the
+  // stock role, which can only ever attribute a payment to itself.
+  staffId: id.optional(),
   amount: money.positive("Amount must be greater than zero"),
   paymentMethod,
   notes: z.string().trim().max(500).optional(),
@@ -63,7 +70,19 @@ export const createProductSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   unitPrice: money.positive("Price must be greater than zero"),
   stockQty: z.coerce.number().int().nonnegative().default(0),
+  productCode: productCode.optional(),
 }) satisfies z.ZodType<CreateProductInput, z.ZodTypeDef, unknown>;
+
+const bulkReceiveRowSchema = z.object({
+  productCode: productCode.optional(),
+  name: z.string().trim().max(120).optional(),
+  unitPrice: money.positive("Price must be greater than zero").optional(),
+  quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
+});
+
+export const bulkReceiveSchema = z.object({
+  rows: z.array(bulkReceiveRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
+}) satisfies z.ZodType<BulkReceiveInput, z.ZodTypeDef, unknown>;
 
 export const updateProductSchema = z
   .object({
@@ -110,3 +129,34 @@ export const resetPasswordSchema = z.object({ password }) satisfies z.ZodType<
   z.ZodTypeDef,
   unknown
 >;
+
+export const createOutletSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  phone: phone.default(""),
+  agentId: id.nullable(),
+}) satisfies z.ZodType<CreateOutletInput, z.ZodTypeDef, unknown>;
+
+export const updateOutletSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120).optional(),
+    phone: phone.optional(),
+    agentId: id.nullable().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.phone !== undefined || v.agentId !== undefined, "Nothing to update") satisfies z.ZodType<
+  UpdateOutletInput,
+  z.ZodTypeDef,
+  unknown
+>;
+
+// Query-string schemas: every value arrives as a string (or is absent).
+export const paymentsQuerySchema = z.object({
+  outletId: id.optional(),
+  staffId: id.optional(),
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+});
+
+export const reportsQuerySchema = z.object({
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+});

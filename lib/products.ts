@@ -5,6 +5,7 @@ import type { ProductDTO, Role } from "./types";
 export function toProductDTO(p: Product, role: Role): ProductDTO {
   const dto: ProductDTO = {
     id: p.id,
+    productCode: p.productCode,
     name: p.name,
     unitPrice: p.unitPrice,
     inStock: p.stockQty > 0,

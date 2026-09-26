@@ -41,25 +41,36 @@ enum StockMovementType {
 }
 
 model Product {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  unitPrice Float
+  id          String   @id @default(cuid())
+  /// Human-facing sequential number (#1, #2, ...), shown and sorted on in the UI and used
+  /// to match rows in bulk stock uploads. Distinct from the internal id. Inserting at an
+  /// already-used code shifts that code and everything after it up by one (see lib/product-codes.ts).
+  productCode Int      @unique
+  name        String   @unique
+  unitPrice   Float
   /// Never negative: enforced by a CHECK constraint in the migration.
-  stockQty  Int      @default(0)
-  createdAt DateTime @default(now())
+  stockQty    Int      @default(0)
+  createdAt   DateTime @default(now())
 
   invoiceItems   InvoiceItem[]
   stockMovements StockMovement[]
 }
 
+/// Each outlet is assigned to exactly one field agent (nullable only for outlets created
+/// before this existed, or deliberately left unassigned). An agent only ever sees and
+/// orders for outlets assigned to them; admins are not restricted.
 model Outlet {
   id        String   @id @default(cuid())
   name      String
   phone     String
+  agentId   String?
   createdAt DateTime @default(now())
 
+  agent    Staff?              @relation("OutletAgent", fields: [agentId], references: [id])
   invoices Invoice[]
   payments PaymentCollection[]
+
+  @@index([agentId])
 }
 
 /// Sales staff and login users. Rows without a username cannot log in.
@@ -80,6 +91,7 @@ model Staff {
   cancelledInvoices  Invoice[]           @relation("InvoiceCancelledBy")
   payments           PaymentCollection[]
   stockMovements     StockMovement[]
+  outlets            Outlet[]            @relation("OutletAgent")
 }
 
 /// Invoice ids are human-readable, e.g. INV-1001. staffId is the order owner.

@@ -6,7 +6,20 @@ import type { LedgerEntry, OutletLedger, ReportsResponse, StaffPerformance } fro
 // so excluding them from billing keeps every total consistent.
 const notCancelled = { fulfilmentStatus: { not: "CANCELLED" } } as const;
 
-export async function buildReports(): Promise<ReportsResponse> {
+export interface ReportsRange {
+  from?: Date;
+  to?: Date;
+}
+
+/**
+ * Dashboard totals and outlet ledgers are always all-time. Only staffPerformance is
+ * date-filtered (by `range`, when given): sales figures by the order's date, collection
+ * figures by the payment's date — that's the accrual-vs-cash distinction the two numbers
+ * actually represent, so a payment collected today against an old order still counts today.
+ */
+export async function buildReports(range: ReportsRange = {}): Promise<ReportsResponse> {
+  const dateFilter = range.from || range.to ? { gte: range.from, lte: range.to } : undefined;
+
   const [invoiceTotals, paymentTotals, stockTotals, outlets, staff, staffInvoices, staffPayments] =
     await Promise.all([
       prisma.invoice.aggregate({ where: notCancelled, _sum: { totalAmount: true, balanceDue: true }, _count: true }),
@@ -15,6 +28,7 @@ export async function buildReports(): Promise<ReportsResponse> {
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
         include: {
+          agent: { select: { name: true } },
           invoices: { where: notCancelled, select: { id: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } } },
           payments: { select: { id: true, amount: true, paymentMethod: true, invoiceId: true, notes: true, createdAt: true } },
         },
@@ -22,12 +36,13 @@ export async function buildReports(): Promise<ReportsResponse> {
       prisma.staff.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } }),
       prisma.invoice.groupBy({
         by: ["staffId"],
-        where: notCancelled,
+        where: { ...notCancelled, createdAt: dateFilter },
         _count: { _all: true },
         _sum: { totalAmount: true, balanceDue: true },
       }),
       prisma.paymentCollection.groupBy({
         by: ["staffId", "paymentMethod"],
+        where: { createdAt: dateFilter },
         _sum: { amount: true },
       }),
     ]);
@@ -66,6 +81,8 @@ export async function buildReports(): Promise<ReportsResponse> {
       outletId: outlet.id,
       outletName: outlet.name,
       phone: outlet.phone,
+      agentId: outlet.agentId,
+      agentName: outlet.agent?.name ?? null,
       totalBilled,
       totalPaid,
       balance: round2(outlet.invoices.reduce((s, i) => s + i.balanceDue, 0)),

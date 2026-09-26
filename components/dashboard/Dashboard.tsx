@@ -15,6 +15,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  Wallet2,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -35,11 +36,12 @@ import LoginScreen from "./LoginScreen";
 import SaleForm from "./SaleForm";
 import OrdersView from "./OrdersView";
 import OutletLedgers from "./OutletLedgers";
+import PaymentsView from "./PaymentsView";
 import StaffPerformanceView from "./StaffPerformance";
 import InventoryManager from "./InventoryManager";
 import UsersManager from "./UsersManager";
 
-type TabId = "sale" | "orders" | "ledgers" | "staff" | "inventory" | "users";
+type TabId = "sale" | "orders" | "ledgers" | "payments" | "staff" | "inventory" | "users";
 
 interface TabDef {
   id: TabId;
@@ -53,12 +55,14 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "sale", label: "New Sale", icon: ShoppingCart },
     { id: "orders", label: "Orders", icon: ClipboardList },
     { id: "ledgers", label: "Outlet Ledgers", icon: Store },
+    { id: "payments", label: "Payments", icon: Wallet2 },
     { id: "staff", label: "Staff Performance", icon: Users },
     { id: "inventory", label: "Stock", icon: Package },
     { id: "users", label: "Users", icon: UserCog },
   ],
   stock: [
     { id: "orders", label: "Orders to dispatch", icon: ClipboardList },
+    { id: "payments", label: "Collect Payment", icon: Wallet2 },
     { id: "inventory", label: "Stock", icon: Package },
   ],
   agent: [
@@ -71,6 +75,7 @@ const ROLE_LABEL: Record<Role, string> = { admin: "Admin", stock: "Stock incharg
 
 export interface DashboardData {
   products: ProductDTO[];
+  /** Agents: only outlets assigned to them. Admin/stock: every outlet. */
   outlets: OutletDTO[];
   orders: OrderDTO[];
   /** Admin only. */
@@ -85,7 +90,7 @@ async function loadData(role: Role): Promise<DashboardData> {
   const isAdmin = role === "admin";
   const [products, outlets, orders, staff, reports, movements] = await Promise.all([
     api.products(),
-    role === "stock" ? Promise.resolve([]) : api.outlets(),
+    api.outlets(),
     api.orders(),
     isAdmin ? api.staff() : Promise.resolve([]),
     isAdmin ? api.reports() : Promise.resolve(null),
@@ -242,11 +247,12 @@ export default function Dashboard() {
             {tab === "sale" && <SaleForm data={data} user={user} onSaved={refresh} />}
             {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
             {tab === "ledgers" && data.reports && (
-              <OutletLedgers data={{ reports: data.reports, staff: data.staff }} onSaved={refresh} />
+              <OutletLedgers data={{ reports: data.reports, staff: data.staff, outlets: data.outlets }} onSaved={refresh} />
             )}
-            {tab === "staff" && data.reports && <StaffPerformanceView rows={data.reports.staffPerformance} />}
+            {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
+            {tab === "staff" && <StaffPerformanceView />}
             {tab === "inventory" && (
-              <InventoryManager products={data.products} movements={data.movements} onSaved={refresh} />
+              <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
             )}
             {tab === "users" && (
               <UsersManager

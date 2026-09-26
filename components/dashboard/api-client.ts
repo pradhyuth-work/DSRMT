@@ -2,6 +2,9 @@ import type {
   AdjustStockInput,
   ApiError,
   AuthUser,
+  BulkReceiveInput,
+  BulkReceiveResponse,
+  CreateOutletInput,
   CreatePaymentInput,
   CreatePaymentResponse,
   CreateProductInput,
@@ -12,18 +15,30 @@ import type {
   LoginInput,
   LoginResponse,
   OrderDTO,
+  OutletBalanceDTO,
   OutletDTO,
+  PaymentDTO,
+  PaymentsQuery,
   ProductDTO,
+  ReportsQuery,
   ReportsResponse,
   ResetPasswordResponse,
   RestockInput,
   StaffDTO,
   StockMovementDTO,
   UpdateOrderInput,
+  UpdateOutletInput,
   UpdateProductInput,
   UpdateStaffInput,
 } from "@/lib/types";
 import { getToken } from "./session";
+
+/** Thrown by every failed request. Carries the server's `details` payload (e.g. per-row bulk-upload errors). */
+export class ApiRequestError extends Error {
+  constructor(message: string, public details?: unknown) {
+    super(message);
+  }
+}
 
 let onUnauthorized: (() => void) | null = null;
 
@@ -47,7 +62,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized?.();
     const message = (data as ApiError | null)?.error ?? `Request failed (${res.status})`;
-    throw new Error(message);
+    throw new ApiRequestError(message, (data as ApiError | null)?.details);
   }
   return data as T;
 }
@@ -57,6 +72,13 @@ const send = <T>(method: "POST" | "PATCH", url: string, body: unknown) =>
 const post = <T>(url: string, body: unknown = {}) => send<T>("POST", url, body);
 const patch = <T>(url: string, body: unknown) => send<T>("PATCH", url, body);
 const enc = encodeURIComponent;
+
+/** Builds a query string from a plain object, dropping undefined/empty values. */
+function qs(params?: ReportsQuery | PaymentsQuery): string {
+  if (!params) return "";
+  const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
+  return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
 
 export const api = {
   login: (input: LoginInput) => post<LoginResponse>("/api/auth/login", input),
@@ -68,10 +90,16 @@ export const api = {
   restock: (productId: string, input: RestockInput) => post<ProductDTO>(`/api/products/${enc(productId)}/restock`, input),
   adjustStock: (productId: string, input: AdjustStockInput) =>
     post<ProductDTO>(`/api/products/${enc(productId)}/adjust`, input),
+  bulkReceive: (input: BulkReceiveInput) => post<BulkReceiveResponse>("/api/products/bulk-receive", input),
   stockMovements: () => request<StockMovementDTO[]>("/api/stock-movements"),
 
   outlets: () => request<OutletDTO[]>("/api/outlets"),
-  reports: () => request<ReportsResponse>("/api/reports"),
+  createOutlet: (input: CreateOutletInput) => post<OutletDTO>("/api/outlets", input),
+  updateOutlet: (id: string, input: UpdateOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}`, input),
+  outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
+
+  reports: (query?: ReportsQuery) => request<ReportsResponse>(`/api/reports${qs(query)}`),
+  payments: (query?: PaymentsQuery) => request<PaymentDTO[]>(`/api/payments${qs(query)}`),
   createPayment: (input: CreatePaymentInput) => post<CreatePaymentResponse>("/api/payments", input),
 
   createSale: (input: CreateSaleInput) => post<CreateSaleResponse>("/api/sales", input),

@@ -8,7 +8,7 @@ import { toProductDTO } from "@/lib/products";
 /** Receive stock: adds units and records a RECEIVE movement. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authorize(req, ["admin", "stock"]);
+    const user = await authorize(req, ["admin"]);
     const { id } = await params;
     const { quantity, reason } = await parseBody(req, restockSchema);
 

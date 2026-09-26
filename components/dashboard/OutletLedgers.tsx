@@ -1,26 +1,82 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, HandCoins, Loader2 } from "lucide-react";
-import type { OutletLedger, PaymentMethod, ReportsResponse, StaffDTO } from "@/lib/types";
-import { formatMoney, round2 } from "@/lib/money";
+import { ChevronDown, ChevronRight, HandCoins, Loader2, Plus, Search, Store } from "lucide-react";
+import type { OutletDTO, OutletLedger, ReportsResponse, StaffDTO } from "@/lib/types";
+import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
+import { CollectPaymentForm } from "./payment-form";
+
 interface LedgerData {
   reports: ReportsResponse;
   staff: StaffDTO[];
+  outlets: OutletDTO[];
 }
+
+const UNASSIGNED = "__unassigned__";
 
 export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onSaved: () => Promise<void> }) {
   const ledgers = data.reports.outletLedgers;
+  const agents = useMemo(() => data.staff.filter((s) => s.role === "agent"), [data.staff]);
+  const [search, setSearch] = useState("");
+  const [agentFilter, setAgentFilter] = useState<string>("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collecting, setCollecting] = useState<OutletLedger | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
-  const closeModal = useCallback(() => setCollecting(null), []);
+  const [addingOutlet, setAddingOutlet] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null);
+  const [flash, setFlash] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return ledgers.filter((l) => {
+      if (agentFilter === UNASSIGNED && l.agentId) return false;
+      if (agentFilter && agentFilter !== UNASSIGNED && l.agentId !== agentFilter) return false;
+      if (q && !l.outletName.toLowerCase().includes(q) && !l.phone.includes(q)) return false;
+      return true;
+    });
+  }, [ledgers, search, agentFilter]);
+
+  async function reassign(outletId: string, agentId: string) {
+    setReassigning(outletId);
+    try {
+      await api.updateOutlet(outletId, { agentId: agentId || null });
+      setFlash({ kind: "success", text: "Outlet reassigned" });
+      await onSaved();
+    } catch (err) {
+      setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to reassign outlet" });
+    } finally {
+      setReassigning(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {flash && <Alert kind="success">{flash}</Alert>}
+      {flash && <Alert kind={flash.kind}>{flash.text}</Alert>}
+
+      {/* Always-visible search + filter bar. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input pl-9"
+            placeholder="Search outlets by name or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select className="input sm:w-56" value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} aria-label="Filter by field agent">
+          <option value="">All field agents</option>
+          <option value={UNASSIGNED}>Unassigned</option>
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+        <button className="btn btn-secondary sm:w-auto" onClick={() => setAddingOutlet(true)}>
+          <Plus className="h-4 w-4" /> Add outlet
+        </button>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -28,6 +84,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
               <tr>
                 <th className="th w-8" />
                 <th className="th">Outlet</th>
+                <th className="th">Field Agent</th>
                 <th className="th text-right">Total Billed</th>
                 <th className="th text-right">Total Paid</th>
                 <th className="th text-right">Balance</th>
@@ -35,7 +92,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ledgers.map((l) => {
+              {filtered.map((l) => {
                 const isOpen = expanded === l.outletId;
                 return (
                   <Fragment key={l.outletId}>
@@ -54,6 +111,20 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                         <p className="text-xs text-slate-500">
                           {l.phone} · {l.openInvoices.length} open invoice{l.openInvoices.length === 1 ? "" : "s"}
                         </p>
+                      </td>
+                      <td className="td">
+                        <select
+                          className="input py-1.5 text-sm"
+                          value={l.agentId ?? ""}
+                          disabled={reassigning === l.outletId}
+                          onChange={(e) => void reassign(l.outletId, e.target.value)}
+                          aria-label={`Field agent for ${l.outletName}`}
+                        >
+                          <option value="">— Unassigned —</option>
+                          {agents.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="td text-right tabular-nums">{formatMoney(l.totalBilled)}</td>
                       <td className="td text-right tabular-nums text-emerald-700">{formatMoney(l.totalPaid)}</td>
@@ -76,7 +147,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={6} className="bg-slate-50 px-4 py-3">
+                        <td colSpan={7} className="bg-slate-50 px-4 py-3">
                           <LedgerTable ledger={l} />
                         </td>
                       </tr>
@@ -87,22 +158,35 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
             </tbody>
           </table>
         </div>
-        {ledgers.length === 0 && <EmptyState>No outlets yet.</EmptyState>}
+        {filtered.length === 0 && (
+          <EmptyState>{ledgers.length === 0 ? "No outlets yet." : "No outlets match your search."}</EmptyState>
+        )}
       </div>
 
-      <Modal open={!!collecting} title={`Collect payment — ${collecting?.outletName ?? ""}`} onClose={closeModal}>
+      <Modal open={!!collecting} title={`Collect payment — ${collecting?.outletName ?? ""}`} onClose={() => setCollecting(null)}>
         {collecting && (
           <CollectPaymentForm
             key={collecting.outletId}
-            ledger={collecting}
-            data={data}
+            target={{ outletId: collecting.outletId, outletName: collecting.outletName, balance: collecting.balance, openInvoices: collecting.openInvoices }}
+            staffOptions={data.staff}
             onDone={async (message) => {
               setCollecting(null);
-              setFlash(message);
+              setFlash({ kind: "success", text: message });
               await onSaved();
             }}
           />
         )}
+      </Modal>
+
+      <Modal open={addingOutlet} title="Add outlet" onClose={() => setAddingOutlet(false)}>
+        <AddOutletForm
+          agents={agents}
+          onDone={async (message) => {
+            setAddingOutlet(false);
+            setFlash({ kind: "success", text: message });
+            await onSaved();
+          }}
+        />
       </Modal>
     </div>
   );
@@ -140,127 +224,53 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
   );
 }
 
-function CollectPaymentForm({
-  ledger,
-  data,
-  onDone,
-}: {
-  ledger: OutletLedger;
-  data: LedgerData;
-  onDone: (message: string) => Promise<void>;
-}) {
-  const [amount, setAmount] = useState(String(ledger.balance));
-  const [staffId, setStaffId] = useState(data.staff[0]?.id ?? "");
-  const [method, setMethod] = useState<PaymentMethod>("CASH");
-  const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+function AddOutletForm({ agents, onDone }: { agents: StaffDTO[]; onDone: (message: string) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const amountNum = Number.parseFloat(amount) || 0;
-  const tooMuch = amountNum > ledger.balance;
-
-  // Preview how the payment will be applied, oldest invoice first (mirrors the server's FIFO logic).
-  const preview = useMemo(() => {
-    let remaining = round2(amountNum);
-    return ledger.openInvoices.map((inv) => {
-      const applied = round2(Math.max(0, Math.min(remaining, inv.balanceDue)));
-      remaining = round2(remaining - applied);
-      return { ...inv, applied, after: round2(inv.balanceDue - applied) };
-    });
-  }, [amountNum, ledger.openInvoices]);
+  const valid = name.trim().length > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
+    if (!valid) return;
+    setBusy(true);
     setError(null);
     try {
-      const res = await api.createPayment({
-        outletId: ledger.outletId,
-        staffId,
-        amount: amountNum,
-        paymentMethod: method,
-        notes: notes.trim() || undefined,
-      });
-      await onDone(
-        `Collected ${formatMoney(res.amount)} from ${ledger.outletName} — applied to ${res.allocations
-          .map((a) => a.invoiceId)
-          .join(", ")}`,
-      );
+      const created = await api.createOutlet({ name: name.trim(), phone: phone.trim(), agentId: agentId || null });
+      await onDone(`Added ${created.name}${created.agentName ? ` (assigned to ${created.agentName})` : ""}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record payment");
-      setSubmitting(false);
+      setError(err instanceof Error ? err.message : "Failed to add outlet");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-sm">
-        <span className="text-amber-800">Outstanding balance</span>
-        <span className="font-semibold tabular-nums text-amber-800">{formatMoney(ledger.balance)}</span>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="label" htmlFor="pay-amount">Amount</label>
-          <input
-            id="pay-amount"
-            type="number"
-            min={0.01}
-            step="0.01"
-            max={ledger.balance}
-            className="input"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="pay-staff">Collected by</label>
-          <select id="pay-staff" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-            {data.staff.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <span className="label">Method</span>
-          <div className="grid grid-cols-2 gap-2">
-            {(["CASH", "UPI"] as const).map((m) => (
-              <button key={m} type="button" onClick={() => setMethod(m)} className={`btn ${method === m ? "btn-primary" : "btn-secondary"}`}>
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="label" htmlFor="pay-notes">Notes</label>
-          <input id="pay-notes" className="input" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-        </div>
-      </div>
-
       <div>
-        <p className="label">Settlement preview (oldest first)</p>
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 text-sm">
-          {preview.map((p) => (
-            <li key={p.id} className={`flex items-center justify-between px-3 py-2 ${p.applied > 0 ? "" : "text-slate-400"}`}>
-              <span>
-                <span className="font-mono text-xs">{p.id}</span>{" "}
-                <span className="text-xs text-slate-400">{formatDate(p.createdAt)}</span>
-              </span>
-              <span className="tabular-nums">
-                {formatMoney(p.applied)} <span className="text-xs text-slate-400">→ {formatMoney(p.after)} left</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <label className="label" htmlFor="o-name">Name</label>
+        <input id="o-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
       </div>
-
-      {tooMuch && <Alert kind="warning">Amount exceeds the outstanding balance.</Alert>}
+      <div>
+        <label className="label" htmlFor="o-phone">Phone</label>
+        <input id="o-phone" type="tel" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
+      </div>
+      <div>
+        <label className="label" htmlFor="o-agent">Field agent</label>
+        <select id="o-agent" className="input" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+          <option value="">— Unassigned —</option>
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-slate-500">Only the assigned agent will see this outlet when creating an order.</p>
+      </div>
       {error && <Alert kind="error">{error}</Alert>}
-
-      <button type="submit" className="btn btn-primary w-full" disabled={submitting || amountNum <= 0 || tooMuch || !staffId}>
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <HandCoins className="h-4 w-4" />}
-        Record {formatMoney(amountNum)}
+      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store className="h-4 w-4" />}
+        Add outlet
       </button>
     </form>
   );

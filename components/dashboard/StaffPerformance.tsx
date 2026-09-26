@@ -1,17 +1,48 @@
 "use client";
 
-import { Banknote, ClipboardList, Smartphone, UserRound } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Banknote, ClipboardList, Loader2, Smartphone, UserRound } from "lucide-react";
 import type { StaffPerformance } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
-import { EmptyState } from "./ui";
+import { api } from "./api-client";
+import { Alert, EmptyState } from "./ui";
+import { DateRangeFilter, type DateRange } from "./date-range";
 
-export default function StaffPerformanceView({ rows }: { rows: StaffPerformance[] }) {
-  if (rows.length === 0) return <div className="card"><EmptyState>No staff members yet.</EmptyState></div>;
+/** Sales figures are dated by the order; collections by the payment — so filtering to a
+ * range shows what was sold and what was collected IN that window, not a snapshot as-of. */
+export default function StaffPerformanceView() {
+  const [range, setRange] = useState<DateRange>({});
+  const [rows, setRows] = useState<StaffPerformance[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const maxSales = Math.max(...rows.map((r) => r.totalSales), 1);
+  const load = useCallback(async (r: DateRange) => {
+    try {
+      setRows((await api.reports(r)).staffPerformance);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load staff performance");
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(range);
+  }, [range, load]);
+
+  const maxSales = Math.max(...(rows ?? []).map((r) => r.totalSales), 1);
 
   return (
     <div className="space-y-6">
+      <DateRangeFilter value={range} onChange={setRange} />
+      {error && <Alert kind="error">{error}</Alert>}
+
+      {!rows ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+          <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="card"><EmptyState>No staff members yet.</EmptyState></div>
+      ) : (
+        <>
       <div className="grid gap-4 md:grid-cols-3">
         {rows.map((r) => {
           const collectionRate = r.totalSales > 0 ? Math.round((1 - r.uncollectedBalance / r.totalSales) * 100) : 0;
@@ -87,9 +118,11 @@ export default function StaffPerformanceView({ rows }: { rows: StaffPerformance[
         </div>
       </div>
       <p className="text-xs text-slate-500">
-        Collections count every payment a staff member recorded (at sale or later). Uncollected is the remaining balance on
-        invoices they billed.
+        Sales are dated by the order; collections by the payment. Uncollected is the remaining balance (as of now) on
+        orders placed in this range.
       </p>
+        </>
+      )}
     </div>
   );
 }

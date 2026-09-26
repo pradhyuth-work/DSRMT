@@ -3,11 +3,11 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const products = [
-  { name: "Mineral Water 1L (Case of 12)", unitPrice: 180, stockQty: 250 },
-  { name: "Cola 500ml (Case of 24)", unitPrice: 720, stockQty: 120 },
-  { name: "Potato Chips 50g (Box of 30)", unitPrice: 450, stockQty: 90 },
-  { name: "Glucose Biscuits (Box of 48)", unitPrice: 384, stockQty: 60 },
-  { name: "Mango Juice 200ml (Case of 27)", unitPrice: 540, stockQty: 8 },
+  { productCode: 1, name: "Mineral Water 1L (Case of 12)", unitPrice: 180, stockQty: 250 },
+  { productCode: 2, name: "Cola 500ml (Case of 24)", unitPrice: 720, stockQty: 120 },
+  { productCode: 3, name: "Potato Chips 50g (Box of 30)", unitPrice: 450, stockQty: 90 },
+  { productCode: 4, name: "Glucose Biscuits (Box of 48)", unitPrice: 384, stockQty: 60 },
+  { productCode: 5, name: "Mango Juice 200ml (Case of 27)", unitPrice: 540, stockQty: 8 },
 ];
 
 const outlets = [
@@ -31,8 +31,13 @@ async function main() {
   ]);
 
   if (productCount === 0) await prisma.product.createMany({ data: products });
-  if (outletCount === 0) await prisma.outlet.createMany({ data: outlets });
   if (staffCount === 0) await prisma.staff.createMany({ data: staff });
+  if (outletCount === 0) {
+    // Match this local check/demo data's outlets 1:1 to the seeded staff, so the "one
+    // agent per outlet" assignment has something to show out of the box.
+    const people = await prisma.staff.findMany({ where: { name: { in: staff.map((s) => s.name) } }, orderBy: { createdAt: "asc" } });
+    await Promise.all(outlets.map((o, i) => prisma.outlet.create({ data: { ...o, agentId: people[i]?.id } })));
+  }
 
   const seeded = [productCount === 0 && "products", outletCount === 0 && "outlets", staffCount === 0 && "staff"].filter(Boolean);
   console.log(seeded.length ? `Seeded: ${seeded.join(", ")}` : "Database already seeded — skipping.");

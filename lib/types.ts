@@ -25,6 +25,8 @@ export interface LoginResponse {
 
 export interface ProductDTO {
   id: string;
+  /** Human-facing sequential number shown and sorted on in the UI. */
+  productCode: number;
   name: string;
   unitPrice: number;
   /** Omitted for field agents, who only see whether an item is in stock. */
@@ -37,6 +39,28 @@ export interface OutletDTO {
   id: string;
   name: string;
   phone: string;
+  agentId: string | null;
+  agentName: string | null;
+}
+
+export interface CreateOutletInput {
+  name: string;
+  phone: string;
+  agentId: string | null;
+}
+
+export interface UpdateOutletInput {
+  name?: string;
+  phone?: string;
+  agentId?: string | null;
+}
+
+/** Just enough of an outlet's ledger to collect a payment against it sensibly. */
+export interface OutletBalanceDTO {
+  outletId: string;
+  outletName: string;
+  balance: number;
+  openInvoices: { id: string; balanceDue: number; createdAt: string }[];
 }
 
 export interface StaffDTO {
@@ -160,7 +184,8 @@ export interface StockMovementDTO {
 
 export interface CreatePaymentInput {
   outletId: string;
-  staffId: string;
+  /** Required for admins; ignored for the stock role (always attributed to itself). */
+  staffId?: string;
   amount: number;
   paymentMethod: PaymentMethod;
   notes?: string;
@@ -178,10 +203,58 @@ export interface CreatePaymentResponse {
   allocations: PaymentAllocation[];
 }
 
+export interface PaymentDTO {
+  id: string;
+  outletId: string;
+  outletName: string;
+  staffId: string;
+  staffName: string;
+  invoiceId: string | null;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface PaymentsQuery {
+  outletId?: string;
+  /** Ignored server-side for the stock role, which always sees only its own collections. */
+  staffId?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface CreateProductInput {
   name: string;
   unitPrice: number;
   stockQty: number;
+  /** Optional: if it collides with an existing product's code, that product (and every later one) shifts up by 1. */
+  productCode?: number;
+}
+
+export interface BulkReceiveRow {
+  /** Blank/omitted = create a new product at the next free code. */
+  productCode?: number;
+  name?: string;
+  unitPrice?: number;
+  quantity: number;
+}
+
+export interface BulkReceiveInput {
+  rows: BulkReceiveRow[];
+}
+
+export interface BulkReceiveResultRow {
+  row: number;
+  action: "RESTOCK" | "CREATE";
+  productId: string;
+  productCode: number;
+  productName: string;
+  newStockQty: number;
+}
+
+export interface BulkReceiveResponse {
+  results: BulkReceiveResultRow[];
 }
 
 export interface RestockInput {
@@ -211,6 +284,8 @@ export interface OutletLedger {
   outletId: string;
   outletName: string;
   phone: string;
+  agentId: string | null;
+  agentName: string | null;
   totalBilled: number;
   totalPaid: number;
   balance: number;
@@ -229,6 +304,12 @@ export interface StaffPerformance {
   cashCollected: number;
   upiCollected: number;
   uncollectedBalance: number;
+}
+
+export interface ReportsQuery {
+  /** Date-filters staffPerformance only; dashboard totals and outlet ledgers stay all-time. */
+  from?: string;
+  to?: string;
 }
 
 export interface ReportsResponse {
