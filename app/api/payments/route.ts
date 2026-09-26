@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { authorize } from "@/lib/auth";
 import { createPaymentSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
 import type { CreatePaymentResponse, PaymentAllocation } from "@/lib/types";
@@ -12,6 +13,7 @@ import type { CreatePaymentResponse, PaymentAllocation } from "@/lib/types";
  */
 export async function POST(req: Request) {
   try {
+    await authorize(req, ["admin"]);
     const input = await parseBody(req, createPaymentSchema);
     const amount = round2(input.amount);
 
@@ -23,8 +25,13 @@ export async function POST(req: Request) {
       if (!outlet) throw new HttpError(400, "Outlet not found");
       if (!staff) throw new HttpError(400, "Staff member not found");
 
+      // Lock the outlet's open invoices so concurrent collections can't apply to the same balance.
+      await tx.$queryRaw`
+        SELECT "id" FROM "Invoice"
+        WHERE "outletId" = ${input.outletId} AND "balanceDue" > 0 AND "fulfilmentStatus" <> 'CANCELLED'
+        FOR UPDATE`;
       const openInvoices = await tx.invoice.findMany({
-        where: { outletId: input.outletId, balanceDue: { gt: 0 } },
+        where: { outletId: input.outletId, balanceDue: { gt: 0 }, fulfilmentStatus: { not: "CANCELLED" } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
       const outstanding = round2(openInvoices.reduce((sum, inv) => sum + inv.balanceDue, 0));

@@ -2,13 +2,16 @@
 
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, HandCoins, Loader2 } from "lucide-react";
-import type { OutletLedger, PaymentMethod } from "@/lib/types";
+import type { OutletLedger, PaymentMethod, ReportsResponse, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
-import type { DashboardData } from "./Dashboard";
+interface LedgerData {
+  reports: ReportsResponse;
+  staff: StaffDTO[];
+}
 
-export default function OutletLedgers({ data, onSaved }: { data: DashboardData; onSaved: () => Promise<void> }) {
+export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onSaved: () => Promise<void> }) {
   const ledgers = data.reports.outletLedgers;
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collecting, setCollecting] = useState<OutletLedger | null>(null);
@@ -143,7 +146,7 @@ function CollectPaymentForm({
   onDone,
 }: {
   ledger: OutletLedger;
-  data: DashboardData;
+  data: LedgerData;
   onDone: (message: string) => Promise<void>;
 }) {
   const [amount, setAmount] = useState(String(ledger.balance));

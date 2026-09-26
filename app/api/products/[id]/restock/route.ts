@@ -1,29 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { authorize } from "@/lib/auth";
 import { restockSchema } from "@/lib/validation";
-import type { ProductDTO } from "@/lib/types";
+import { toProductDTO } from "@/lib/products";
 
+/** Receive stock: adds units and records a RECEIVE movement. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { quantity } = await parseBody(req, restockSchema);
+    const { quantity, reason } = await parseBody(req, restockSchema);
 
-    const exists = await prisma.product.findUnique({ where: { id }, select: { id: true } });
-    if (!exists) throw new HttpError(404, "Product not found");
-
-    const p = await prisma.product.update({
-      where: { id },
-      data: { stockQty: { increment: quantity } },
+    const product = await prisma.$transaction(async (tx) => {
+      const exists = await tx.product.findUnique({ where: { id }, select: { id: true } });
+      if (!exists) throw new HttpError(404, "Product not found");
+      const updated = await tx.product.update({ where: { id }, data: { stockQty: { increment: quantity } } });
+      await tx.stockMovement.create({
+        data: { productId: id, change: quantity, type: "RECEIVE", reason: reason || null, staffId: user.id },
+      });
+      return updated;
     });
-    const body: ProductDTO = {
-      id: p.id,
-      name: p.name,
-      unitPrice: p.unitPrice,
-      stockQty: p.stockQty,
-      createdAt: p.createdAt.toISOString(),
-    };
-    return NextResponse.json(body);
+    return NextResponse.json(toProductDTO(product, user.role));
   } catch (err) {
     return errorResponse(err);
   }

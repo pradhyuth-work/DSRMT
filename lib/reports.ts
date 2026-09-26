@@ -2,22 +2,27 @@ import { prisma } from "./prisma";
 import { round2 } from "./money";
 import type { LedgerEntry, OutletLedger, ReportsResponse, StaffPerformance } from "./types";
 
+// Cancelled orders never have payments (cancelling is refused once money is collected),
+// so excluding them from billing keeps every total consistent.
+const notCancelled = { fulfilmentStatus: { not: "CANCELLED" } } as const;
+
 export async function buildReports(): Promise<ReportsResponse> {
   const [invoiceTotals, paymentTotals, stockTotals, outlets, staff, staffInvoices, staffPayments] =
     await Promise.all([
-      prisma.invoice.aggregate({ _sum: { totalAmount: true, balanceDue: true }, _count: true }),
+      prisma.invoice.aggregate({ where: notCancelled, _sum: { totalAmount: true, balanceDue: true }, _count: true }),
       prisma.paymentCollection.aggregate({ _sum: { amount: true } }),
       prisma.product.aggregate({ _sum: { stockQty: true } }),
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
         include: {
-          invoices: { select: { id: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } } },
+          invoices: { where: notCancelled, select: { id: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } } },
           payments: { select: { id: true, amount: true, paymentMethod: true, invoiceId: true, notes: true, createdAt: true } },
         },
       }),
-      prisma.staff.findMany({ orderBy: { name: "asc" } }),
+      prisma.staff.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } }),
       prisma.invoice.groupBy({
         by: ["staffId"],
+        where: notCancelled,
         _count: { _all: true },
         _sum: { totalAmount: true, balanceDue: true },
       }),

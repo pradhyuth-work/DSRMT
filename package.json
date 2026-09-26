@@ -3,15 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "prisma db push --skip-generate && tsx prisma/seed.ts",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma db push --force-reset && prisma db seed",
+    "db:import-sqlite": "tsx scripts/import-sqlite.ts",
+    "seed-admin": "tsx scripts/seed-admin.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
@@ -19,6 +18,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.544.0",
     "next": "^15.5.4",
     "react": "^19.1.1",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",

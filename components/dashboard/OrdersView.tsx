@@ -1,0 +1,326 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { Ban, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
+import { formatMoney, round2 } from "@/lib/money";
+import { api } from "./api-client";
+import { Alert, EmptyState, FulfilmentBadge, Modal, StatusBadge, formatDate } from "./ui";
+import type { DashboardData } from "./Dashboard";
+
+type Filter = FulfilmentStatus | "ALL";
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "PENDING", label: "Pending" },
+  { id: "DISPATCHED", label: "Dispatched" },
+  { id: "CANCELLED", label: "Cancelled" },
+  { id: "ALL", label: "All" },
+];
+
+export default function OrdersView({
+  data,
+  user,
+  onSaved,
+}: {
+  data: DashboardData;
+  user: AuthUser;
+  onSaved: () => Promise<void>;
+}) {
+  // Stock incharge works the pending queue; everyone else starts with the full list.
+  const [filter, setFilter] = useState<Filter>(user.role === "stock" ? "PENDING" : "ALL");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [editing, setEditing] = useState<OrderDTO | null>(null);
+  const closeEdit = useCallback(() => setEditing(null), []);
+
+  const orders = useMemo(() => {
+    const list = filter === "ALL" ? data.orders : data.orders.filter((o) => o.fulfilmentStatus === filter);
+    // Oldest first for the pending queue so the longest-waiting order is on top.
+    return filter === "PENDING" ? [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : list;
+  }, [data.orders, filter]);
+
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { ALL: data.orders.length, PENDING: 0, DISPATCHED: 0, CANCELLED: 0 };
+    for (const o of data.orders) c[o.fulfilmentStatus]++;
+    return c;
+  }, [data.orders]);
+
+  const canDispatch = user.role === "admin" || user.role === "stock";
+  const canCancel = (o: OrderDTO) =>
+    user.role === "admin"
+      ? o.fulfilmentStatus !== "CANCELLED" && o.paidAmount === 0
+      : user.role === "agent" && o.fulfilmentStatus === "PENDING" && o.paidAmount === 0;
+  const canEdit = (o: OrderDTO) => user.role === "admin" && o.fulfilmentStatus === "PENDING";
+
+  async function run(id: string, action: () => Promise<OrderDTO>, success: string) {
+    setBusyId(id);
+    setMessage(null);
+    try {
+      await action();
+      setMessage({ kind: "success", text: success });
+      await onSaved();
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Something went wrong" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+              filter === f.id ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {f.label} <span className="opacity-70">({counts[f.id]})</span>
+          </button>
+        ))}
+      </div>
+
+      {message && <Alert kind={message.kind}>{message.text}</Alert>}
+
+      {orders.length === 0 ? (
+        <div className="card">
+          <EmptyState>No orders here.</EmptyState>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {orders.map((o) => {
+            const busy = busyId === o.id;
+            return (
+              <article key={o.id} className="card flex flex-col p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold">{o.id}</p>
+                    <p className="truncate font-medium">{o.outletName}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatDate(o.createdAt)}
+                      {user.role !== "agent" && <> · by {o.staffName}</>}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <FulfilmentBadge status={o.fulfilmentStatus} />
+                    <StatusBadge status={o.status} />
+                  </div>
+                </div>
+
+                <ul className="my-3 space-y-1 border-y border-slate-100 py-2 text-sm">
+                  {o.items.map((i) => (
+                    <li key={i.productId} className="flex justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {i.quantity} × {i.productName}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-slate-600">{formatMoney(i.subtotal)}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <dl className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <dt className="text-slate-500">Total</dt>
+                    <dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Paid</dt>
+                    <dd className="tabular-nums text-emerald-700">{formatMoney(o.paidAmount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Balance</dt>
+                    <dd className="tabular-nums text-amber-700">{formatMoney(o.balanceDue)}</dd>
+                  </div>
+                </dl>
+
+                {o.dispatchedAt && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Dispatched {formatDate(o.dispatchedAt)}
+                    {o.dispatchedByName && <> by {o.dispatchedByName}</>}
+                  </p>
+                )}
+                {o.cancelledAt && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Cancelled {formatDate(o.cancelledAt)}
+                    {o.cancelledByName && <> by {o.cancelledByName}</>}
+                  </p>
+                )}
+
+                <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                  {canDispatch && o.fulfilmentStatus === "PENDING" && (
+                    <button
+                      className="btn btn-primary flex-1"
+                      disabled={busy}
+                      onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${o.id} dispatched — stock deducted`)}
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                      Dispatch
+                    </button>
+                  )}
+                  {canEdit(o) && (
+                    <button className="btn btn-secondary" disabled={busy} onClick={() => setEditing(o)}>
+                      <Pencil className="h-4 w-4" /> Edit
+                    </button>
+                  )}
+                  {canCancel(o) && (
+                    <button
+                      className="btn btn-secondary text-red-600"
+                      disabled={busy}
+                      onClick={() => {
+                        const extra = o.fulfilmentStatus === "DISPATCHED" ? " Its stock will be returned." : "";
+                        if (window.confirm(`Cancel order ${o.id}?${extra}`)) {
+                          void run(o.id, () => api.cancelOrder(o.id), `${o.id} cancelled`);
+                        }
+                      }}
+                    >
+                      <Ban className="h-4 w-4" /> Cancel
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      <Modal open={!!editing} title={`Edit order ${editing?.id ?? ""}`} onClose={closeEdit}>
+        {editing && (
+          <EditOrderForm
+            key={editing.id}
+            order={editing}
+            data={data}
+            onDone={async (text) => {
+              setEditing(null);
+              setMessage({ kind: "success", text });
+              await onSaved();
+            }}
+          />
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+interface EditLine {
+  productId: string;
+  quantity: number;
+}
+
+function EditOrderForm({
+  order,
+  data,
+  onDone,
+}: {
+  order: OrderDTO;
+  data: DashboardData;
+  onDone: (message: string) => Promise<void>;
+}) {
+  const [outletId, setOutletId] = useState(order.outletId);
+  const [lines, setLines] = useState<EditLine[]>(order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+  const [addProductId, setAddProductId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
+  const total = round2(lines.reduce((s, l) => s + (productById.get(l.productId)?.unitPrice ?? 0) * l.quantity, 0));
+  const tooLow = total < order.paidAmount;
+
+  const setQty = (productId: string, quantity: number) =>
+    setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, quantity: Math.max(1, quantity) } : l)));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateOrder(order.id, { outletId, items: lines });
+      await onDone(`${order.id} updated`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update order");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <label className="label" htmlFor="edit-outlet">Outlet</label>
+        <select id="edit-outlet" className="input" value={outletId} onChange={(e) => setOutletId(e.target.value)}>
+          {data.outlets.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        {lines.map((l) => {
+          const p = productById.get(l.productId);
+          return (
+            <li key={l.productId} className="flex items-center gap-2 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{p?.name ?? l.productId}</span>
+              <button type="button" className="rounded p-1 hover:bg-slate-100" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
+                <Minus className="h-4 w-4" />
+              </button>
+              <input
+                type="number"
+                min={1}
+                className="input w-16 px-2 py-1 text-center"
+                value={l.quantity}
+                onChange={(e) => setQty(l.productId, Number.parseInt(e.target.value, 10) || 1)}
+                aria-label={`Quantity of ${p?.name ?? "item"}`}
+              />
+              <button type="button" className="rounded p-1 hover:bg-slate-100" onClick={() => setQty(l.productId, l.quantity + 1)} aria-label="Increase">
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                disabled={lines.length === 1}
+                onClick={() => setLines((prev) => prev.filter((x) => x.productId !== l.productId))}
+                aria-label="Remove item"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="flex gap-2">
+        <select className="input" value={addProductId} onChange={(e) => setAddProductId(e.target.value)} aria-label="Add product">
+          <option value="">Add a product…</option>
+          {data.products
+            .filter((p) => !lines.some((l) => l.productId === p.id))
+            .map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+        </select>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!addProductId}
+          onClick={() => {
+            setLines((prev) => [...prev, { productId: addProductId, quantity: 1 }]);
+            setAddProductId("");
+          }}
+        >
+          <Plus className="h-4 w-4" /> Add
+        </button>
+      </div>
+
+      <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+        <span className="text-slate-600">New total</span>
+        <span className="font-semibold tabular-nums">{formatMoney(total)}</span>
+      </div>
+      {tooLow && <Alert kind="warning">The new total is less than the {formatMoney(order.paidAmount)} already paid.</Alert>}
+      {error && <Alert kind="error">{error}</Alert>}
+
+      <button type="submit" className="btn btn-primary w-full" disabled={busy || tooLow}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+        Save changes
+      </button>
+    </form>
+  );
+}

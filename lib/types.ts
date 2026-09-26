@@ -2,12 +2,34 @@
 
 export type InvoiceStatus = "PAID" | "PARTIAL" | "UNPAID";
 export type PaymentMethod = "CASH" | "UPI";
+export type Role = "admin" | "stock" | "agent";
+export type FulfilmentStatus = "PENDING" | "DISPATCHED" | "CANCELLED";
+export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "CANCEL_RETURN";
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  username: string;
+  role: Role;
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: AuthUser;
+}
 
 export interface ProductDTO {
   id: string;
   name: string;
   unitPrice: number;
-  stockQty: number;
+  /** Omitted for field agents, who only see whether an item is in stock. */
+  stockQty?: number;
+  inStock: boolean;
   createdAt: string;
 }
 
@@ -21,6 +43,36 @@ export interface StaffDTO {
   id: string;
   name: string;
   phone: string;
+  username: string | null;
+  role: Role;
+  active: boolean;
+  /** True when the person has both a username and a password set. */
+  canLogin: boolean;
+}
+
+export interface CreateStaffInput {
+  name: string;
+  phone: string;
+  username: string;
+  password: string;
+  role: Role;
+}
+
+export interface UpdateStaffInput {
+  name?: string;
+  phone?: string;
+  username?: string;
+  role?: Role;
+  active?: boolean;
+}
+
+export interface ResetPasswordInput {
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  /** Returned when admins reset their own password, since their old token stops working. */
+  token?: string;
 }
 
 export interface SaleItemInput {
@@ -30,7 +82,8 @@ export interface SaleItemInput {
 
 export interface CreateSaleInput {
   outletId: string;
-  staffId: string;
+  /** Order owner. Required for admins; ignored for agents (always themselves). */
+  staffId?: string;
   items: SaleItemInput[];
   paidAmount: number;
   paymentMethod: PaymentMethod;
@@ -44,9 +97,65 @@ export interface CreateSaleResponse {
     paidAmount: number;
     balanceDue: number;
     status: InvoiceStatus;
+    fulfilmentStatus: FulfilmentStatus;
     createdAt: string;
     items: { productId: string; productName: string; quantity: number; unitPrice: number; subtotal: number }[];
   };
+}
+
+export interface OrderItemDTO {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface OrderDTO {
+  id: string;
+  outletId: string;
+  outletName: string;
+  staffId: string;
+  staffName: string;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: InvoiceStatus;
+  fulfilmentStatus: FulfilmentStatus;
+  createdAt: string;
+  dispatchedAt: string | null;
+  dispatchedByName: string | null;
+  cancelledAt: string | null;
+  cancelledByName: string | null;
+  items: OrderItemDTO[];
+}
+
+export interface UpdateOrderInput {
+  outletId?: string;
+  items?: SaleItemInput[];
+}
+
+export interface UpdateProductInput {
+  name?: string;
+  unitPrice?: number;
+}
+
+export interface AdjustStockInput {
+  /** Signed change: positive adds stock, negative removes it. */
+  change: number;
+  reason: string;
+}
+
+export interface StockMovementDTO {
+  id: string;
+  productId: string;
+  productName: string;
+  change: number;
+  type: StockMovementType;
+  reason: string | null;
+  invoiceId: string | null;
+  staffName: string;
+  createdAt: string;
 }
 
 export interface CreatePaymentInput {
@@ -77,6 +186,7 @@ export interface CreateProductInput {
 
 export interface RestockInput {
   quantity: number;
+  reason?: string;
 }
 
 export interface DashboardMetrics {

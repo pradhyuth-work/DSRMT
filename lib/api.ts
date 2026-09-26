@@ -34,7 +34,13 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
     return NextResponse.json({ error: message, details: err.flatten() }, { status: 400 });
   }
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-    return NextResponse.json({ error: "A record with that value already exists" }, { status: 409 });
+    const target = String((err.meta as { target?: unknown } | undefined)?.target ?? "");
+    const message = target.includes("username") ? "That username is already taken" : "A record with that value already exists";
+    return NextResponse.json({ error: message }, { status: 409 });
+  }
+  // Last line of defence: the database CHECK constraint that keeps stock at or above zero.
+  if (err instanceof Error && err.message.includes("Product_stockQty_nonnegative")) {
+    return NextResponse.json({ error: "Stock can't go below zero" }, { status: 400 });
   }
   console.error(err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });

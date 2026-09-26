@@ -1,16 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, PackagePlus, PlusCircle } from "lucide-react";
-import type { ProductDTO } from "@/lib/types";
+import { useCallback, useState } from "react";
+import { History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal } from "lucide-react";
+import type { ProductDTO, StockMovementDTO, StockMovementType } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState } from "./ui";
+import { Alert, EmptyState, Modal, formatDate } from "./ui";
+import { AdjustStockForm, EditProductForm } from "./stock-dialogs";
 
 const LOW_STOCK_THRESHOLD = 10;
 
-export default function InventoryManager({ products, onSaved }: { products: ProductDTO[]; onSaved: () => Promise<void> }) {
+const MOVEMENT_LABEL: Record<StockMovementType, string> = {
+  RECEIVE: "Received",
+  ADJUST: "Adjusted",
+  DISPATCH: "Dispatched",
+  CANCEL_RETURN: "Returned (cancelled)",
+};
+
+type Dialog = { kind: "adjust" | "edit"; product: ProductDTO } | null;
+
+export default function InventoryManager({
+  products,
+  movements,
+  onSaved,
+}: {
+  products: ProductDTO[];
+  movements: StockMovementDTO[];
+  onSaved: () => Promise<void>;
+}) {
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const closeDialog = useCallback(() => setDialog(null), []);
+  const done = async (text: string) => {
+    setDialog(null);
+    setMessage({ kind: "success", text });
+    await onSaved();
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -31,7 +56,8 @@ export default function InventoryManager({ products, onSaved }: { products: Prod
                   <th className="th">Product</th>
                   <th className="th text-right">Unit Price</th>
                   <th className="th text-right">In Stock</th>
-                  <th className="th text-right">Restock</th>
+                  <th className="th text-right">Receive</th>
+                  <th className="th text-right">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -40,7 +66,7 @@ export default function InventoryManager({ products, onSaved }: { products: Prod
                     <td className="td font-medium">{p.name}</td>
                     <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
                     <td className="td text-right">
-                      <StockBadge qty={p.stockQty} />
+                      <StockBadge qty={p.stockQty ?? 0} />
                     </td>
                     <td className="td">
                       <RestockControl
@@ -51,6 +77,26 @@ export default function InventoryManager({ products, onSaved }: { products: Prod
                         }}
                       />
                     </td>
+                    <td className="td">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          className="btn btn-secondary px-2.5"
+                          onClick={() => setDialog({ kind: "adjust", product: p })}
+                          aria-label={`Adjust stock for ${p.name}`}
+                          title="Adjust stock"
+                        >
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </button>
+                        <button
+                          className="btn btn-secondary px-2.5"
+                          onClick={() => setDialog({ kind: "edit", product: p })}
+                          aria-label={`Edit ${p.name}`}
+                          title="Edit name or price"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -58,7 +104,47 @@ export default function InventoryManager({ products, onSaved }: { products: Prod
           </div>
           {products.length === 0 && <EmptyState>No products yet — add one to get started.</EmptyState>}
         </div>
+
+        <div className="card">
+          <h2 className="flex items-center gap-2 border-b border-slate-200 px-5 py-3 font-semibold">
+            <History className="h-4 w-4 text-indigo-600" /> Stock movements
+          </h2>
+          {movements.length === 0 ? (
+            <EmptyState>No stock movements yet.</EmptyState>
+          ) : (
+            <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+              {movements.map((m) => (
+                <li key={m.id} className="flex items-start justify-between gap-3 px-5 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{m.productName}</p>
+                    <p className="text-xs text-slate-500">
+                      {MOVEMENT_LABEL[m.type]}
+                      {m.invoiceId && <> · {m.invoiceId}</>}
+                      {m.reason && <> · {m.reason}</>}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {formatDate(m.createdAt)} · {m.staffName}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 font-semibold tabular-nums ${m.change > 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    {m.change > 0 ? "+" : ""}
+                    {m.change}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+
+      <Modal
+        open={!!dialog}
+        title={dialog ? `${dialog.kind === "adjust" ? "Adjust stock" : "Edit product"} — ${dialog.product.name}` : ""}
+        onClose={closeDialog}
+      >
+        {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
+        {dialog?.kind === "edit" && <EditProductForm key={dialog.product.id} product={dialog.product} onDone={done} />}
+      </Modal>
     </div>
   );
 }

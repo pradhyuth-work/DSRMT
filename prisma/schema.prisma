@@ -2,9 +2,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Supabase Postgres. DATABASE_URL is the pooled connection used at runtime;
+// DIRECT_URL is the session connection used by Prisma CLI commands.
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum InvoiceStatus {
@@ -18,14 +21,35 @@ enum PaymentMethod {
   UPI
 }
 
+enum Role {
+  admin
+  stock
+  agent
+}
+
+enum FulfilmentStatus {
+  PENDING
+  DISPATCHED
+  CANCELLED
+}
+
+enum StockMovementType {
+  RECEIVE
+  ADJUST
+  DISPATCH
+  CANCEL_RETURN
+}
+
 model Product {
   id        String   @id @default(cuid())
   name      String   @unique
   unitPrice Float
+  /// Never negative: enforced by a CHECK constraint in the migration.
   stockQty  Int      @default(0)
   createdAt DateTime @default(now())
 
-  invoiceItems InvoiceItem[]
+  invoiceItems   InvoiceItem[]
+  stockMovements StockMovement[]
 }
 
 model Outlet {
@@ -38,34 +62,53 @@ model Outlet {
   payments PaymentCollection[]
 }
 
+/// Sales staff and login users. Rows without a username cannot log in.
 model Staff {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String
+  phone        String
+  username     String?  @unique
+  passwordHash String?
+  role         Role     @default(agent)
+  active       Boolean  @default(true)
+  /// Bumped on password reset so previously issued tokens stop working.
+  tokenVersion Int      @default(0)
+  createdAt    DateTime @default(now())
 
-  invoices Invoice[]
-  payments PaymentCollection[]
+  invoices           Invoice[]           @relation("InvoiceOwner")
+  dispatchedInvoices Invoice[]           @relation("InvoiceDispatchedBy")
+  cancelledInvoices  Invoice[]           @relation("InvoiceCancelledBy")
+  payments           PaymentCollection[]
+  stockMovements     StockMovement[]
 }
 
-/// Invoice ids are human-readable, e.g. INV-1001.
+/// Invoice ids are human-readable, e.g. INV-1001. staffId is the order owner.
 model Invoice {
-  id          String        @id
-  outletId    String
-  staffId     String
-  totalAmount Float
-  paidAmount  Float         @default(0)
-  balanceDue  Float
-  status      InvoiceStatus @default(UNPAID)
-  createdAt   DateTime      @default(now())
+  id               String           @id
+  outletId         String
+  staffId          String
+  totalAmount      Float
+  paidAmount       Float            @default(0)
+  balanceDue       Float
+  status           InvoiceStatus    @default(UNPAID)
+  fulfilmentStatus FulfilmentStatus @default(PENDING)
+  dispatchedAt     DateTime?
+  dispatchedById   String?
+  cancelledAt      DateTime?
+  cancelledById    String?
+  createdAt        DateTime         @default(now())
 
-  outlet   Outlet              @relation(fields: [outletId], references: [id])
-  staff    Staff               @relation(fields: [staffId], references: [id])
-  items    InvoiceItem[]
-  payments PaymentCollection[]
+  outlet         Outlet              @relation(fields: [outletId], references: [id])
+  staff          Staff               @relation("InvoiceOwner", fields: [staffId], references: [id])
+  dispatchedBy   Staff?              @relation("InvoiceDispatchedBy", fields: [dispatchedById], references: [id])
+  cancelledBy    Staff?              @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
+  items          InvoiceItem[]
+  payments       PaymentCollection[]
+  stockMovements StockMovement[]
 
   @@index([outletId, createdAt])
   @@index([staffId])
+  @@index([fulfilmentStatus])
 }
 
 model InvoiceItem {
@@ -98,4 +141,23 @@ model PaymentCollection {
 
   @@index([outletId])
   @@index([staffId])
+}
+
+/// Audit trail for every stock change. change is signed (+ in, - out).
+model StockMovement {
+  id        String            @id @default(cuid())
+  productId String
+  change    Int
+  type      StockMovementType
+  reason    String?
+  invoiceId String?
+  staffId   String
+  createdAt DateTime          @default(now())
+
+  product Product  @relation(fields: [productId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  staff   Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([invoiceId])
 }

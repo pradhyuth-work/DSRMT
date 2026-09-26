@@ -1,25 +1,55 @@
 import { z } from "zod";
 import type {
+  AdjustStockInput,
   CreatePaymentInput,
   CreateProductInput,
   CreateSaleInput,
+  CreateStaffInput,
+  LoginInput,
+  ResetPasswordInput,
   RestockInput,
+  UpdateOrderInput,
+  UpdateProductInput,
+  UpdateStaffInput,
 } from "./types";
 
 const money = z.coerce.number().finite().nonnegative();
 const id = z.string().trim().min(1);
 const paymentMethod = z.enum(["CASH", "UPI"]);
+const role = z.enum(["admin", "stock", "agent"]);
+const saleItems = z
+  .array(z.object({ productId: id, quantity: z.coerce.number().int().positive() }))
+  .min(1, "Add at least one item");
+const username = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9._-]{3,32}$/, "Username must be 3–32 characters: letters, numbers, dot, dash or underscore");
+const password = z.string().min(8, "Password must be at least 8 characters").max(128);
+const personName = z.string().trim().min(1, "Name is required").max(80);
+const phone = z.string().trim().max(20);
+
+export const loginSchema = z.object({
+  username: z.string().trim().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+}) satisfies z.ZodType<LoginInput, z.ZodTypeDef, unknown>;
 
 export const createSaleSchema = z.object({
   outletId: id,
-  staffId: id,
-  items: z
-    .array(z.object({ productId: id, quantity: z.coerce.number().int().positive() }))
-    .min(1, "Add at least one item"),
+  staffId: id.optional(),
+  items: saleItems,
   paidAmount: money.default(0),
   paymentMethod: paymentMethod.default("CASH"),
   notes: z.string().trim().max(500).optional(),
 }) satisfies z.ZodType<CreateSaleInput, z.ZodTypeDef, unknown>;
+
+export const updateOrderSchema = z
+  .object({ outletId: id.optional(), items: saleItems.optional() })
+  .refine((v) => v.outletId !== undefined || v.items !== undefined, "Nothing to update") satisfies z.ZodType<
+  UpdateOrderInput,
+  z.ZodTypeDef,
+  unknown
+>;
 
 export const createPaymentSchema = z.object({
   outletId: id,
@@ -35,6 +65,48 @@ export const createProductSchema = z.object({
   stockQty: z.coerce.number().int().nonnegative().default(0),
 }) satisfies z.ZodType<CreateProductInput, z.ZodTypeDef, unknown>;
 
+export const updateProductSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120).optional(),
+    unitPrice: money.positive("Price must be greater than zero").optional(),
+  })
+  .refine((v) => v.name !== undefined || v.unitPrice !== undefined, "Nothing to update") satisfies z.ZodType<
+  UpdateProductInput,
+  z.ZodTypeDef,
+  unknown
+>;
+
 export const restockSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
+  reason: z.string().trim().max(200).optional(),
 }) satisfies z.ZodType<RestockInput, z.ZodTypeDef, unknown>;
+
+export const adjustStockSchema = z.object({
+  change: z.coerce
+    .number()
+    .int("Change must be a whole number")
+    .refine((n) => n !== 0, "Change cannot be zero"),
+  reason: z.string().trim().min(3, "Give a reason for the adjustment").max(200),
+}) satisfies z.ZodType<AdjustStockInput, z.ZodTypeDef, unknown>;
+
+export const createStaffSchema = z.object({
+  name: personName,
+  phone: phone.default(""),
+  username,
+  password,
+  role,
+}) satisfies z.ZodType<CreateStaffInput, z.ZodTypeDef, unknown>;
+
+export const updateStaffSchema = z.object({
+  name: personName.optional(),
+  phone: phone.optional(),
+  username: username.optional(),
+  role: role.optional(),
+  active: z.boolean().optional(),
+}) satisfies z.ZodType<UpdateStaffInput, z.ZodTypeDef, unknown>;
+
+export const resetPasswordSchema = z.object({ password }) satisfies z.ZodType<
+  ResetPasswordInput,
+  z.ZodTypeDef,
+  unknown
+>;

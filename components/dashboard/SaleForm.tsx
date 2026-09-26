@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2, Plus, Send, Trash2 } from "lucide-react";
-import type { CreateSaleResponse, PaymentMethod } from "@/lib/types";
+import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2, statusFor } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, StatusBadge } from "./ui";
@@ -19,8 +19,18 @@ interface Line {
 let nextKey = 1;
 const newLine = (): Line => ({ key: nextKey++, productId: "", quantity: "1" });
 
-export default function SaleForm({ data, onSaved }: { data: DashboardData; onSaved: () => Promise<void> }) {
+export default function SaleForm({
+  data,
+  user,
+  onSaved,
+}: {
+  data: DashboardData;
+  user: AuthUser;
+  onSaved: () => Promise<void>;
+}) {
   const { products, outlets, staff } = data;
+  // Agents always own their orders; only admins pick the staff member.
+  const choosesStaff = user.role === "admin";
   const [outletId, setOutletId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [lines, setLines] = useState<Line[]>(() => [newLine()]);
@@ -49,8 +59,10 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
     const validQty = Number.isInteger(qty) && qty > 0;
     const subtotal = product && validQty ? round2(product.unitPrice * qty) : 0;
     const totalRequested = requested.get(l.productId) ?? 0;
-    const insufficient = !!product && totalRequested > product.stockQty;
-    const remaining = product ? product.stockQty - totalRequested : 0;
+    // Agents only know whether an item is in stock, not the count.
+    const stockQty = product?.stockQty;
+    const insufficient = !!product && (stockQty === undefined ? !product.inStock : totalRequested > stockQty);
+    const remaining = stockQty === undefined ? null : stockQty - totalRequested;
     return { line: l, product, qty, validQty, subtotal, insufficient, remaining };
   });
 
@@ -63,7 +75,7 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
 
   const blockers = [
     !outletId && "Select an outlet",
-    !staffId && "Select a staff member",
+    choosesStaff && !staffId && "Select a staff member",
     hasIncompleteLine && "Complete every line item",
     hasShortage && "Resolve stock shortages",
     overpaid && "Payment exceeds bill total",
@@ -87,7 +99,7 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
     try {
       const { invoice } = await api.createSale({
         outletId,
-        staffId,
+        staffId: choosesStaff ? staffId : undefined,
         items: computed.map((c) => ({ productId: c.line.productId, quantity: c.qty })),
         paidAmount: paidNum,
         paymentMethod,
@@ -97,7 +109,7 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
       reset();
       await onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create sale");
+      setError(err instanceof Error ? err.message : "Failed to create order");
     } finally {
       setSubmitting(false);
     }
@@ -116,20 +128,27 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
               ))}
             </select>
           </div>
-          <div>
-            <label className="label" htmlFor="staff">Sales Staff</label>
-            <select id="staff" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
-              <option value="">Select staff…</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          {choosesStaff ? (
+            <div>
+              <label className="label" htmlFor="staff">Sales Staff</label>
+              <select id="staff" className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
+                <option value="">Select staff…</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <span className="label">Order taken by</span>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm">{user.name}</p>
+            </div>
+          )}
         </div>
 
         <div className="card">
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-            <h2 className="font-semibold">Items to dispatch</h2>
+            <h2 className="font-semibold">Items</h2>
             <button type="button" className="btn btn-secondary py-1.5" onClick={() => setLines((p) => [...p, newLine()])}>
               <Plus className="h-4 w-4" /> Add item
             </button>
@@ -146,18 +165,19 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
                   >
                     <option value="">Select product…</option>
                     {products.map((p) => (
-                      <option key={p.id} value={p.id} disabled={p.stockQty === 0}>
-                        {p.name} — {formatMoney(p.unitPrice)} ({p.stockQty} in stock)
+                      <option key={p.id} value={p.id} disabled={!p.inStock}>
+                        {p.name} — {formatMoney(p.unitPrice)} (
+                        {p.stockQty === undefined ? (p.inStock ? "in stock" : "out of stock") : `${p.stockQty} in stock`})
                       </option>
                     ))}
                   </select>
                   {product && insufficient && (
                     <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-red-600">
                       <AlertTriangle className="h-3.5 w-3.5" />
-                      Only {product.stockQty} in stock — short by {-remaining}
+                      {remaining === null ? "Out of stock" : `Only ${product.stockQty} in stock — short by ${-remaining}`}
                     </p>
                   )}
-                  {product && !insufficient && remaining < LOW_STOCK_THRESHOLD && (
+                  {product && !insufficient && remaining !== null && remaining < LOW_STOCK_THRESHOLD && (
                     <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-amber-600">
                       <AlertTriangle className="h-3.5 w-3.5" />
                       Low stock: {remaining} left after this sale
@@ -260,14 +280,14 @@ export default function SaleForm({ data, onSaved }: { data: DashboardData; onSav
 
           <button type="submit" className="btn btn-primary w-full" disabled={submitting || blockers.length > 0}>
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Create invoice & dispatch
+            Create order
           </button>
         </div>
 
         {lastInvoice && (
           <Alert kind="success">
             <p className="font-semibold">
-              {lastInvoice.id} created — {formatMoney(lastInvoice.totalAmount)}
+              {lastInvoice.id} created — {formatMoney(lastInvoice.totalAmount)} · awaiting dispatch
             </p>
             <p>
               Paid {formatMoney(lastInvoice.paidAmount)} · Balance {formatMoney(lastInvoice.balanceDue)} · {lastInvoice.status}

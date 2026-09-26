@@ -1,104 +1,221 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Boxes,
+  ClipboardList,
   IndianRupee,
   Loader2,
+  LogOut,
   Package,
   ReceiptText,
   RefreshCw,
   ShoppingCart,
   Store,
+  UserCog,
   Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import type { OutletDTO, ProductDTO, ReportsResponse, StaffDTO } from "@/lib/types";
+import type {
+  AuthUser,
+  OrderDTO,
+  OutletDTO,
+  ProductDTO,
+  ReportsResponse,
+  Role,
+  StaffDTO,
+  StockMovementDTO,
+} from "@/lib/types";
 import { formatMoney } from "@/lib/money";
-import { api } from "./api-client";
+import { api, setUnauthorizedHandler } from "./api-client";
+import { clearToken, getToken, setToken } from "./session";
 import { Alert, StatCard } from "./ui";
+import LoginScreen from "./LoginScreen";
 import SaleForm from "./SaleForm";
+import OrdersView from "./OrdersView";
 import OutletLedgers from "./OutletLedgers";
 import StaffPerformanceView from "./StaffPerformance";
 import InventoryManager from "./InventoryManager";
+import UsersManager from "./UsersManager";
 
-type TabId = "sale" | "ledgers" | "staff" | "inventory";
+type TabId = "sale" | "orders" | "ledgers" | "staff" | "inventory" | "users";
 
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: "sale", label: "New Sale & Dispatch", icon: ShoppingCart },
-  { id: "ledgers", label: "Outlet Ledgers", icon: Store },
-  { id: "staff", label: "Staff Performance", icon: Users },
-  { id: "inventory", label: "Inventory Manager", icon: Package },
-];
+interface TabDef {
+  id: TabId;
+  label: string;
+  icon: LucideIcon;
+}
+
+// Which tabs each role sees, in order. The server enforces the same rules on every route.
+const TABS_BY_ROLE: Record<Role, TabDef[]> = {
+  admin: [
+    { id: "sale", label: "New Sale", icon: ShoppingCart },
+    { id: "orders", label: "Orders", icon: ClipboardList },
+    { id: "ledgers", label: "Outlet Ledgers", icon: Store },
+    { id: "staff", label: "Staff Performance", icon: Users },
+    { id: "inventory", label: "Stock", icon: Package },
+    { id: "users", label: "Users", icon: UserCog },
+  ],
+  stock: [
+    { id: "orders", label: "Orders to dispatch", icon: ClipboardList },
+    { id: "inventory", label: "Stock", icon: Package },
+  ],
+  agent: [
+    { id: "sale", label: "New order", icon: ShoppingCart },
+    { id: "orders", label: "My orders", icon: ClipboardList },
+  ],
+};
+
+const ROLE_LABEL: Record<Role, string> = { admin: "Admin", stock: "Stock incharge", agent: "Field agent" };
 
 export interface DashboardData {
   products: ProductDTO[];
   outlets: OutletDTO[];
+  orders: OrderDTO[];
+  /** Admin only. */
   staff: StaffDTO[];
-  reports: ReportsResponse;
+  /** Admin only. */
+  reports: ReportsResponse | null;
+  /** Admin and stock only. */
+  movements: StockMovementDTO[];
+}
+
+async function loadData(role: Role): Promise<DashboardData> {
+  const isAdmin = role === "admin";
+  const [products, outlets, orders, staff, reports, movements] = await Promise.all([
+    api.products(),
+    role === "stock" ? Promise.resolve([]) : api.outlets(),
+    api.orders(),
+    isAdmin ? api.staff() : Promise.resolve([]),
+    isAdmin ? api.reports() : Promise.resolve(null),
+    role === "agent" ? Promise.resolve([]) : api.stockMovements(),
+  ]);
+  return { products, outlets, orders, staff, reports, movements };
 }
 
 export default function Dashboard() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<TabId>("sale");
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const signOut = useCallback((message?: string) => {
+    clearToken();
+    setUser(null);
+    setData(null);
+    setError(null);
+    setNotice(message ?? null);
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => signOut("Your session has ended. Please sign in again."));
+    return () => setUnauthorizedHandler(null);
+  }, [signOut]);
+
+  // Restore a saved session on first load.
+  useEffect(() => {
+    if (!getToken()) {
+      setBooting(false);
+      return;
+    }
+    api
+      .me()
+      .then(setUser)
+      .catch(() => clearToken())
+      .finally(() => setBooting(false));
+  }, []);
+
+  const tabs = useMemo(() => (user ? TABS_BY_ROLE[user.role] : []), [user]);
+
+  useEffect(() => {
+    if (tabs.length && !tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
+  }, [tabs, tab]);
 
   const refresh = useCallback(async () => {
+    if (!user) return;
     setRefreshing(true);
     try {
-      const [products, outlets, staff, reports] = await Promise.all([
-        api.products(),
-        api.outlets(),
-        api.staff(),
-        api.reports(),
-      ]);
-      setData({ products, outlets, staff, reports });
+      setData(await loadData(user.role));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const metrics = data?.reports.dashboard;
+  if (booting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center gap-2 text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <LoginScreen
+        notice={notice}
+        onLogin={(token, u) => {
+          setToken(token);
+          setNotice(null);
+          setTab(TABS_BY_ROLE[u.role][0].id);
+          setUser(u);
+        }}
+      />
+    );
+  }
+
+  const metrics = data?.reports?.dashboard;
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="rounded-lg bg-indigo-600 p-2 text-white">
               <ReceiptText className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg font-semibold leading-tight">DSRMT Billing</h1>
-              <p className="text-xs text-slate-500">Billing · Dispatch · Ledgers · Reconciliation</p>
+              <p className="truncate text-xs text-slate-500">
+                {user.name} · {ROLE_LABEL[user.role]}
+              </p>
             </div>
           </div>
-          <button className="btn btn-secondary" onClick={() => void refresh()} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button className="btn btn-secondary px-3" onClick={() => void refresh()} disabled={refreshing} aria-label="Refresh">
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button className="btn btn-secondary px-3" onClick={() => signOut()} aria-label="Sign out">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} />
-          <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="emerald" />
-          <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="amber" />
-          <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="sky" />
-        </section>
+        {user.role === "admin" && (
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} />
+            <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="emerald" />
+            <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="amber" />
+            <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="sky" />
+          </section>
+        )}
 
         <nav className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -122,10 +239,23 @@ export default function Dashboard() {
           )
         ) : (
           <>
-            {tab === "sale" && <SaleForm data={data} onSaved={refresh} />}
-            {tab === "ledgers" && <OutletLedgers data={data} onSaved={refresh} />}
-            {tab === "staff" && <StaffPerformanceView rows={data.reports.staffPerformance} />}
-            {tab === "inventory" && <InventoryManager products={data.products} onSaved={refresh} />}
+            {tab === "sale" && <SaleForm data={data} user={user} onSaved={refresh} />}
+            {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
+            {tab === "ledgers" && data.reports && (
+              <OutletLedgers data={{ reports: data.reports, staff: data.staff }} onSaved={refresh} />
+            )}
+            {tab === "staff" && data.reports && <StaffPerformanceView rows={data.reports.staffPerformance} />}
+            {tab === "inventory" && (
+              <InventoryManager products={data.products} movements={data.movements} onSaved={refresh} />
+            )}
+            {tab === "users" && (
+              <UsersManager
+                staff={data.staff}
+                user={user}
+                onSaved={refresh}
+                onOwnTokenChanged={(token) => setToken(token)}
+              />
+            )}
           </>
         )}
       </main>

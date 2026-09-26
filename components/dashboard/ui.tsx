@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle, CheckCircle2, X, type LucideIcon } from "lucide-react";
-import type { InvoiceStatus } from "@/lib/types";
+import type { FulfilmentStatus, InvoiceStatus } from "@/lib/types";
 
 export function StatCard({
   label,
@@ -94,6 +94,15 @@ export function StatusBadge({ status }: { status: InvoiceStatus }) {
     PAID: "bg-emerald-100 text-emerald-700",
     PARTIAL: "bg-amber-100 text-amber-700",
     UNPAID: "bg-red-100 text-red-700",
+  };
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${styles[status]}`}>{status}</span>;
+}
+
+export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
+  const styles: Record<FulfilmentStatus, string> = {
+    PENDING: "bg-sky-100 text-sky-700",
+    DISPATCHED: "bg-indigo-100 text-indigo-700",
+    CANCELLED: "bg-slate-200 text-slate-600",
   };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${styles[status]}`}>{status}</span>;
 }

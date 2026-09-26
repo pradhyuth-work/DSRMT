@@ -1,20 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse, parseBody } from "@/lib/api";
+import { ALL_ROLES, authorize } from "@/lib/auth";
 import { createProductSchema } from "@/lib/validation";
 import { round2 } from "@/lib/money";
-import type { ProductDTO } from "@/lib/types";
+import { toProductDTO } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
-function toDTO(p: { id: string; name: string; unitPrice: number; stockQty: number; createdAt: Date }): ProductDTO {
-  return { id: p.id, name: p.name, unitPrice: p.unitPrice, stockQty: p.stockQty, createdAt: p.createdAt.toISOString() };
-}
-
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const user = await authorize(req, ALL_ROLES);
     const products = await prisma.product.findMany({ orderBy: { name: "asc" } });
-    return NextResponse.json(products.map(toDTO));
+    return NextResponse.json(products.map((p) => toProductDTO(p, user.role)));
   } catch (err) {
     return errorResponse(err);
   }
@@ -22,11 +20,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const user = await authorize(req, ["admin", "stock"]);
     const input = await parseBody(req, createProductSchema);
-    const product = await prisma.product.create({
-      data: { name: input.name, unitPrice: round2(input.unitPrice), stockQty: input.stockQty },
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: { name: input.name, unitPrice: round2(input.unitPrice), stockQty: input.stockQty },
+      });
+      if (input.stockQty > 0) {
+        await tx.stockMovement.create({
+          data: { productId: created.id, change: input.stockQty, type: "RECEIVE", reason: "Opening stock", staffId: user.id },
+        });
+      }
+      return created;
     });
-    return NextResponse.json(toDTO(product), { status: 201 });
+    return NextResponse.json(toProductDTO(product, user.role), { status: 201 });
   } catch (err) {
     return errorResponse(err);
   }
