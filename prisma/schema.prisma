@@ -56,21 +56,35 @@ model Product {
   stockMovements StockMovement[]
 }
 
-/// Each outlet is assigned to exactly one field agent (nullable only for outlets created
-/// before this existed, or deliberately left unassigned). An agent only ever sees and
-/// orders for outlets assigned to them; admins are not restricted.
+/// A route groups outlets and is assigned to at most one field agent — and an agent is
+/// tied to at most one route in turn (agentId is unique), so a field agent's whole world
+/// is exactly the outlets on that one route, never spread across several. Nullable
+/// agentId: a route can exist unassigned.
+model Route {
+  id        String   @id @default(cuid())
+  name      String
+  agentId   String?  @unique
+  createdAt DateTime @default(now())
+
+  agent   Staff?   @relation(fields: [agentId], references: [id])
+  outlets Outlet[]
+}
+
+/// Each outlet belongs to at most one route (nullable = not on any route yet, invisible
+/// to every agent until assigned). An agent only ever sees and orders for outlets whose
+/// route is assigned to them; admins are not restricted.
 model Outlet {
   id        String   @id @default(cuid())
   name      String
   phone     String
-  agentId   String?
+  routeId   String?
   createdAt DateTime @default(now())
 
-  agent    Staff?              @relation("OutletAgent", fields: [agentId], references: [id])
+  route    Route?              @relation(fields: [routeId], references: [id])
   invoices Invoice[]
   payments PaymentCollection[]
 
-  @@index([agentId])
+  @@index([routeId])
 }
 
 /// Sales staff and login users. Rows without a username cannot log in.
@@ -91,7 +105,7 @@ model Staff {
   cancelledInvoices  Invoice[]           @relation("InvoiceCancelledBy")
   payments           PaymentCollection[]
   stockMovements     StockMovement[]
-  outlets            Outlet[]            @relation("OutletAgent")
+  route              Route?
 }
 
 /// Invoice ids are human-readable, e.g. INV-1001. staffId is the order owner.

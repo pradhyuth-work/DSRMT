@@ -39,6 +39,9 @@ export interface OutletDTO {
   id: string;
   name: string;
   phone: string;
+  routeId: string | null;
+  routeName: string | null;
+  /** Derived from the outlet's route, if any. */
   agentId: string | null;
   agentName: string | null;
 }
@@ -46,12 +49,30 @@ export interface OutletDTO {
 export interface CreateOutletInput {
   name: string;
   phone: string;
-  agentId: string | null;
+  routeId: string | null;
 }
 
 export interface UpdateOutletInput {
   name?: string;
   phone?: string;
+  routeId?: string | null;
+}
+
+export interface RouteDTO {
+  id: string;
+  name: string;
+  agentId: string | null;
+  agentName: string | null;
+  outletCount: number;
+}
+
+export interface CreateRouteInput {
+  name: string;
+  agentId: string | null;
+}
+
+export interface UpdateRouteInput {
+  name?: string;
   agentId?: string | null;
 }
 
@@ -284,6 +305,8 @@ export interface OutletLedger {
   outletId: string;
   outletName: string;
   phone: string;
+  routeId: string | null;
+  routeName: string | null;
   agentId: string | null;
   agentName: string | null;
   totalBilled: number;

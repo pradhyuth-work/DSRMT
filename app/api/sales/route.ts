@@ -22,14 +22,14 @@ export async function POST(req: Request) {
 
     const invoice = await prisma.$transaction(async (tx) => {
       const [outlet, staff] = await Promise.all([
-        tx.outlet.findUnique({ where: { id: input.outletId }, select: { id: true, agentId: true } }),
+        tx.outlet.findUnique({ where: { id: input.outletId }, select: { id: true, route: { select: { agentId: true } } } }),
         tx.staff.findUnique({ where: { id: staffId }, select: { id: true } }),
       ]);
       if (!outlet) throw new HttpError(400, "Outlet not found");
       if (!staff) throw new HttpError(400, "Staff member not found");
-      // Agents can only order for outlets assigned to them; admins aren't restricted.
-      if (user.role === "agent" && outlet.agentId !== user.id) {
-        throw new HttpError(403, "This outlet isn't assigned to you");
+      // Agents can only order for outlets on their route; admins aren't restricted.
+      if (user.role === "agent" && outlet.route?.agentId !== user.id) {
+        throw new HttpError(403, "This outlet isn't on your route");
       }
 
       const { lines, totalAmount } = await priceLines(tx, input.items, user.role);

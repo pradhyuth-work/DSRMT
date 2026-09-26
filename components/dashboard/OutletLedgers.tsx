@@ -1,20 +1,27 @@
 "use client";
 
 import { Fragment, useCallback, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, HandCoins, Loader2, Plus, Search, Store } from "lucide-react";
-import type { OutletDTO, OutletLedger, ReportsResponse, StaffDTO } from "@/lib/types";
+import { ChevronDown, ChevronRight, HandCoins, Loader2, Plus, Route as RouteIcon, Search, Store } from "lucide-react";
+import type { OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
 import { CollectPaymentForm } from "./payment-form";
+import RoutesManager from "./RoutesManager";
 
 interface LedgerData {
   reports: ReportsResponse;
   staff: StaffDTO[];
   outlets: OutletDTO[];
+  routes: RouteDTO[];
 }
 
 const UNASSIGNED = "__unassigned__";
+
+/** A route's label in a picker: its name plus who's currently on it, so picking one is informed. */
+function routeLabel(r: RouteDTO): string {
+  return `${r.name}${r.agentName ? ` — ${r.agentName}` : " — Unassigned"}`;
+}
 
 export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onSaved: () => Promise<void> }) {
   const ledgers = data.reports.outletLedgers;
@@ -24,6 +31,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collecting, setCollecting] = useState<OutletLedger | null>(null);
   const [addingOutlet, setAddingOutlet] = useState(false);
+  const [managingRoutes, setManagingRoutes] = useState(false);
   const [reassigning, setReassigning] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
@@ -37,14 +45,14 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
     });
   }, [ledgers, search, agentFilter]);
 
-  async function reassign(outletId: string, agentId: string) {
+  async function reassignRoute(outletId: string, routeId: string) {
     setReassigning(outletId);
     try {
-      await api.updateOutlet(outletId, { agentId: agentId || null });
-      setFlash({ kind: "success", text: "Outlet reassigned" });
+      await api.updateOutlet(outletId, { routeId: routeId || null });
+      setFlash({ kind: "success", text: "Outlet moved to a different route" });
       await onSaved();
     } catch (err) {
-      setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to reassign outlet" });
+      setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to move outlet" });
     } finally {
       setReassigning(null);
     }
@@ -72,6 +80,9 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>
+        <button className="btn btn-secondary sm:w-auto" onClick={() => setManagingRoutes(true)}>
+          <RouteIcon className="h-4 w-4" /> Manage routes
+        </button>
         <button className="btn btn-secondary sm:w-auto" onClick={() => setAddingOutlet(true)}>
           <Plus className="h-4 w-4" /> Add outlet
         </button>
@@ -84,7 +95,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
               <tr>
                 <th className="th w-8" />
                 <th className="th">Outlet</th>
-                <th className="th">Field Agent</th>
+                <th className="th">Route</th>
                 <th className="th text-right">Total Billed</th>
                 <th className="th text-right">Total Paid</th>
                 <th className="th text-right">Balance</th>
@@ -115,14 +126,14 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                       <td className="td">
                         <select
                           className="input py-1.5 text-sm"
-                          value={l.agentId ?? ""}
+                          value={l.routeId ?? ""}
                           disabled={reassigning === l.outletId}
-                          onChange={(e) => void reassign(l.outletId, e.target.value)}
-                          aria-label={`Field agent for ${l.outletName}`}
+                          onChange={(e) => void reassignRoute(l.outletId, e.target.value)}
+                          aria-label={`Route for ${l.outletName}`}
                         >
-                          <option value="">— Unassigned —</option>
-                          {agents.map((a) => (
-                            <option key={a.id} value={a.id}>{a.name}</option>
+                          <option value="">— No route —</option>
+                          {data.routes.map((r) => (
+                            <option key={r.id} value={r.id}>{routeLabel(r)}</option>
                           ))}
                         </select>
                       </td>
@@ -180,10 +191,21 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
 
       <Modal open={addingOutlet} title="Add outlet" onClose={() => setAddingOutlet(false)}>
         <AddOutletForm
-          agents={agents}
+          routes={data.routes}
           onDone={async (message) => {
             setAddingOutlet(false);
             setFlash({ kind: "success", text: message });
+            await onSaved();
+          }}
+        />
+      </Modal>
+
+      <Modal open={managingRoutes} title="Manage routes" onClose={() => setManagingRoutes(false)}>
+        <RoutesManager
+          routes={data.routes}
+          agents={agents}
+          onSaved={async () => {
+            setFlash({ kind: "success", text: "Routes updated" });
             await onSaved();
           }}
         />
@@ -224,10 +246,10 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
   );
 }
 
-function AddOutletForm({ agents, onDone }: { agents: StaffDTO[]; onDone: (message: string) => Promise<void> }) {
+function AddOutletForm({ routes, onDone }: { routes: RouteDTO[]; onDone: (message: string) => Promise<void> }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [agentId, setAgentId] = useState("");
+  const [routeId, setRouteId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valid = name.trim().length > 0;
@@ -238,8 +260,8 @@ function AddOutletForm({ agents, onDone }: { agents: StaffDTO[]; onDone: (messag
     setBusy(true);
     setError(null);
     try {
-      const created = await api.createOutlet({ name: name.trim(), phone: phone.trim(), agentId: agentId || null });
-      await onDone(`Added ${created.name}${created.agentName ? ` (assigned to ${created.agentName})` : ""}`);
+      const created = await api.createOutlet({ name: name.trim(), phone: phone.trim(), routeId: routeId || null });
+      await onDone(`Added ${created.name}${created.agentName ? ` (on ${created.routeName}, ${created.agentName}'s route)` : ""}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add outlet");
     } finally {
@@ -258,14 +280,14 @@ function AddOutletForm({ agents, onDone }: { agents: StaffDTO[]; onDone: (messag
         <input id="o-phone" type="tel" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
       </div>
       <div>
-        <label className="label" htmlFor="o-agent">Field agent</label>
-        <select id="o-agent" className="input" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-          <option value="">— Unassigned —</option>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
+        <label className="label" htmlFor="o-route">Route</label>
+        <select id="o-route" className="input" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
+          <option value="">— No route —</option>
+          {routes.map((r) => (
+            <option key={r.id} value={r.id}>{routeLabel(r)}</option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-slate-400">Only the assigned agent will see this outlet when creating an order.</p>
+        <p className="mt-1 text-xs text-slate-400">Only that route's agent will see this outlet when creating an order.</p>
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>

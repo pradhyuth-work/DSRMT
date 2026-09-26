@@ -10,7 +10,7 @@ Role-based login (admin / stock incharge / field agent) sits in front of order b
 | --- | --- |
 | **admin** | Everything: manage users, outlets and their field-agent assignment, view/edit/cancel any order, dispatch, manage stock (add, receive, bulk-receive, adjust), collect payments, see reports and ledgers. |
 | **stock** (stock incharge) | View all orders and dispatch them, and collect payments. Read-only on products/stock (no receiving, adjusting, or creating products — that's admin-only). Cannot manage users. |
-| **agent** (field agent) | Create orders for outlets assigned to them, and see/cancel only their own **pending** orders. Sees whether a product is in stock, never exact counts. |
+| **agent** (field agent) | Create orders for outlets on their route, and see/cancel only their own **pending** orders. Sees whether a product is in stock, never exact counts. |
 
 There is no public sign-up. An admin creates every account (`Users` tab, or directly via the API), and can disable, re-enable, change the role of, or reset the password for anyone but themselves.
 
@@ -20,9 +20,10 @@ There is no public sign-up. An admin creates every account (`Users` tab, or dire
 2. **Schema.** In the Supabase SQL editor (or `psql`), run the files in `supabase/migrations/` **in order**:
    - `0001_baseline_schema.sql` — creates the original tables. Skip this one if your database already has them.
    - `0002_role_based_auth.sql` — adds `username`/`passwordHash`/`role`/`active` to `Staff`, adds order dispatch fields to `Invoice`, adds the `StockMovement` table, and backfills existing rows (see the comment at the top of the file for exactly what it changes).
-   - `0003_outlet_agents_and_product_codes.sql` — adds `Outlet.agentId` (each outlet belongs to one field agent; existing outlets are left **unassigned** — there's no reliable way to infer who owned what, so assign them from the Outlet Ledgers tab) and `Product.productCode` (a sequential, human-facing number, backfilled from existing products in creation order).
+   - `0003_outlet_agents_and_product_codes.sql` — adds `Outlet.agentId` and `Product.productCode`. `agentId` is superseded by `0004` below (kept as a historical step — nothing here depends on it once `0004` runs).
+   - `0004_outlet_routes.sql` — replaces `0003`'s direct `Outlet.agentId` with an indirect link through routes: adds the `Route` table (one route → at most one field agent, and an agent is tied to at most one route in turn) and `Outlet.routeId`. Every outlet that had an agent gets a same-named route carrying that agent, automatically, before the old column is dropped — no assignment is lost.
 
-   Coming from the old SQLite version of this app? Run `npm run db:import-sqlite` after `0001` (before or after `0002`/`0003`) to copy `prisma/dev.db` across; it refuses to run if the target already has data.
+   Coming from the old SQLite version of this app? Run `npm run db:import-sqlite` after `0001` (before or after `0002`–`0004`) to copy `prisma/dev.db` across; it refuses to run if the target already has data.
 3. **Install and generate the client:**
    ```bash
    npm install
@@ -64,11 +65,13 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 | `POST /api/products/:id/adjust` | ✓ | ✗ | ✗ | up/down correction with a reason; never below zero |
 | `POST /api/products/bulk-receive` | ✓ | ✗ | ✗ | bulk stock-inwarding upload (CSV or the in-app grid) |
 | `GET /api/stock-movements` | ✓ | ✓ | ✗ | audit trail (read-only for stock) |
-| `GET /api/outlets` | ✓ (all) | ✓ (all) | ✓ (own only) | agents only ever see outlets assigned to them |
-| `POST /api/outlets` | ✓ | ✗ | ✗ | create an outlet, optionally assigning a field agent |
-| `PATCH /api/outlets/:id` | ✓ | ✗ | ✗ | edit details or (re)assign the field agent |
+| `GET /api/outlets` | ✓ (all) | ✓ (all) | ✓ (own route only) | agents only ever see outlets on their route |
+| `POST /api/outlets` | ✓ | ✗ | ✗ | create an outlet, optionally putting it on a route |
+| `PATCH /api/outlets/:id` | ✓ | ✗ | ✗ | edit details or move it onto a different route |
 | `GET /api/outlets/:id/ledger` | ✓ | ✓ | ✗ | one outlet's balance + open invoices, for collecting a payment |
-| `POST /api/sales` | ✓ | ✗ | ✓ | creates a **pending** order for an outlet the caller may use; agents always own the order they create and can only use their own assigned outlet |
+| `GET/POST /api/routes` | ✓ | ✗ | ✗ | list/create routes; creating or updating one with an `agentId` already on another route moves them off it automatically (a route's agent is unique) |
+| `PATCH/DELETE /api/routes/:id` | ✓ | ✗ | ✗ | rename / reassign agent; delete refuses while any outlet is still on it |
+| `POST /api/sales` | ✓ | ✗ | ✓ | creates a **pending** order for an outlet the caller may use; agents always own the order they create and can only use an outlet on their route |
 | `GET /api/orders` | ✓ (all) | ✓ (all) | ✓ (own only) | `?status=` filter |
 | `PATCH /api/orders/:id` | ✓ | ✗ | ✗ | edit a pending order's outlet/items |
 | `POST /api/orders/:id/dispatch` | ✓ | ✓ | ✗ | locks the order, checks + deducts stock, records a movement |
@@ -83,7 +86,7 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 - **Stock can never go below zero** — enforced both in application code (conditional checks before every decrement) and by a database `CHECK (stockQty >= 0)` constraint as a last line of defence.
 - **Cancelling** a dispatched order returns its stock (with a `CANCEL_RETURN` movement). Orders with any payment recorded against them can't be cancelled by anyone.
 - **Payments** apply to an outlet's oldest open invoices first (FIFO). Admin can attribute a collection to any staff member (whoever actually collected it in the field); stock incharge can only ever attribute it to themselves.
-- **Outlets belong to one field agent** (`Outlet.agentId`, nullable). An agent's outlet dropdown, and every order they create, is restricted to their assigned outlet(s); admins aren't restricted. Reassign an outlet from the Outlet Ledgers tab, which also has an always-visible search box and a "filter by field agent" dropdown.
+- **Outlets belong to a route, routes belong to at most one field agent** (`Outlet.routeId` → `Route.agentId`, both nullable; `Route.agentId` is unique, so an agent is never on more than one route at a time). An agent's outlet dropdown, and every order they create, is restricted to the outlets on their one route; admins aren't restricted. Move an outlet to a different route, or create/rename/reassign routes themselves, from the Outlet Ledgers tab ("Manage routes"), which also has an always-visible search box and a "filter by field agent" dropdown.
 - **Products have a sequential `productCode`** (#1, #2, …), shown and sorted on everywhere, separate from the internal id. Creating or bulk-uploading a product with a code that's already taken shifts that product — and everything after it — up by one (`lib/product-codes.ts`), rather than rejecting it.
 - **Bulk stock-receive** (`POST /api/products/bulk-receive`, admin only) takes rows of `{ productCode?, name?, unitPrice?, quantity }`, either as an uploaded CSV or the in-app paste/grid editor (both build the same row list client-side). A row whose `productCode` matches an existing product tops it up; otherwise a new product is created. The whole upload is validated first — if any row has a problem, **nothing is written**, and every row's error comes back at once so the batch can be fixed and resubmitted.
 - Invoice ids remain sequential: `INV-1001`, `INV-1002`, …
@@ -93,13 +96,15 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 
 ```
 app/api/…                  route handlers (auth, staff, products [+bulk-receive], outlets [+ledger],
-                            orders, sales, payments, reports, stock-movements)
+                            routes, orders, sales, payments, reports, stock-movements)
 app/dashboard/page.tsx      dashboard entry
-components/dashboard/      LoginScreen, SaleForm, OrdersView, OutletLedgers, PaymentsView,
-                            StaffPerformance, InventoryManager, BulkReceiveModal, UsersManager,
-                            payment-form, date-range, api-client, session (token storage)
+components/dashboard/      LoginScreen, SaleForm, AgentOrderForm, OrdersView, OutletLedgers,
+                            RoutesManager, PaymentsView, StaffPerformance, InventoryManager,
+                            BulkReceiveModal, UsersManager, payment-form, date-range, api-client,
+                            session (token storage)
 lib/                        prisma client, auth (JWT/bcrypt/requireAuth/requireRole), orders, products,
-                            outlets, product-codes, staff, reports, validation, shared types, money helpers
+                            outlets, routes, product-codes, staff, reports, validation, shared types,
+                            money helpers
 prisma/schema.prisma        data model (Postgres)
 prisma/seed.ts              legacy SQLite seed (kept for local experimentation; see db:import-sqlite for real data)
 supabase/migrations/        SQL to run in the Supabase SQL editor

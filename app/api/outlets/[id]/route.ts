@@ -5,7 +5,7 @@ import { authorize } from "@/lib/auth";
 import { updateOutletSchema } from "@/lib/validation";
 import { outletSelect, toOutletDTO } from "@/lib/outlets";
 
-/** Edit an outlet's details or (re)assign its field agent. Admin only. */
+/** Edit an outlet's details or move it onto a different route. Admin only. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await authorize(req, ["admin"]);
@@ -15,15 +15,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const exists = await prisma.outlet.findUnique({ where: { id }, select: { id: true } });
     if (!exists) throw new HttpError(404, "Outlet not found");
 
-    if (input.agentId) {
-      const agent = await prisma.staff.findUnique({ where: { id: input.agentId }, select: { role: true } });
-      if (!agent) throw new HttpError(400, "Agent not found");
-      if (agent.role !== "agent") throw new HttpError(400, "Only a field agent can be assigned to an outlet");
+    if (input.routeId) {
+      const route = await prisma.route.findUnique({ where: { id: input.routeId }, select: { id: true } });
+      if (!route) throw new HttpError(400, "Route not found");
     }
 
     const outlet = await prisma.outlet.update({
       where: { id },
-      data: { name: input.name, phone: input.phone, agentId: input.agentId },
+      data: { name: input.name, phone: input.phone, routeId: input.routeId },
       select: outletSelect,
     });
     return NextResponse.json(toOutletDTO(outlet));

@@ -28,7 +28,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
         include: {
-          agent: { select: { name: true } },
+          route: { select: { name: true, agentId: true, agent: { select: { name: true } } } },
           invoices: { where: notCancelled, select: { id: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } } },
           payments: { select: { id: true, amount: true, paymentMethod: true, invoiceId: true, notes: true, createdAt: true } },
         },
@@ -81,8 +81,10 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       outletId: outlet.id,
       outletName: outlet.name,
       phone: outlet.phone,
-      agentId: outlet.agentId,
-      agentName: outlet.agent?.name ?? null,
+      routeId: outlet.routeId,
+      routeName: outlet.route?.name ?? null,
+      agentId: outlet.route?.agentId ?? null,
+      agentName: outlet.route?.agent?.name ?? null,
       totalBilled,
       totalPaid,
       balance: round2(outlet.invoices.reduce((s, i) => s + i.balanceDue, 0)),

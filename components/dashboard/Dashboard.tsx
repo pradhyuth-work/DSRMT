@@ -26,6 +26,7 @@ import type {
   ProductDTO,
   ReportsResponse,
   Role,
+  RouteDTO,
   StaffDTO,
   StockMovementDTO,
 } from "@/lib/types";
@@ -77,11 +78,13 @@ const ROLE_LABEL: Record<Role, string> = { admin: "Admin", stock: "Stock incharg
 
 export interface DashboardData {
   products: ProductDTO[];
-  /** Agents: only outlets assigned to them. Admin/stock: every outlet. */
+  /** Agents: only outlets on their route. Admin/stock: every outlet. */
   outlets: OutletDTO[];
   orders: OrderDTO[];
   /** Admin only. */
   staff: StaffDTO[];
+  /** Admin only. */
+  routes: RouteDTO[];
   /** Admin only. */
   reports: ReportsResponse | null;
   /** Admin and stock only. */
@@ -90,15 +93,16 @@ export interface DashboardData {
 
 async function loadData(role: Role): Promise<DashboardData> {
   const isAdmin = role === "admin";
-  const [products, outlets, orders, staff, reports, movements] = await Promise.all([
+  const [products, outlets, orders, staff, routes, reports, movements] = await Promise.all([
     api.products(),
     api.outlets(),
     api.orders(),
     isAdmin ? api.staff() : Promise.resolve([]),
+    isAdmin ? api.routes() : Promise.resolve([]),
     isAdmin ? api.reports() : Promise.resolve(null),
     role === "agent" ? Promise.resolve([]) : api.stockMovements(),
   ]);
-  return { products, outlets, orders, staff, reports, movements };
+  return { products, outlets, orders, staff, routes, reports, movements };
 }
 
 export default function Dashboard() {
@@ -307,7 +311,10 @@ export default function Dashboard() {
               ))}
             {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
             {tab === "ledgers" && data.reports && (
-              <OutletLedgers data={{ reports: data.reports, staff: data.staff, outlets: data.outlets }} onSaved={refresh} />
+              <OutletLedgers
+                data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
+                onSaved={refresh}
+              />
             )}
             {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
             {tab === "staff" && <StaffPerformanceView />}

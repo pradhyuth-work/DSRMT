@@ -33,10 +33,16 @@ async function main() {
   if (productCount === 0) await prisma.product.createMany({ data: products });
   if (staffCount === 0) await prisma.staff.createMany({ data: staff });
   if (outletCount === 0) {
-    // Match this local check/demo data's outlets 1:1 to the seeded staff, so the "one
-    // agent per outlet" assignment has something to show out of the box.
+    // Give each seeded agent their own one-outlet route, so the "route -> one agent ->
+    // its outlets" assignment has something to show out of the box.
     const people = await prisma.staff.findMany({ where: { name: { in: staff.map((s) => s.name) } }, orderBy: { createdAt: "asc" } });
-    await Promise.all(outlets.map((o, i) => prisma.outlet.create({ data: { ...o, agentId: people[i]?.id } })));
+    await Promise.all(
+      outlets.map(async (o, i) => {
+        const agent = people[i];
+        const route = agent ? await prisma.route.create({ data: { name: `${agent.name}'s Route`, agentId: agent.id } }) : null;
+        return prisma.outlet.create({ data: { ...o, routeId: route?.id } });
+      }),
+    );
   }
 
   const seeded = [productCount === 0 && "products", outletCount === 0 && "outlets", staffCount === 0 && "staff"].filter(Boolean);

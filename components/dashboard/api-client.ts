@@ -24,6 +24,9 @@ import type {
   ReportsResponse,
   ResetPasswordResponse,
   RestockInput,
+  RouteDTO,
+  CreateRouteInput,
+  UpdateRouteInput,
   StaffDTO,
   StockMovementDTO,
   UpdateOrderInput,
@@ -97,6 +100,11 @@ export const api = {
   createOutlet: (input: CreateOutletInput) => post<OutletDTO>("/api/outlets", input),
   updateOutlet: (id: string, input: UpdateOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}`, input),
   outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
+
+  routes: () => request<RouteDTO[]>("/api/routes"),
+  createRoute: (input: CreateRouteInput) => post<RouteDTO>("/api/routes", input),
+  updateRoute: (id: string, input: UpdateRouteInput) => patch<RouteDTO>(`/api/routes/${enc(id)}`, input),
+  deleteRoute: (id: string) => request<{ ok: true }>(`/api/routes/${enc(id)}`, { method: "DELETE" }),
 
   reports: (query?: ReportsQuery) => request<ReportsResponse>(`/api/reports${qs(query)}`),
   payments: (query?: PaymentsQuery) => request<PaymentDTO[]>(`/api/payments${qs(query)}`),

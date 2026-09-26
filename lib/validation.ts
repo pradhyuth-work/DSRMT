@@ -5,6 +5,7 @@ import type {
   CreateOutletInput,
   CreatePaymentInput,
   CreateProductInput,
+  CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
   LoginInput,
@@ -13,6 +14,7 @@ import type {
   UpdateOrderInput,
   UpdateOutletInput,
   UpdateProductInput,
+  UpdateRouteInput,
   UpdateStaffInput,
 } from "./types";
 
@@ -133,17 +135,33 @@ export const resetPasswordSchema = z.object({ password }) satisfies z.ZodType<
 export const createOutletSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   phone: phone.default(""),
-  agentId: id.nullable(),
+  routeId: id.nullable(),
 }) satisfies z.ZodType<CreateOutletInput, z.ZodTypeDef, unknown>;
 
 export const updateOutletSchema = z
   .object({
     name: z.string().trim().min(1, "Name is required").max(120).optional(),
     phone: phone.optional(),
+    routeId: id.nullable().optional(),
+  })
+  .refine((v) => v.name !== undefined || v.phone !== undefined || v.routeId !== undefined, "Nothing to update") satisfies z.ZodType<
+  UpdateOutletInput,
+  z.ZodTypeDef,
+  unknown
+>;
+
+export const createRouteSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  agentId: id.nullable(),
+}) satisfies z.ZodType<CreateRouteInput, z.ZodTypeDef, unknown>;
+
+export const updateRouteSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(120).optional(),
     agentId: id.nullable().optional(),
   })
-  .refine((v) => v.name !== undefined || v.phone !== undefined || v.agentId !== undefined, "Nothing to update") satisfies z.ZodType<
-  UpdateOutletInput,
+  .refine((v) => v.name !== undefined || v.agentId !== undefined, "Nothing to update") satisfies z.ZodType<
+  UpdateRouteInput,
   z.ZodTypeDef,
   unknown
 >;
