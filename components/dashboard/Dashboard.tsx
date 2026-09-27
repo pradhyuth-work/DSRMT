@@ -115,7 +115,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
-        <BrandMark size={18} />
+        <BrandMark size={18} tone="dark" />
       </div>
       <div>
         <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi Enterprises</p>
