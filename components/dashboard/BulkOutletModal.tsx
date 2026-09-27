@@ -188,22 +188,22 @@ export default function BulkOutletModal({ routes, onDone }: { routes: RouteDTO[]
         <table className="min-w-full divide-y divide-border text-sm">
           <thead className="bg-secondary">
             <tr>
-              <th className="th">Name</th>
-              <th className="th">Phone</th>
-              <th className="th">Address</th>
-              <th className="th">GST number</th>
-              <th className="th">Route</th>
+              <th className="th min-w-[180px]">Name</th>
+              <th className="th min-w-[130px]">Phone</th>
+              <th className="th min-w-[240px]">Address</th>
+              <th className="th min-w-[150px]">GST number</th>
+              <th className="th min-w-[170px]">Route</th>
               <th className="th w-8" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((r, i) => (
               <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
-                <td className="p-1"><input className="input py-1" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Required" /></td>
-                <td className="p-1"><input className="input py-1" value={r.phone} onChange={(e) => update(r.key, { phone: e.target.value })} /></td>
-                <td className="p-1"><input className="input py-1" value={r.address} onChange={(e) => update(r.key, { address: e.target.value })} /></td>
-                <td className="p-1"><input className="input py-1" value={r.gstNumber} onChange={(e) => update(r.key, { gstNumber: e.target.value.toUpperCase() })} maxLength={15} placeholder="Optional" /></td>
-                <td className="p-1 min-w-40">
+                <td className="p-1 min-w-[180px]"><input className="input py-1" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Required" /></td>
+                <td className="p-1 min-w-[130px]"><input className="input py-1" value={r.phone} onChange={(e) => update(r.key, { phone: e.target.value })} /></td>
+                <td className="p-1 min-w-[240px]"><input className="input py-1" value={r.address} onChange={(e) => update(r.key, { address: e.target.value })} /></td>
+                <td className="p-1 min-w-[150px]"><input className="input py-1" value={r.gstNumber} onChange={(e) => update(r.key, { gstNumber: e.target.value.toUpperCase() })} maxLength={15} placeholder="Optional" /></td>
+                <td className="p-1 min-w-[170px]">
                   <Combobox
                     value={r.routeName}
                     onChange={(v) => update(r.key, { routeName: v })}

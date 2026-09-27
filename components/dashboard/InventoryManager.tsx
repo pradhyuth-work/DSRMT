@@ -238,7 +238,12 @@ export default function InventoryManager({
         </div>
       </div>
 
-      <Modal open={!!dialog} title={dialogTitle(dialog)} onClose={closeDialog}>
+      <Modal
+        open={!!dialog}
+        title={dialogTitle(dialog)}
+        onClose={closeDialog}
+        wide={dialog?.kind === "bulk" || dialog?.kind === "bulk-rate"}
+      >
         {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "restock" && <RestockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "code" && <ChangeCodeForm key={dialog.product.id} product={dialog.product} onDone={done} />}

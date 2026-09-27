@@ -301,7 +301,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
         )}
       </Modal>
 
-      <Modal open={addingOutlet} title="Add outlets" onClose={() => setAddingOutlet(false)}>
+      <Modal open={addingOutlet} title="Add outlets" onClose={() => setAddingOutlet(false)} wide>
         <BulkOutletModal
           routes={data.routes}
           onDone={async (message) => {

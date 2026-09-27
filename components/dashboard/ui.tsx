@@ -80,11 +80,14 @@ export function Modal({
   title,
   onClose,
   children,
+  wide = false,
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** Use for content with a wide data grid (bulk-upload tables) instead of the usual form-width dialog. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -107,7 +110,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="app-rise max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card shadow-[var(--shadow-float)] sm:max-w-lg sm:rounded-2xl"
+        className={`app-rise max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card shadow-[var(--shadow-float)] sm:rounded-2xl ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
