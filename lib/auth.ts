@@ -40,7 +40,7 @@ export function signToken(user: { id: string; role: Role; tokenVersion: number }
 export async function verifyCredentials(username: string, password: string) {
   const user = await prisma.staff.findUnique({ where: { username: normaliseUsername(username) } });
   const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-  if (!user || !user.passwordHash || !ok) throw new HttpError(401, "Invalid username or password");
+  if (!user || !user.passwordHash || !ok) throw new HttpError(401, "Invalid username or PIN");
   if (!user.active) throw new HttpError(403, "This account is disabled. Contact an admin.");
   return user;
 }
@@ -48,7 +48,7 @@ export async function verifyCredentials(username: string, password: string) {
 /**
  * Authenticates a request from its `Authorization: Bearer <jwt>` header.
  * The user is re-read from the database on every request, so disabling an account,
- * changing a role or resetting a password takes effect immediately.
+ * changing a role or resetting a PIN takes effect immediately.
  */
 export async function requireAuth(req: Request): Promise<AuthUser> {
   const header = req.headers.get("authorization") ?? "";

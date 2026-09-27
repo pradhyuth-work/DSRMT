@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         name: input.name,
         phone: input.phone,
         username: input.username,
-        passwordHash: await hashPassword(input.password),
+        passwordHash: await hashPassword(input.pin),
         role: input.role,
         active: true,
       },

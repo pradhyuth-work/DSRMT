@@ -14,7 +14,7 @@ import type {
   CreateStaffInput,
   HideOutletInput,
   LoginInput,
-  ResetPasswordInput,
+  ResetPinInput,
   RestockInput,
   UpdateOrderInput,
   UpdateOutletInput,
@@ -36,7 +36,11 @@ const username = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9._-]{3,32}$/, "Username must be 3–32 characters: letters, numbers, dot, dash or underscore");
-const password = z.string().min(8, "Password must be at least 8 characters").max(128);
+const pin = z
+  .string()
+  .regex(/^\d+$/, "PIN must contain only digits")
+  .min(4, "PIN must be at least 4 digits")
+  .max(8, "PIN must be at most 8 digits");
 const personName = z.string().trim().min(1, "Name is required").max(80);
 const phone = z.string().trim().max(20);
 const address = z.string().trim().max(240);
@@ -61,7 +65,7 @@ const supplierRef = z.string().trim().max(120).optional();
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+  pin: z.string().min(1, "PIN is required"),
 }) satisfies z.ZodType<LoginInput, z.ZodTypeDef, unknown>;
 
 export const createSaleSchema = z.object({
@@ -160,7 +164,7 @@ export const createStaffSchema = z.object({
   name: personName,
   phone: phone.default(""),
   username,
-  password,
+  pin,
   role,
 }) satisfies z.ZodType<CreateStaffInput, z.ZodTypeDef, unknown>;
 
@@ -172,8 +176,8 @@ export const updateStaffSchema = z.object({
   active: z.boolean().optional(),
 }) satisfies z.ZodType<UpdateStaffInput, z.ZodTypeDef, unknown>;
 
-export const resetPasswordSchema = z.object({ password }) satisfies z.ZodType<
-  ResetPasswordInput,
+export const resetPinSchema = z.object({ pin }) satisfies z.ZodType<
+  ResetPinInput,
   z.ZodTypeDef,
   unknown
 >;

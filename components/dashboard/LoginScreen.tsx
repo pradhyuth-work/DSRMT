@@ -14,7 +14,7 @@ export default function LoginScreen({
   onLogin: (token: string, user: AuthUser) => void;
 }) {
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +23,7 @@ export default function LoginScreen({
     setBusy(true);
     setError(null);
     try {
-      const { token, user } = await api.login({ username, password });
+      const { token, user } = await api.login({ username, pin });
       onLogin(token, user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
@@ -62,19 +62,22 @@ export default function LoginScreen({
             />
           </div>
           <div>
-            <label className="label" htmlFor="login-password">Password</label>
+            <label className="label" htmlFor="login-pin">PIN</label>
             <input
-              id="login-password"
+              id="login-pin"
               type="password"
               className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={8}
               autoComplete="current-password"
               required
             />
           </div>
           {error && <Alert kind="error">{error}</Alert>}
-          <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !password}>
+          <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !pin}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             Sign in
           </button>

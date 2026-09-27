@@ -4,11 +4,11 @@ import { signToken, verifyCredentials } from "@/lib/auth";
 import { loginSchema } from "@/lib/validation";
 import type { LoginResponse } from "@/lib/types";
 
-/** Public: exchanges a username and password for a 12-hour JWT. */
+/** Public: exchanges a username and PIN for a 12-hour JWT. */
 export async function POST(req: Request) {
   try {
-    const { username, password } = await parseBody(req, loginSchema);
-    const user = await verifyCredentials(username, password);
+    const { username, pin } = await parseBody(req, loginSchema);
+    const user = await verifyCredentials(username, pin);
     const body: LoginResponse = {
       token: signToken(user),
       user: { id: user.id, name: user.name, username: user.username!, role: user.role },

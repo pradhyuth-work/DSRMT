@@ -18,7 +18,7 @@ export interface AuthUser {
 
 export interface LoginInput {
   username: string;
-  password: string;
+  pin: string;
 }
 
 export interface LoginResponse {
@@ -146,7 +146,7 @@ export interface StaffDTO {
   username: string | null;
   role: Role;
   active: boolean;
-  /** True when the person has both a username and a password set. */
+  /** True when the person has both a username and a PIN set. */
   canLogin: boolean;
 }
 
@@ -154,7 +154,7 @@ export interface CreateStaffInput {
   name: string;
   phone: string;
   username: string;
-  password: string;
+  pin: string;
   role: Role;
 }
 
@@ -166,12 +166,12 @@ export interface UpdateStaffInput {
   active?: boolean;
 }
 
-export interface ResetPasswordInput {
-  password: string;
+export interface ResetPinInput {
+  pin: string;
 }
 
-export interface ResetPasswordResponse {
-  /** Returned when admins reset their own password, since their old token stops working. */
+export interface ResetPinResponse {
+  /** Returned when admins reset their own PIN, since their old token stops working. */
   token?: string;
 }
 

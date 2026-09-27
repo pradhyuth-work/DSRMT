@@ -12,7 +12,7 @@ Role-based login (admin / stock incharge / field agent) sits in front of order b
 | **stock** (stock incharge) | View all orders and dispatch them, and collect payments. Read-only on products/stock (no receiving, adjusting, or creating products — that's admin-only). Cannot manage users. |
 | **agent** (field agent) | Create orders for outlets on their route, and see/cancel only their own **pending** orders. Sees whether a product is in stock, never exact counts. |
 
-There is no public sign-up. An admin creates every account (`Users` tab, or directly via the API), and can disable, re-enable, change the role of, or reset the password for anyone but themselves.
+There is no public sign-up. An admin creates every account (`Users` tab, or directly via the API), and can disable, re-enable, change the role of, or reset the PIN for anyone but themselves.
 
 ## Getting started
 
@@ -34,24 +34,24 @@ There is no public sign-up. An admin creates every account (`Users` tab, or dire
    ```
 4. **Create the first admin:**
    ```bash
-   # uses ADMIN_USERNAME / ADMIN_PASSWORD (and optional ADMIN_NAME / ADMIN_PHONE) from .env
+   # uses ADMIN_USERNAME / ADMIN_PIN (and optional ADMIN_NAME / ADMIN_PHONE) from .env
    npm run seed-admin
    ```
-   Existing `Staff` rows are given `role = 'agent'` and no username/password by migration `0002`, so they can't log in until an admin sets a username and password for them (`Users` tab → **Set up login**).
+   Existing `Staff` rows are given `role = 'agent'` and no username/PIN by migration `0002`, so they can't log in until an admin sets a username and PIN for them (`Users` tab → **Set up login**).
 5. **Run it:**
    ```bash
    npm run dev
    ```
    Open http://localhost:3000 and sign in.
 
-Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that account's password and re-enables/re-admins it — handy if you ever lock yourself out.
+Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that account's PIN and re-enables/re-admins it — handy if you ever lock yourself out.
 
 ## Auth
 
-- Username + password. Passwords are hashed with **bcryptjs**. A successful login returns a **JWT signed with `JWT_SECRET`, valid for 12 hours**, sent by the client as `Authorization: Bearer <token>`.
-- `requireAuth` (`lib/auth.ts`) re-reads the user from the database on every request — disabling an account, changing its role, or resetting its password takes effect immediately, not just at the next login.
+- Username + PIN (4-8 digits, numeric only). PINs are hashed with **bcryptjs** — same storage as before, just user-facing language and validation changed; the `Staff.passwordHash` column name is unchanged. A successful login returns a **JWT signed with `JWT_SECRET`, valid for 12 hours**, sent by the client as `Authorization: Bearer <token>`.
+- `requireAuth` (`lib/auth.ts`) re-reads the user from the database on every request — disabling an account, changing its role, or resetting its PIN takes effect immediately, not just at the next login.
 - `requireRole` / `authorize` enforce the table below on the server. **The UI only hides buttons the server would refuse anyway** — every route re-checks.
-- Resetting a password bumps `tokenVersion`, which invalidates every token issued before the reset.
+- Resetting a PIN bumps `tokenVersion`, which invalidates every token issued before the reset.
 
 ### Route permission mapping
 
@@ -61,7 +61,7 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 | `GET /api/auth/me` | ✓ | ✓ | ✓ | any signed-in user |
 | `GET/POST /api/staff` | ✓ | ✗ | ✗ | list/create users |
 | `PATCH /api/staff/:id` | ✓ | ✗ | ✗ | role/active/details; can't disable or demote self |
-| `POST /api/staff/:id/password` | ✓ | ✗ | ✗ | reset password |
+| `POST /api/staff/:id/pin` | ✓ | ✗ | ✗ | reset PIN |
 | `GET /api/products` | ✓ | ✓ | ✓ | agents get `inStock`, not `stockQty` |
 | `POST /api/products` | ✓ | ✗ | ✗ | creates a product (sets opening stock — a stock-inwarding action) |
 | `PATCH /api/products/:id` | ✓ | ✗ | ✗ | edit name/price |
@@ -131,6 +131,6 @@ lib/                        prisma client, auth (JWT/bcrypt/requireAuth/requireR
 prisma/schema.prisma        data model (Postgres)
 prisma/seed.ts              legacy SQLite seed (kept for local experimentation; see db:import-sqlite for real data)
 supabase/migrations/        SQL to run in the Supabase SQL editor
-scripts/seed-admin.ts       creates/resets the admin from ADMIN_USERNAME / ADMIN_PASSWORD
+scripts/seed-admin.ts       creates/resets the admin from ADMIN_USERNAME / ADMIN_PIN
 scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgres
 ```

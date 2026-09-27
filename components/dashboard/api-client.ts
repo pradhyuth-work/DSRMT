@@ -30,7 +30,7 @@ import type {
   ProductDTO,
   ReportsQuery,
   ReportsResponse,
-  ResetPasswordResponse,
+  ResetPinResponse,
   RestockInput,
   RouteDTO,
   CreateRouteInput,
@@ -56,7 +56,7 @@ export class ApiRequestError extends Error {
 
 let onUnauthorized: (() => void) | null = null;
 
-/** Called when the server rejects the session (expired, disabled or password reset). */
+/** Called when the server rejects the session (expired, disabled or PIN reset). */
 export function setUnauthorizedHandler(handler: (() => void) | null) {
   onUnauthorized = handler;
 }
@@ -162,8 +162,8 @@ export const api = {
   staff: () => request<StaffDTO[]>("/api/staff"),
   createStaff: (input: CreateStaffInput) => post<StaffDTO>("/api/staff", input),
   updateStaff: (id: string, input: UpdateStaffInput) => patch<StaffDTO>(`/api/staff/${enc(id)}`, input),
-  resetPassword: (id: string, password: string) =>
-    post<ResetPasswordResponse>(`/api/staff/${enc(id)}/password`, { password }),
+  resetPin: (id: string, pin: string) =>
+    post<ResetPinResponse>(`/api/staff/${enc(id)}/pin`, { pin }),
 
   downloadBackup: () => downloadFile("/api/backup", "dsrmt-backup.json"),
 };

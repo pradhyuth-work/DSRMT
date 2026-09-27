@@ -110,7 +110,7 @@ export default function UsersManager({
                 </button>
                 <button className="btn btn-secondary" disabled={busy} onClick={() => setCredentialsFor(s)}>
                   <KeyRound className="h-4 w-4" />
-                  {s.canLogin ? "Reset password" : "Set up login"}
+                  {s.canLogin ? "Reset PIN" : "Set up login"}
                 </button>
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function UsersManager({
 
       <Modal
         open={!!credentialsFor}
-        title={credentialsFor ? `${credentialsFor.canLogin ? "Reset password" : "Set up login"} — ${credentialsFor.name}` : ""}
+        title={credentialsFor ? `${credentialsFor.canLogin ? "Reset PIN" : "Set up login"} — ${credentialsFor.name}` : ""}
         onClose={closeCredentials}
       >
         {credentialsFor && (
@@ -148,10 +148,10 @@ function CredentialsForm({
   onDone: (message: string, token?: string) => Promise<void>;
 }) {
   const [username, setUsername] = useState(person.username ?? "");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const valid = username.trim().length >= 3 && password.length >= 8;
+  const valid = username.trim().length >= 3 && /^\d{4,8}$/.test(pin);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -161,9 +161,9 @@ function CredentialsForm({
     try {
       const wanted = username.trim().toLowerCase();
       if (wanted !== person.username) await api.updateStaff(person.id, { username: wanted });
-      const { token } = await api.resetPassword(person.id, password);
+      const { token } = await api.resetPin(person.id, pin);
       await onDone(
-        person.canLogin ? `Password reset for ${person.name}. Their other sessions were signed out.` : `${person.name} can now sign in as @${wanted}`,
+        person.canLogin ? `PIN reset for ${person.name}. Their other sessions were signed out.` : `${person.name} can now sign in as @${wanted}`,
         token,
       );
     } catch (err) {
@@ -187,15 +187,18 @@ function CredentialsForm({
         />
       </div>
       <div>
-        <label className="label" htmlFor="cred-password">New password</label>
+        <label className="label" htmlFor="cred-pin">New PIN</label>
         <input
-          id="cred-password"
+          id="cred-pin"
           type="password"
           className="input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={8}
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="4-8 digit PIN"
           autoFocus
         />
       </div>
@@ -212,11 +215,11 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("agent");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const valid = name.trim().length > 0 && username.trim().length >= 3 && password.length >= 8;
+  const valid = name.trim().length > 0 && username.trim().length >= 3 && /^\d{4,8}$/.test(pin);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -224,11 +227,11 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
     setBusy(true);
     setError(null);
     try {
-      const created = await api.createStaff({ name: name.trim(), phone: phone.trim(), username: username.trim(), password, role });
+      const created = await api.createStaff({ name: name.trim(), phone: phone.trim(), username: username.trim(), pin, role });
       setName("");
       setPhone("");
       setUsername("");
-      setPassword("");
+      setPin("");
       setRole("agent");
       await onSaved(`Created ${created.name} (@${created.username})`);
     } catch (err) {
@@ -264,15 +267,18 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
         />
       </div>
       <div>
-        <label className="label" htmlFor="u-password">Password</label>
+        <label className="label" htmlFor="u-pin">PIN</label>
         <input
-          id="u-password"
+          id="u-pin"
           type="password"
           className="input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={8}
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          placeholder="4-8 digit PIN"
         />
       </div>
       <div>
