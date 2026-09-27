@@ -8,6 +8,7 @@ export const outletSelect = {
   address: true,
   gstNumber: true,
   routeId: true,
+  hidden: true,
   route: { select: { name: true, agentId: true, agent: { select: { name: true } } } },
 } satisfies Prisma.OutletSelect;
 
@@ -19,6 +20,7 @@ export function toOutletDTO(o: Prisma.OutletGetPayload<{ select: typeof outletSe
     address: o.address,
     gstNumber: o.gstNumber,
     routeId: o.routeId,
+    hidden: o.hidden,
     routeName: o.route?.name ?? null,
     // Derived from the route for convenience — every enforcement/filter check that used
     // to read the outlet's own agent reads this instead, unchanged.

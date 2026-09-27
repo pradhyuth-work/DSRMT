@@ -64,32 +64,40 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 | `POST /api/products/:id/restock` | ✓ | ✗ | ✗ | receive stock |
 | `POST /api/products/:id/adjust` | ✓ | ✗ | ✗ | up/down correction with a reason; never below zero |
 | `POST /api/products/bulk-receive` | ✓ | ✗ | ✗ | bulk stock-inwarding upload (CSV or the in-app grid) |
+| `POST /api/products/bulk-rate` | ✓ | ✗ | ✗ | bulk price update (CSV or the in-app grid) — every `productCode` must already exist |
+| `DELETE /api/products/:id` | ✓ | ✗ | ✗ | refused once it's ever been on an order; its warehouse-only movements (opening stock, restocks, adjustments) are cleared along with it |
 | `GET /api/stock-movements` | ✓ | ✓ | ✗ | audit trail (read-only for stock) |
 | `GET /api/outlets` | ✓ (all) | ✓ (all) | ✓ (own route only) | agents only ever see outlets on their route |
-| `POST /api/outlets` | ✓ | ✗ | ✗ | create an outlet, optionally putting it on a route |
+| `POST /api/outlets/bulk-create` | ✓ | ✗ | ✗ | add one or many outlets at once (CSV or the in-app grid) — the single-outlet "Add outlet" form posts a one-row batch here too |
 | `PATCH /api/outlets/:id` | ✓ | ✗ | ✗ | edit details or move it onto a different route |
+| `DELETE /api/outlets/:id` | ✓ | ✗ | ✗ | refused once it has any order history — hide it instead |
+| `PATCH /api/outlets/:id/hidden` | ✓ | ✗ | ✗ | soft-hide/unhide from the order-taking pickers; refused while an order is in flight (`PENDING`/`BILLED`) |
 | `GET /api/outlets/:id/ledger` | ✓ | ✓ | ✗ | one outlet's balance + open invoices, for collecting a payment |
 | `GET/POST /api/routes` | ✓ | ✗ | ✗ | list/create routes; creating or updating one with an `agentId` already on another route moves them off it automatically (a route's agent is unique) |
 | `PATCH/DELETE /api/routes/:id` | ✓ | ✗ | ✗ | rename / reassign agent; delete refuses while any outlet is still on it |
 | `POST /api/sales` | ✓ | ✗ | ✓ | creates a **pending** order for an outlet the caller may use; agents always own the order they create and can only use an outlet on their route |
 | `GET /api/orders` | ✓ (all) | ✓ (all) | ✓ (own only) | `?status=` filter |
-| `PATCH /api/orders/:id` | ✓ | ✗ | ✗ | edit a pending order's outlet/items |
-| `POST /api/orders/:id/dispatch` | ✓ | ✓ | ✗ | locks the order, checks + deducts stock, records a movement |
+| `PATCH /api/orders/:id` | ✓ | ✗ | ✗ | edit a pending (not yet billed) order's outlet/items |
+| `POST /api/orders/:id/bill` | ✓ | ✓ | ✗ | records the physical bill-book number by hand and moves the order from `PENDING` to `BILLED` |
+| `POST /api/orders/:id/dispatch` | ✓ | ✓ | ✗ | requires `BILLED`; locks the order, checks + deducts stock, records a movement |
 | `POST /api/orders/:id/cancel` | ✓ (any) | ✗ | ✓ (own, pending only) | dispatched orders return stock; orders with payments can't be cancelled |
 | `GET /api/payments` | ✓ (all, filterable) | ✓ (own only) | ✗ | outlet/collector/date filters; stock's `staffId` filter is ignored — always self |
 | `POST /api/payments` | ✓ | ✓ | ✗ | FIFO settlement across an outlet's open invoices; stock always attributes the payment to itself |
+| `DELETE /api/payments/:id` | ✓ | ✗ | ✗ | reverses the payment — the amount is added back to the invoice's balance and its status recomputed |
 | `GET /api/reports` | ✓ | ✗ | ✗ | dashboard totals (all-time), outlet ledgers (all-time), staff performance (`?from=&to=` filters sales/collections to that date range) |
+| `GET /api/reports/sales` | ✓ | ✗ | ✗ | date + outlet filtered sales report: by-product, by-outlet and SKU-matrix breakdowns |
+| `GET /api/backup` | ✓ | ✗ | ✗ | downloads every core table as one JSON file (staff rows exclude passwordHash/tokenVersion) |
 
 ## Business logic
 
-- **Order → dispatch flow.** `POST /api/sales` creates the order (invoice) as `PENDING` and prices/validates items, but does **not** touch stock. `POST /api/orders/:id/dispatch` runs in one transaction: lock the order, confirm it's still `PENDING`, lock the products it needs, refuse with a clear message if any is short, deduct stock, write a `StockMovement`, mark the order `DISPATCHED`.
+- **Order → bill → dispatch flow.** `POST /api/sales` creates the order (invoice) as `PENDING` and prices/validates items, but does **not** assign an invoice number or touch stock. `POST /api/orders/:id/bill` (admin/stock) records the physical bill-book number by hand — it's never auto-generated — and moves the order to `BILLED`. `POST /api/orders/:id/dispatch` runs in one transaction: lock the order, confirm it's `BILLED`, lock the products it needs, refuse with a clear message if any is short, deduct stock, write a `StockMovement`, mark the order `DISPATCHED`.
 - **Stock can never go below zero** — enforced both in application code (conditional checks before every decrement) and by a database `CHECK (stockQty >= 0)` constraint as a last line of defence.
-- **Cancelling** a dispatched order returns its stock (with a `CANCEL_RETURN` movement). Orders with any payment recorded against them can't be cancelled by anyone.
-- **Payments** apply to an outlet's oldest open invoices first (FIFO). Admin can attribute a collection to any staff member (whoever actually collected it in the field); stock incharge can only ever attribute it to themselves.
+- **Cancelling** a dispatched order returns its stock (with a `CANCEL_RETURN` movement). Orders with any payment recorded against them can't be cancelled by anyone. A bill number already assigned stays on a cancelled order rather than being freed for reuse.
+- **Payments** apply to an outlet's oldest open invoices first (FIFO). Admin can attribute a collection to any staff member (whoever actually collected it in the field); stock incharge can only ever attribute it to themselves. Payment methods are Cash, Cheque and Net Banking — UPI is kept in the database only so historical payments still display correctly, but is never offered when recording a new one.
 - **Outlets belong to a route, routes belong to at most one field agent** (`Outlet.routeId` → `Route.agentId`, both nullable; `Route.agentId` is unique, so an agent is never on more than one route at a time). An agent's outlet dropdown, and every order they create, is restricted to the outlets on their one route; admins aren't restricted. Move an outlet to a different route, or create/rename/reassign routes themselves, from the Outlet Ledgers tab ("Manage routes"), which also has an always-visible search box and a "filter by field agent" dropdown.
 - **Products have a sequential `productCode`** (#1, #2, …), shown and sorted on everywhere, separate from the internal id. Creating or bulk-uploading a product with a code that's already taken shifts that product — and everything after it — up by one (`lib/product-codes.ts`), rather than rejecting it.
 - **Bulk stock-receive** (`POST /api/products/bulk-receive`, admin only) takes rows of `{ productCode?, name?, unitPrice?, quantity }`, either as an uploaded CSV or the in-app paste/grid editor (both build the same row list client-side). A row whose `productCode` matches an existing product tops it up; otherwise a new product is created. The whole upload is validated first — if any row has a problem, **nothing is written**, and every row's error comes back at once so the batch can be fixed and resubmitted.
-- Invoice ids remain sequential: `INV-1001`, `INV-1002`, …
+- **Invoice numbers are never generated.** An order's internal id is an opaque cuid; the human-facing bill number is whatever gets typed into `POST /api/orders/:id/bill` from the physical bill book, so it can be freeform and match paper exactly. It's `null` until billed and unique once set.
 - All user-provided text (names, reasons, notes) is rendered as plain React text, never `dangerouslySetInnerHTML`, so it's automatically HTML-escaped.
 
 ## Layout

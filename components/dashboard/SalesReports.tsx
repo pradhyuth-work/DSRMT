@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, Download, IndianRupee, Loader2, Wallet } from "lucide-react";
+import { ClipboardList, Download, HardDriveDownload, IndianRupee, Loader2, Wallet } from "lucide-react";
 import type { OutletDTO, SalesReportResponse } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
@@ -45,6 +45,7 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
   const [report, setReport] = useState<SalesReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +87,18 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
     }
   }
 
+  async function downloadBackup() {
+    setBackingUp(true);
+    setError(null);
+    try {
+      await api.downloadBackup();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download backup");
+    } finally {
+      setBackingUp(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -100,9 +113,15 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
             options={[{ value: "", label: "All outlets" }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
           />
         </div>
-        <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={!report}>
-          <Download className="h-4 w-4" /> Download CSV
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadBackup()} disabled={backingUp} title="Download every table as one JSON file">
+            {backingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveDownload className="h-4 w-4" />}
+            Full backup
+          </button>
+          <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={!report}>
+            <Download className="h-4 w-4" /> Download CSV
+          </button>
+        </div>
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}

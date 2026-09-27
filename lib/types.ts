@@ -1,9 +1,12 @@
 // Shared request/response contracts used by both API routes and the dashboard UI.
 
 export type InvoiceStatus = "PAID" | "PARTIAL" | "UNPAID";
-export type PaymentMethod = "CASH" | "UPI";
+/** UPI is read-only history — kept so old payments still display correctly, but never offered when recording a new one. */
+export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "UPI";
+/** Selectable when recording a new payment. */
+export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING"] as const satisfies readonly PaymentMethod[];
 export type Role = "admin" | "stock" | "agent";
-export type FulfilmentStatus = "PENDING" | "DISPATCHED" | "CANCELLED";
+export type FulfilmentStatus = "PENDING" | "BILLED" | "DISPATCHED" | "CANCELLED";
 export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "CANCEL_RETURN";
 
 export interface AuthUser {
@@ -46,6 +49,12 @@ export interface OutletDTO {
   /** Derived from the outlet's route, if any. */
   agentId: string | null;
   agentName: string | null;
+  /** Soft-hidden from order-taking pickers; still visible (and editable) in outlet management and every report. */
+  hidden: boolean;
+}
+
+export interface HideOutletInput {
+  hidden: boolean;
 }
 
 export interface UpdateOutletInput {
@@ -103,7 +112,7 @@ export interface OutletBalanceDTO {
   outletId: string;
   outletName: string;
   balance: number;
-  openInvoices: { id: string; balanceDue: number; createdAt: string }[];
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
 }
 
 export interface StaffDTO {
@@ -180,6 +189,8 @@ export interface OrderItemDTO {
 
 export interface OrderDTO {
   id: string;
+  /** The manually-entered bill-book number. Null until the order is billed. */
+  invoiceNumber: string | null;
   outletId: string;
   outletName: string;
   staffId: string;
@@ -190,11 +201,17 @@ export interface OrderDTO {
   status: InvoiceStatus;
   fulfilmentStatus: FulfilmentStatus;
   createdAt: string;
+  billedAt: string | null;
+  billedByName: string | null;
   dispatchedAt: string | null;
   dispatchedByName: string | null;
   cancelledAt: string | null;
   cancelledByName: string | null;
   items: OrderItemDTO[];
+}
+
+export interface BillOrderInput {
+  invoiceNumber: string;
 }
 
 export interface UpdateOrderInput {
@@ -236,6 +253,7 @@ export interface CreatePaymentInput {
 
 export interface PaymentAllocation {
   invoiceId: string;
+  invoiceNumber: string | null;
   applied: number;
   balanceDue: number;
   status: InvoiceStatus;
@@ -253,6 +271,7 @@ export interface PaymentDTO {
   staffId: string;
   staffName: string;
   invoiceId: string | null;
+  invoiceNumber: string | null;
   amount: number;
   paymentMethod: PaymentMethod;
   notes: string | null;
@@ -300,6 +319,27 @@ export interface BulkReceiveResponse {
   results: BulkReceiveResultRow[];
 }
 
+export interface BulkRateRow {
+  productCode: number;
+  unitPrice: number;
+}
+
+export interface BulkRateInput {
+  rows: BulkRateRow[];
+}
+
+export interface BulkRateResultRow {
+  row: number;
+  productId: string;
+  productCode: number;
+  productName: string;
+  unitPrice: number;
+}
+
+export interface BulkRateResponse {
+  results: BulkRateResultRow[];
+}
+
 export interface RestockInput {
   quantity: number;
   reason?: string;
@@ -331,11 +371,12 @@ export interface OutletLedger {
   routeName: string | null;
   agentId: string | null;
   agentName: string | null;
+  hidden: boolean;
   totalBilled: number;
   totalPaid: number;
   balance: number;
   /** Unsettled invoices, oldest first — the order payments are applied in. */
-  openInvoices: { id: string; balanceDue: number; createdAt: string }[];
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
   entries: LedgerEntry[];
 }
 
@@ -347,7 +388,8 @@ export interface StaffPerformance {
   totalSales: number;
   totalCollected: number;
   cashCollected: number;
-  upiCollected: number;
+  chequeCollected: number;
+  netBankingCollected: number;
   uncollectedBalance: number;
 }
 

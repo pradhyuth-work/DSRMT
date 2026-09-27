@@ -3,26 +3,6 @@ import { HttpError } from "./api";
 import { round2 } from "./money";
 import type { OrderDTO, Role, SaleItemInput } from "./types";
 
-const INVOICE_PREFIX = "INV-";
-const FIRST_INVOICE_NUMBER = 1001;
-// Arbitrary key for pg_advisory_xact_lock so concurrent sales never compute the same id.
-const INVOICE_ID_LOCK = 1001;
-
-export async function nextInvoiceId(tx: Prisma.TransactionClient): Promise<string> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${INVOICE_ID_LOCK})`;
-  const last = await tx.invoice.findFirst({
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true },
-  });
-  const lastNumber = last ? Number.parseInt(last.id.slice(INVOICE_PREFIX.length), 10) : NaN;
-  let next = Number.isFinite(lastNumber) ? lastNumber + 1 : FIRST_INVOICE_NUMBER;
-  // Guard against gaps/out-of-order ids so we never collide with an existing invoice.
-  while (await tx.invoice.findUnique({ where: { id: `${INVOICE_PREFIX}${next}` }, select: { id: true } })) {
-    next++;
-  }
-  return `${INVOICE_PREFIX}${next}`;
-}
-
 export interface PricedLine {
   productId: string;
   productName: string;
@@ -91,6 +71,7 @@ export async function lockInvoice(tx: Prisma.TransactionClient, id: string) {
 export const orderInclude = {
   outlet: { select: { name: true } },
   staff: { select: { name: true } },
+  billedBy: { select: { name: true } },
   dispatchedBy: { select: { name: true } },
   cancelledBy: { select: { name: true } },
   items: { include: { product: { select: { name: true } } } },
@@ -101,6 +82,7 @@ type OrderWithRelations = Prisma.InvoiceGetPayload<{ include: typeof orderInclud
 export function toOrderDTO(o: OrderWithRelations): OrderDTO {
   return {
     id: o.id,
+    invoiceNumber: o.invoiceNumber,
     outletId: o.outletId,
     outletName: o.outlet.name,
     staffId: o.staffId,
@@ -111,6 +93,8 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
     status: o.status,
     fulfilmentStatus: o.fulfilmentStatus,
     createdAt: o.createdAt.toISOString(),
+    billedAt: o.billedAt?.toISOString() ?? null,
+    billedByName: o.billedBy?.name ?? null,
     dispatchedAt: o.dispatchedAt?.toISOString() ?? null,
     dispatchedByName: o.dispatchedBy?.name ?? null,
     cancelledAt: o.cancelledAt?.toISOString() ?? null,

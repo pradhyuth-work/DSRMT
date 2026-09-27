@@ -18,7 +18,10 @@ enum InvoiceStatus {
 
 enum PaymentMethod {
   CASH
+  /// Kept for historical rows only — no longer offered when recording a new payment.
   UPI
+  CHEQUE
+  NET_BANKING
 }
 
 enum Role {
@@ -29,6 +32,7 @@ enum Role {
 
 enum FulfilmentStatus {
   PENDING
+  BILLED
   DISPATCHED
   CANCELLED
 }
@@ -80,6 +84,8 @@ model Outlet {
   address   String   @default("")
   gstNumber String?
   routeId   String?
+  /** Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected. */
+  hidden    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   route    Route?              @relation(fields: [routeId], references: [id])
@@ -103,6 +109,7 @@ model Staff {
   createdAt    DateTime @default(now())
 
   invoices           Invoice[]           @relation("InvoiceOwner")
+  billedInvoices     Invoice[]           @relation("InvoiceBilledBy")
   dispatchedInvoices Invoice[]           @relation("InvoiceDispatchedBy")
   cancelledInvoices  Invoice[]           @relation("InvoiceCancelledBy")
   payments           PaymentCollection[]
@@ -112,7 +119,9 @@ model Staff {
 
 /// Invoice ids are human-readable, e.g. INV-1001. staffId is the order owner.
 model Invoice {
-  id               String           @id
+  id               String           @id @default(cuid())
+  /** The physical bill-book number, entered by hand when the order is billed — never auto-generated. */
+  invoiceNumber    String?          @unique
   outletId         String
   staffId          String
   totalAmount      Float
@@ -120,6 +129,8 @@ model Invoice {
   balanceDue       Float
   status           InvoiceStatus    @default(UNPAID)
   fulfilmentStatus FulfilmentStatus @default(PENDING)
+  billedAt         DateTime?
+  billedById       String?
   dispatchedAt     DateTime?
   dispatchedById   String?
   cancelledAt      DateTime?
@@ -128,6 +139,7 @@ model Invoice {
 
   outlet         Outlet              @relation(fields: [outletId], references: [id])
   staff          Staff               @relation("InvoiceOwner", fields: [staffId], references: [id])
+  billedBy       Staff?              @relation("InvoiceBilledBy", fields: [billedById], references: [id])
   dispatchedBy   Staff?              @relation("InvoiceDispatchedBy", fields: [dispatchedById], references: [id])
   cancelledBy    Staff?              @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
   items          InvoiceItem[]

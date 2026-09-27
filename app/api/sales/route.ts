@@ -4,12 +4,14 @@ import { HttpError, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { createSaleSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
-import { nextInvoiceId, priceLines } from "@/lib/orders";
+import { priceLines } from "@/lib/orders";
 import type { CreateSaleResponse } from "@/lib/types";
 
 /**
- * Creates an order (invoice) in PENDING state. Stock is checked here but only deducted
- * when the order is dispatched (POST /api/orders/:id/dispatch).
+ * Creates an order (invoice) in PENDING state. No invoice number is assigned here — that's
+ * entered by hand from the physical bill book when the order is billed (POST
+ * /api/orders/:id/bill), which must happen before it can be dispatched. Stock is checked
+ * here but only deducted when the order is dispatched.
  * Agents always own the orders they create; admins choose the owning staff member.
  */
 export async function POST(req: Request) {
@@ -41,7 +43,6 @@ export async function POST(req: Request) {
 
       const created = await tx.invoice.create({
         data: {
-          id: await nextInvoiceId(tx),
           outletId: input.outletId,
           staffId,
           totalAmount,

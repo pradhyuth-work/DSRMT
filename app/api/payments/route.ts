@@ -28,7 +28,11 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: LIMIT,
-      include: { outlet: { select: { name: true } }, staff: { select: { name: true } } },
+      include: {
+        outlet: { select: { name: true } },
+        staff: { select: { name: true } },
+        invoice: { select: { invoiceNumber: true } },
+      },
     });
 
     const body: PaymentDTO[] = payments.map((p) => ({
@@ -38,6 +42,7 @@ export async function GET(req: Request) {
       staffId: p.staffId,
       staffName: p.staff.name,
       invoiceId: p.invoiceId,
+      invoiceNumber: p.invoice?.invoiceNumber ?? null,
       amount: p.amount,
       paymentMethod: p.paymentMethod,
       notes: p.notes,
@@ -109,7 +114,7 @@ export async function POST(req: Request) {
           },
         });
 
-        result.push({ invoiceId: inv.id, applied, balanceDue, status });
+        result.push({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, applied, balanceDue, status });
         remaining = round2(remaining - applied);
       }
       return result;

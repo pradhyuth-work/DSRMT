@@ -30,3 +30,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return errorResponse(err);
   }
 }
+
+/** Delete an outlet. Refused once it has any order history — hide it instead. Admin only. */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await authorize(req, ["admin"]);
+    const { id } = await params;
+
+    const exists = await prisma.outlet.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new HttpError(404, "Outlet not found");
+
+    const orderCount = await prisma.invoice.count({ where: { outletId: id } });
+    if (orderCount > 0) throw new HttpError(409, "This outlet has order history and can't be deleted — hide it instead");
+
+    await prisma.outlet.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}

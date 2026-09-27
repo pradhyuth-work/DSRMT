@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2, statusFor } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, StatusBadge } from "./ui";
+import { Alert, PaymentMethodPicker, StatusBadge } from "./ui";
 import { Combobox } from "./Combobox";
 import type { DashboardData } from "./Dashboard";
 
@@ -29,7 +29,10 @@ export default function SaleForm({
   user: AuthUser;
   onSaved: () => Promise<void>;
 }) {
-  const { products, outlets, staff } = data;
+  const { products, staff } = data;
+  // Hidden outlets stay fully visible in ledgers/reports — they just drop out of the
+  // order-taking picker, same as the reference app's "hide a buyer" behaviour.
+  const outlets = useMemo(() => data.outlets.filter((o) => !o.hidden), [data.outlets]);
   // Agents always own their orders; only admins pick the staff member.
   const choosesStaff = user.role === "admin";
   const [outletId, setOutletId] = useState("");
@@ -43,6 +46,15 @@ export default function SaleForm({
   const [lastInvoice, setLastInvoice] = useState<CreateSaleResponse["invoice"] | null>(null);
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  // Picking an outlet fills in its route's agent automatically — admins can still override
+  // it afterwards (e.g. an outlet with no route agent, or someone else took this order).
+  function handleOutletChange(id: string) {
+    setOutletId(id);
+    if (!choosesStaff) return;
+    const agentId = outlets.find((o) => o.id === id)?.agentId;
+    if (agentId) setStaffId(agentId);
+  }
 
   // Total requested per product across all lines, for stock checks.
   const requested = useMemo(() => {
@@ -128,7 +140,7 @@ export default function SaleForm({
             <Combobox
               id="outlet"
               value={outletId}
-              onChange={setOutletId}
+              onChange={handleOutletChange}
               disabled={outlets.length === 0}
               placeholder="Select outlet…"
               ariaLabel="Outlet"
@@ -249,18 +261,7 @@ export default function SaleForm({
             </div>
             <div className="col-span-2">
               <span className="label">Payment method</span>
-              <div className="grid grid-cols-2 gap-2">
-                {(["CASH", "UPI"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPaymentMethod(m)}
-                    className={`btn ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
+              <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
             </div>
             <div className="col-span-2">
               <label className="label" htmlFor="notes">Notes</label>
@@ -294,7 +295,7 @@ export default function SaleForm({
         {lastInvoice && (
           <Alert kind="success">
             <p className="font-semibold">
-              {lastInvoice.id} created — {formatMoney(lastInvoice.totalAmount)} · awaiting dispatch
+              Order created — {formatMoney(lastInvoice.totalAmount)} · awaiting billing
             </p>
             <p>
               Paid {formatMoney(lastInvoice.paidAmount)} · Balance {formatMoney(lastInvoice.balanceDue)} · {lastInvoice.status}

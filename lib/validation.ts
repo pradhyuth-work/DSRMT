@@ -1,13 +1,16 @@
 import { z } from "zod";
 import type {
   AdjustStockInput,
+  BillOrderInput,
   BulkOutletInput,
+  BulkRateInput,
   BulkReceiveInput,
   CreatePaymentInput,
   CreateProductInput,
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
+  HideOutletInput,
   LoginInput,
   ResetPasswordInput,
   RestockInput,
@@ -20,7 +23,8 @@ import type {
 
 const money = z.coerce.number().finite().nonnegative();
 const id = z.string().trim().min(1);
-const paymentMethod = z.enum(["CASH", "UPI"]);
+// UPI is deliberately excluded — it's kept in the DB enum for historical rows only.
+const paymentMethod = z.enum(["CASH", "CHEQUE", "NET_BANKING"]);
 const role = z.enum(["admin", "stock", "agent"]);
 const saleItems = z
   .array(z.object({ productId: id, quantity: z.coerce.number().int().positive() }))
@@ -72,6 +76,12 @@ export const updateOrderSchema = z
   unknown
 >;
 
+// The physical bill-book number, copied in by hand — free text (not every book uses plain
+// digits), but bounded so it can't be pasted-in garbage.
+export const billOrderSchema = z.object({
+  invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40),
+}) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
 export const createPaymentSchema = z.object({
   outletId: id,
   // Required for admins (who choose which staff member collected it); ignored for the
@@ -99,6 +109,15 @@ const bulkReceiveRowSchema = z.object({
 export const bulkReceiveSchema = z.object({
   rows: z.array(bulkReceiveRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
 }) satisfies z.ZodType<BulkReceiveInput, z.ZodTypeDef, unknown>;
+
+const bulkRateRowSchema = z.object({
+  productCode,
+  unitPrice: money.positive("Price must be greater than zero"),
+});
+
+export const bulkRateSchema = z.object({
+  rows: z.array(bulkRateRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
+}) satisfies z.ZodType<BulkRateInput, z.ZodTypeDef, unknown>;
 
 export const updateProductSchema = z
   .object({
@@ -158,6 +177,8 @@ export const updateOutletSchema = z
     (v) => v.name !== undefined || v.phone !== undefined || v.address !== undefined || v.gstNumber !== undefined || v.routeId !== undefined,
     "Nothing to update",
   ) satisfies z.ZodType<UpdateOutletInput, z.ZodTypeDef, unknown>;
+
+export const hideOutletSchema = z.object({ hidden: z.boolean() }) satisfies z.ZodType<HideOutletInput, z.ZodTypeDef, unknown>;
 
 const bulkOutletRowSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),

@@ -7,9 +7,10 @@ import type { OrderDTO } from "@/lib/types";
 
 /**
  * Cancels an order.
- * - Agents: only their own PENDING orders.
- * - Admins: any PENDING or DISPATCHED order. Cancelling a dispatched order returns its
- *   stock and records CANCEL_RETURN movements.
+ * - Agents: only their own PENDING (not yet billed) orders.
+ * - Admins: any PENDING, BILLED or DISPATCHED order. Cancelling a dispatched order returns
+ *   its stock and records CANCEL_RETURN movements. A bill number already assigned stays on
+ *   the cancelled order rather than being freed for reuse.
  * Orders with payments recorded against them cannot be cancelled (reverse the payment first).
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (user.role === "agent" && invoice.staffId !== user.id) throw new HttpError(404, "Order not found");
       if (invoice.fulfilmentStatus === "CANCELLED") throw new HttpError(409, `Order ${id} is already cancelled`);
       if (user.role === "agent" && invoice.fulfilmentStatus !== "PENDING") {
-        throw new HttpError(409, `Order ${id} has already been dispatched and can't be cancelled`);
+        throw new HttpError(409, `Order ${id} has already been billed and can't be cancelled by an agent`);
       }
 
       const payments = await tx.paymentCollection.count({ where: { invoiceId: id } });

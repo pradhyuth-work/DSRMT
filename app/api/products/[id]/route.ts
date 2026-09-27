@@ -28,3 +28,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return errorResponse(err);
   }
 }
+
+/**
+ * Delete a product. Refused once it's ever been on an order (a DISPATCH movement always
+ * implies one, so checking InvoiceItem alone is enough) — the sales history it would take
+ * down with it is never worth it. A product that only ever had warehouse-side movements
+ * (its opening stock, a restock, a manual adjustment) can still be removed; those harmless
+ * housekeeping rows are cleared along with it. Admin only.
+ */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await authorize(req, ["admin"]);
+    const { id } = await params;
+
+    const exists = await prisma.product.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new HttpError(404, "Product not found");
+
+    const everOrdered = await prisma.invoiceItem.count({ where: { productId: id } });
+    if (everOrdered > 0) throw new HttpError(409, "This product has order history and can't be deleted");
+
+    await prisma.$transaction([
+      prisma.stockMovement.deleteMany({ where: { productId: id } }),
+      prisma.product.delete({ where: { id } }),
+    ]);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Upload } from "lucide-react";
+import { AlertTriangle, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload } from "lucide-react";
 import type { ProductDTO, Role, StockMovementDTO, StockMovementType } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
 import { AdjustStockForm, EditProductForm } from "./stock-dialogs";
 import BulkReceiveModal from "./BulkReceiveModal";
+import BulkRateModal from "./BulkRateModal";
 
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -18,7 +19,7 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   CANCEL_RETURN: "Returned (cancelled)",
 };
 
-type Dialog = { kind: "adjust" | "edit"; product: ProductDTO } | { kind: "bulk" } | null;
+type Dialog = { kind: "adjust" | "edit"; product: ProductDTO } | { kind: "bulk" } | { kind: "bulk-rate" } | null;
 
 /**
  * Receiving and adjusting stock, adding products, and editing them are all admin-only now
@@ -39,12 +40,29 @@ export default function InventoryManager({
   const canManage = role === "admin";
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [deletingProduct, setDeletingProduct] = useState<ProductDTO | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const closeDialog = useCallback(() => setDialog(null), []);
   const done = async (text: string) => {
     setDialog(null);
     setMessage({ kind: "success", text });
     await onSaved();
   };
+
+  async function confirmDeleteProduct() {
+    if (!deletingProduct) return;
+    setDeleting(true);
+    try {
+      await api.deleteProduct(deletingProduct.id);
+      setMessage({ kind: "success", text: `${deletingProduct.name} deleted` });
+      setDeletingProduct(null);
+      await onSaved();
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Failed to delete product" });
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -61,7 +79,10 @@ export default function InventoryManager({
         {message && <Alert kind={message.kind}>{message.text}</Alert>}
 
         {canManage && (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
+              <Upload className="h-4 w-4" /> Bulk update rates
+            </button>
             <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk" })}>
               <Upload className="h-4 w-4" /> Bulk receive stock
             </button>
@@ -120,6 +141,14 @@ export default function InventoryManager({
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
+                          <button
+                            className="btn btn-secondary px-2.5 text-danger-foreground"
+                            onClick={() => setDeletingProduct(p)}
+                            aria-label={`Delete ${p.name}`}
+                            title="Delete product"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     )}
@@ -163,23 +192,48 @@ export default function InventoryManager({
         </div>
       </div>
 
-      <Modal
-        open={!!dialog}
-        title={
-          dialog?.kind === "bulk"
-            ? "Bulk receive stock"
-            : dialog
-              ? `${dialog.kind === "adjust" ? "Adjust stock" : "Edit product"} — ${dialog.product.name}`
-              : ""
-        }
-        onClose={closeDialog}
-      >
+      <Modal open={!!dialog} title={dialogTitle(dialog)} onClose={closeDialog}>
         {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "edit" && <EditProductForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "bulk" && <BulkReceiveModal onDone={done} />}
+        {dialog?.kind === "bulk-rate" && <BulkRateModal products={products} onDone={done} />}
+      </Modal>
+
+      <Modal open={!!deletingProduct} title="Delete this product?" onClose={() => setDeletingProduct(null)}>
+        {deletingProduct && (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-xl bg-warning p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
+              <div className="text-sm">
+                <p className="font-semibold">#{deletingProduct.productCode} {deletingProduct.name}</p>
+                <p className="mt-1 text-foreground">Refused if it's ever been on an order.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="btn btn-secondary h-12 text-base" onClick={() => setDeletingProduct(null)}>
+                Keep product
+              </button>
+              <button
+                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                disabled={deleting}
+                onClick={() => void confirmDeleteProduct()}
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
+}
+
+function dialogTitle(dialog: Dialog): string {
+  if (!dialog) return "";
+  if (dialog.kind === "bulk") return "Bulk receive stock";
+  if (dialog.kind === "bulk-rate") return "Bulk update rates";
+  return `${dialog.kind === "adjust" ? "Adjust stock" : "Edit product"} — ${dialog.product.name}`;
 }
 
 function StockBadge({ qty }: { qty: number }) {

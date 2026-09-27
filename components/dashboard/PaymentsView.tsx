@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { HandCoins, Loader2, Wallet2 } from "lucide-react";
+import { HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
 import type { AuthUser, OutletDTO, PaymentDTO, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
@@ -25,6 +25,8 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [collecting, setCollecting] = useState(false);
+  const [deletingPayment, setDeletingPayment] = useState<PaymentDTO | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -44,6 +46,21 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   }, [load]);
 
   const total = round2((payments ?? []).reduce((s, p) => s + p.amount, 0));
+
+  async function confirmDeletePayment() {
+    if (!deletingPayment) return;
+    setDeleting(true);
+    try {
+      await api.deletePayment(deletingPayment.id);
+      setFlash(`Payment of ${formatMoney(deletingPayment.amount)} from ${deletingPayment.outletName} reversed`);
+      setDeletingPayment(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete payment");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -97,6 +114,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                   <th className="th">Invoice</th>
                   <th className="th">Notes</th>
                   <th className="th text-right">Amount</th>
+                  {isAdmin && <th className="th w-8" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -106,9 +124,21 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                     <td className="td font-medium">{p.outletName}</td>
                     {isAdmin && <td className="td">{p.staffName}</td>}
                     <td className="td">{p.paymentMethod}</td>
-                    <td className="td font-mono text-xs">{p.invoiceId ?? "—"}</td>
+                    <td className="td font-mono text-xs">{p.invoiceNumber ?? "Unbilled"}</td>
                     <td className="td max-w-48 truncate text-muted-foreground">{p.notes ?? ""}</td>
                     <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(p.amount)}</td>
+                    {isAdmin && (
+                      <td className="td">
+                        <button
+                          className="rounded p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground"
+                          onClick={() => setDeletingPayment(p)}
+                          aria-label={`Delete payment of ${formatMoney(p.amount)} from ${p.outletName}`}
+                          title="Delete payment"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -117,6 +147,32 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
         )}
         {payments && payments.length === 0 && <EmptyState>No payments match these filters.</EmptyState>}
       </div>
+
+      <Modal open={!!deletingPayment} title="Delete this payment?" onClose={() => setDeletingPayment(null)}>
+        {deletingPayment && (
+          <div className="space-y-5">
+            <div className="rounded-xl bg-warning p-4 text-sm">
+              <p className="font-semibold">{formatMoney(deletingPayment.amount)} from {deletingPayment.outletName}</p>
+              <p className="mt-1 text-foreground">
+                This reverses the payment — the amount is added back to the outlet's outstanding balance.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="btn btn-secondary h-12 text-base" onClick={() => setDeletingPayment(null)}>
+                Keep payment
+              </button>
+              <button
+                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                disabled={deleting}
+                onClick={() => void confirmDeletePayment()}
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={collecting} title="Collect payment" onClose={() => setCollecting(false)}>
         <CollectPaymentFlow

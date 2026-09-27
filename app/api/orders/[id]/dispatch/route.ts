@@ -7,9 +7,10 @@ import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import type { OrderDTO } from "@/lib/types";
 
 /**
- * Dispatches a pending order in one transaction: lock the order, confirm it is PENDING,
- * lock its products, refuse if any is short, deduct stock, record DISPATCH movements and
- * mark the order DISPATCHED. Nothing is changed if any step fails.
+ * Dispatches a billed order in one transaction: lock the order, confirm it is BILLED (a
+ * bill number must be entered first via POST /api/orders/:id/bill), lock its products,
+ * refuse if any is short, deduct stock, record DISPATCH movements and mark the order
+ * DISPATCHED. Nothing is changed if any step fails.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +19,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const order = await prisma.$transaction(async (tx) => {
       const invoice = await lockInvoice(tx, id);
-      if (invoice.fulfilmentStatus !== "PENDING") {
+      if (invoice.fulfilmentStatus === "PENDING") {
+        throw new HttpError(409, `Order ${id} must be billed before it can be dispatched`);
+      }
+      if (invoice.fulfilmentStatus !== "BILLED") {
         throw new HttpError(409, `Order ${id} is already ${invoice.fulfilmentStatus.toLowerCase()}`);
       }
 

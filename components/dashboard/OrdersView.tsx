@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, FileCheck, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
@@ -13,10 +13,14 @@ type Filter = FulfilmentStatus | "ALL";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "PENDING", label: "Pending" },
+  { id: "BILLED", label: "Billed" },
   { id: "DISPATCHED", label: "Dispatched" },
   { id: "CANCELLED", label: "Cancelled" },
   { id: "ALL", label: "All" },
 ];
+
+/** The order's bill number for messages and headings — orders aren't given one until billed. */
+const orderLabel = (o: OrderDTO) => (o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "This order");
 
 export default function OrdersView({
   data,
@@ -32,21 +36,24 @@ export default function OrdersView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
+  const [billing, setBilling] = useState<OrderDTO | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
 
   const orders = useMemo(() => {
     const list = filter === "ALL" ? data.orders : data.orders.filter((o) => o.fulfilmentStatus === filter);
-    // Oldest first for the pending queue so the longest-waiting order is on top.
-    return filter === "PENDING" ? [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : list;
+    // Oldest first for the pending/billed queues so the longest-waiting order is on top.
+    return filter === "PENDING" || filter === "BILLED" ? [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : list;
   }, [data.orders, filter]);
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { ALL: data.orders.length, PENDING: 0, DISPATCHED: 0, CANCELLED: 0 };
+    const c: Record<Filter, number> = { ALL: data.orders.length, PENDING: 0, BILLED: 0, DISPATCHED: 0, CANCELLED: 0 };
     for (const o of data.orders) c[o.fulfilmentStatus]++;
     return c;
   }, [data.orders]);
 
+  // Billing and dispatch are done by the same office/warehouse staff, in that order.
+  const canBill = user.role === "admin" || user.role === "stock";
   const canDispatch = user.role === "admin" || user.role === "stock";
   const canCancel = (o: OrderDTO) =>
     user.role === "admin"
@@ -98,7 +105,9 @@ export default function OrdersView({
               <article key={o.id} className="card flex flex-col p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-mono text-sm font-semibold">{o.id}</p>
+                    <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
+                      {o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "Not billed yet"}
+                    </p>
                     <p className="truncate font-medium">{o.outletName}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
@@ -137,6 +146,12 @@ export default function OrdersView({
                   </div>
                 </dl>
 
+                {o.billedAt && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Billed {formatDate(o.billedAt)}
+                    {o.billedByName && <> by {o.billedByName}</>}
+                  </p>
+                )}
                 {o.dispatchedAt && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Dispatched {formatDate(o.dispatchedAt)}
@@ -151,11 +166,16 @@ export default function OrdersView({
                 )}
 
                 <div className="mt-auto flex flex-wrap gap-2 pt-3">
-                  {canDispatch && o.fulfilmentStatus === "PENDING" && (
+                  {canBill && o.fulfilmentStatus === "PENDING" && (
+                    <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => setBilling(o)}>
+                      <FileCheck className="h-4 w-4" /> Bill order
+                    </button>
+                  )}
+                  {canDispatch && o.fulfilmentStatus === "BILLED" && (
                     <button
                       className="btn btn-primary h-11 flex-1 text-sm"
                       disabled={busy}
-                      onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${o.id} dispatched — stock deducted`)}
+                      onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${orderLabel(o)} dispatched — stock deducted`)}
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                       Dispatch
@@ -182,7 +202,20 @@ export default function OrdersView({
         </div>
       )}
 
-      <Modal open={!!editing} title={`Edit order ${editing?.id ?? ""}`} onClose={closeEdit}>
+      <Modal open={!!billing} title="Bill this order" onClose={() => setBilling(null)}>
+        {billing && (
+          <BillOrderForm
+            order={billing}
+            onDone={async (text) => {
+              setBilling(null);
+              setMessage({ kind: "success", text });
+              await onSaved();
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal open={!!editing} title={`Edit order — ${editing?.outletName ?? ""}`} onClose={closeEdit}>
         {editing && (
           <EditOrderForm
             key={editing.id}
@@ -203,7 +236,7 @@ export default function OrdersView({
             <div className="flex items-start gap-3 rounded-xl bg-warning p-4">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
               <div className="text-sm">
-                <p className="font-semibold">{confirmingCancel.id} — {confirmingCancel.outletName}</p>
+                <p className="font-semibold">{orderLabel(confirmingCancel)} — {confirmingCancel.outletName}</p>
                 <p className="mt-1 text-foreground">
                   {formatMoney(confirmingCancel.totalAmount)}
                   {confirmingCancel.fulfilmentStatus === "DISPATCHED" && " · its stock will be returned"}
@@ -220,7 +253,7 @@ export default function OrdersView({
                 onClick={() => {
                   const order = confirmingCancel;
                   setConfirmingCancel(null);
-                  void run(order.id, () => api.cancelOrder(order.id), `${order.id} cancelled`);
+                  void run(order.id, () => api.cancelOrder(order.id), `${orderLabel(order)} cancelled`);
                 }}
               >
                 {busyId === confirmingCancel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
@@ -267,7 +300,7 @@ function EditOrderForm({
     setError(null);
     try {
       await api.updateOrder(order.id, { outletId, items: lines });
-      await onDone(`${order.id} updated`);
+      await onDone(`${orderLabel(order)} updated`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update order");
       setBusy(false);
@@ -355,6 +388,53 @@ function EditOrderForm({
       <button type="submit" className="btn btn-primary w-full" disabled={busy || tooLow}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
         Save changes
+      </button>
+    </form>
+  );
+}
+
+/** Copies in the physical bill-book number by hand — never auto-generated. */
+function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!invoiceNumber.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim() });
+      await onDone(`Bill #${invoiceNumber.trim()} recorded — ready to dispatch`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to bill order");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="rounded-lg bg-secondary px-3 py-2 text-sm">
+        <p className="font-medium">{order.outletName}</p>
+        <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="bill-number">Bill book number</label>
+        <input
+          id="bill-number"
+          className="input"
+          value={invoiceNumber}
+          onChange={(e) => setInvoiceNumber(e.target.value)}
+          placeholder="e.g. 1042"
+          autoFocus
+        />
+        <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
+      </div>
+      {error && <Alert kind="error">{error}</Alert>}
+      <button type="submit" className="btn btn-primary w-full" disabled={busy || !invoiceNumber.trim()}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
+        Save bill number
       </button>
     </form>
   );

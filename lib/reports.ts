@@ -38,8 +38,21 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
         orderBy: { name: "asc" },
         include: {
           route: { select: { name: true, agentId: true, agent: { select: { name: true } } } },
-          invoices: { where: notCancelled, select: { id: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } } },
-          payments: { select: { id: true, amount: true, paymentMethod: true, invoiceId: true, notes: true, createdAt: true } },
+          invoices: {
+            where: notCancelled,
+            select: { id: true, invoiceNumber: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } },
+          },
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              paymentMethod: true,
+              invoiceId: true,
+              invoice: { select: { invoiceNumber: true } },
+              notes: true,
+              createdAt: true,
+            },
+          },
         },
       }),
       prisma.staff.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } }),
@@ -61,7 +74,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       ...outlet.invoices.map((inv) => ({
         date: inv.createdAt.toISOString(),
         type: "INVOICE" as const,
-        reference: inv.id,
+        reference: inv.invoiceNumber ?? "Unbilled",
         description: `Invoice (${inv._count.items} item${inv._count.items === 1 ? "" : "s"})`,
         debit: inv.totalAmount,
         credit: 0,
@@ -69,7 +82,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       ...outlet.payments.map((p) => ({
         date: p.createdAt.toISOString(),
         type: "PAYMENT" as const,
-        reference: p.invoiceId ?? p.id,
+        reference: p.invoice?.invoiceNumber ?? "Unbilled",
         description: `${p.paymentMethod} payment${p.notes ? ` — ${p.notes}` : ""}`,
         debit: 0,
         credit: p.amount,
@@ -94,32 +107,38 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       routeName: outlet.route?.name ?? null,
       agentId: outlet.route?.agentId ?? null,
       agentName: outlet.route?.agent?.name ?? null,
+      hidden: outlet.hidden,
       totalBilled,
       totalPaid,
       balance: round2(outlet.invoices.reduce((s, i) => s + i.balanceDue, 0)),
       openInvoices: outlet.invoices
         .filter((i) => i.balanceDue > 0)
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
-        .map((i) => ({ id: i.id, balanceDue: i.balanceDue, createdAt: i.createdAt.toISOString() })),
+        .map((i) => ({ id: i.id, invoiceNumber: i.invoiceNumber, balanceDue: i.balanceDue, createdAt: i.createdAt.toISOString() })),
       entries,
     };
   });
 
   const staffPerformance: StaffPerformance[] = staff.map((member) => {
     const inv = staffInvoices.find((g) => g.staffId === member.id);
-    const sumFor = (method: "CASH" | "UPI") =>
+    // UPI is excluded from the "new payment" flow but a historical row can still carry it —
+    // fold it into totalCollected without giving it its own column.
+    const sumFor = (method: "CASH" | "CHEQUE" | "NET_BANKING" | "UPI") =>
       staffPayments.find((g) => g.staffId === member.id && g.paymentMethod === method)?._sum.amount ?? 0;
     const cashCollected = round2(sumFor("CASH"));
-    const upiCollected = round2(sumFor("UPI"));
+    const chequeCollected = round2(sumFor("CHEQUE"));
+    const netBankingCollected = round2(sumFor("NET_BANKING"));
+    const legacyUpiCollected = round2(sumFor("UPI"));
     return {
       staffId: member.id,
       staffName: member.name,
       phone: member.phone,
       totalOrders: inv?._count._all ?? 0,
       totalSales: round2(inv?._sum.totalAmount ?? 0),
-      totalCollected: round2(cashCollected + upiCollected),
+      totalCollected: round2(cashCollected + chequeCollected + netBankingCollected + legacyUpiCollected),
       cashCollected,
-      upiCollected,
+      chequeCollected,
+      netBankingCollected,
       uncollectedBalance: round2(inv?._sum.balanceDue ?? 0),
     };
   });

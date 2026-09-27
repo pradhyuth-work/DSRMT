@@ -2,8 +2,11 @@ import type {
   AdjustStockInput,
   ApiError,
   AuthUser,
+  BillOrderInput,
   BulkOutletInput,
   BulkOutletResponse,
+  BulkRateInput,
+  BulkRateResponse,
   BulkReceiveInput,
   BulkReceiveResponse,
   CreatePaymentInput,
@@ -13,6 +16,7 @@ import type {
   CreateSaleResponse,
   CreateStaffInput,
   FulfilmentStatus,
+  HideOutletInput,
   LoginInput,
   LoginResponse,
   OrderDTO,
@@ -97,11 +101,15 @@ export const api = {
   adjustStock: (productId: string, input: AdjustStockInput) =>
     post<ProductDTO>(`/api/products/${enc(productId)}/adjust`, input),
   bulkReceive: (input: BulkReceiveInput) => post<BulkReceiveResponse>("/api/products/bulk-receive", input),
+  bulkUpdateRates: (input: BulkRateInput) => post<BulkRateResponse>("/api/products/bulk-rate", input),
+  deleteProduct: (id: string) => request<{ ok: true }>(`/api/products/${enc(id)}`, { method: "DELETE" }),
   stockMovements: () => request<StockMovementDTO[]>("/api/stock-movements"),
 
   outlets: () => request<OutletDTO[]>("/api/outlets"),
   bulkCreateOutlets: (input: BulkOutletInput) => post<BulkOutletResponse>("/api/outlets/bulk-create", input),
   updateOutlet: (id: string, input: UpdateOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}`, input),
+  hideOutlet: (id: string, input: HideOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}/hidden`, input),
+  deleteOutlet: (id: string) => request<{ ok: true }>(`/api/outlets/${enc(id)}`, { method: "DELETE" }),
   outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
 
   routes: () => request<RouteDTO[]>("/api/routes"),
@@ -113,10 +121,12 @@ export const api = {
   salesReport: (query?: SalesReportQuery) => request<SalesReportResponse>(`/api/reports/sales${qs(query)}`),
   payments: (query?: PaymentsQuery) => request<PaymentDTO[]>(`/api/payments${qs(query)}`),
   createPayment: (input: CreatePaymentInput) => post<CreatePaymentResponse>("/api/payments", input),
+  deletePayment: (id: string) => request<{ ok: true }>(`/api/payments/${enc(id)}`, { method: "DELETE" }),
 
   createSale: (input: CreateSaleInput) => post<CreateSaleResponse>("/api/sales", input),
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
   updateOrder: (id: string, input: UpdateOrderInput) => patch<OrderDTO>(`/api/orders/${enc(id)}`, input),
+  billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   dispatchOrder: (id: string) => post<OrderDTO>(`/api/orders/${enc(id)}/dispatch`),
   cancelOrder: (id: string) => post<OrderDTO>(`/api/orders/${enc(id)}/cancel`),
 
@@ -125,4 +135,24 @@ export const api = {
   updateStaff: (id: string, input: UpdateStaffInput) => patch<StaffDTO>(`/api/staff/${enc(id)}`, input),
   resetPassword: (id: string, password: string) =>
     post<ResetPasswordResponse>(`/api/staff/${enc(id)}/password`, { password }),
+
+  /** Downloads the full-data backup JSON via the browser's normal save-file flow. The
+   * endpoint needs the bearer token, so this can't be a plain <a href> link. */
+  async downloadBackup() {
+    const token = getToken();
+    const res = await fetch("/api/backup", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+    if (!res.ok) {
+      const data: unknown = await res.json().catch(() => null);
+      throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "dsrmt-backup.json";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

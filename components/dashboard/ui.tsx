@@ -1,8 +1,48 @@
 "use client";
 
 import { useEffect } from "react";
-import { AlertTriangle, CheckCircle2, X, type LucideIcon } from "lucide-react";
-import type { FulfilmentStatus, InvoiceStatus } from "@/lib/types";
+import { createPortal } from "react-dom";
+import { AlertTriangle, Banknote, CheckCircle2, FileText, Landmark, X, type LucideIcon } from "lucide-react";
+import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
+
+type SelectableMethod = (typeof PAYMENT_METHODS)[number];
+
+const METHOD_ICON: Record<SelectableMethod, LucideIcon> = { CASH: Banknote, CHEQUE: FileText, NET_BANKING: Landmark };
+const METHOD_LABEL: Record<SelectableMethod, string> = { CASH: "Cash", CHEQUE: "Cheque", NET_BANKING: "Net Banking" };
+
+/** The CASH/CHEQUE/NET_BANKING picker used everywhere a payment method is recorded. UPI is
+ * deliberately never offered here — it only ever appears read-only on historical payments. */
+export function PaymentMethodPicker({
+  value,
+  onChange,
+  size = "sm",
+}: {
+  value: PaymentMethod;
+  onChange: (method: SelectableMethod) => void;
+  /** "lg" for the big-tap agent/admin sale forms; "sm" for compact payment-collection forms. */
+  size?: "sm" | "lg";
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {PAYMENT_METHODS.map((m) => {
+        const Icon = METHOD_ICON[m];
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className={`btn flex-col gap-1 text-xs ${size === "lg" ? "h-14 text-sm" : "py-2"} ${
+              value === m ? "btn-primary" : "btn-secondary"
+            }`}
+          >
+            <Icon className={size === "lg" ? "h-5 w-5" : "h-4 w-4"} />
+            {METHOD_LABEL[m]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function StatCard({
   label,
@@ -53,7 +93,11 @@ export function Modal({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // Portalled to document.body: any ancestor with a CSS animation/transition ending on a
+  // non-"none" transform (e.g. the .app-enter entrance animation's `both` fill-mode) becomes
+  // a containing block for `position: fixed` descendants, which would otherwise pin this
+  // dialog to that ancestor's box — invisible off-screen on any tab taller than the viewport.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-primary/30 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onClick={onClose}
@@ -73,7 +117,8 @@ export function Modal({
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -104,6 +149,7 @@ export function StatusBadge({ status }: { status: InvoiceStatus }) {
 export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
   const styles: Record<FulfilmentStatus, string> = {
     PENDING: "bg-info text-info-foreground",
+    BILLED: "bg-warning text-warning-foreground",
     DISPATCHED: "bg-primary text-primary-foreground",
     CANCELLED: "bg-muted text-muted-foreground",
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, HandCoins, Plus, Route as RouteIcon, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Eye, EyeOff, HandCoins, Loader2, Plus, Route as RouteIcon, Search, Trash2 } from "lucide-react";
 import type { OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
@@ -30,6 +30,9 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
   const [addingOutlet, setAddingOutlet] = useState(false);
   const [managingRoutes, setManagingRoutes] = useState(false);
   const [reassigning, setReassigning] = useState<string | null>(null);
+  const [togglingHidden, setTogglingHidden] = useState<string | null>(null);
+  const [deletingOutlet, setDeletingOutlet] = useState<OutletLedger | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [flash, setFlash] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const filtered = useMemo(() => {
@@ -52,6 +55,34 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
       setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to move outlet" });
     } finally {
       setReassigning(null);
+    }
+  }
+
+  async function toggleHidden(l: OutletLedger) {
+    setTogglingHidden(l.outletId);
+    try {
+      await api.hideOutlet(l.outletId, { hidden: !l.hidden });
+      setFlash({ kind: "success", text: l.hidden ? `${l.outletName} is visible again` : `${l.outletName} is hidden from order-taking` });
+      await onSaved();
+    } catch (err) {
+      setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to update outlet" });
+    } finally {
+      setTogglingHidden(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingOutlet) return;
+    setDeleting(true);
+    try {
+      await api.deleteOutlet(deletingOutlet.outletId);
+      setFlash({ kind: "success", text: `${deletingOutlet.outletName} deleted` });
+      setDeletingOutlet(null);
+      await onSaved();
+    } catch (err) {
+      setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to delete outlet" });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -120,7 +151,12 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                         </button>
                       </td>
                       <td className="td">
-                        <p className="font-medium">{l.outletName}</p>
+                        <p className="flex items-center gap-1.5 font-medium">
+                          {l.outletName}
+                          {l.hidden && (
+                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">Hidden</span>
+                          )}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {l.phone} · {l.openInvoices.length} open invoice{l.openInvoices.length === 1 ? "" : "s"}
                         </p>
@@ -143,18 +179,43 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                       <td className={`td text-right font-semibold tabular-nums ${l.balance > 0 ? "text-warning-foreground" : "text-muted-foreground"}`}>
                         {formatMoney(l.balance)}
                       </td>
-                      <td className="td text-right">
-                        <button
-                          className="btn btn-primary px-3 py-1.5"
-                          disabled={l.balance <= 0}
-                          onClick={() => {
-                            setFlash(null);
-                            setCollecting(l);
-                          }}
-                        >
-                          <HandCoins className="h-4 w-4" />
-                          <span className="hidden md:inline">Collect Payment</span>
-                        </button>
+                      <td className="td">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            className="btn btn-secondary px-2.5"
+                            disabled={togglingHidden === l.outletId}
+                            onClick={() => void toggleHidden(l)}
+                            aria-label={l.hidden ? `Unhide ${l.outletName}` : `Hide ${l.outletName}`}
+                            title={l.hidden ? "Show in order-taking again" : "Hide from order-taking"}
+                          >
+                            {togglingHidden === l.outletId ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : l.hidden ? (
+                              <Eye className="h-4 w-4" />
+                            ) : (
+                              <EyeOff className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            className="btn btn-secondary px-2.5 text-danger-foreground"
+                            onClick={() => setDeletingOutlet(l)}
+                            aria-label={`Delete ${l.outletName}`}
+                            title="Delete outlet"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            className="btn btn-primary px-3 py-1.5"
+                            disabled={l.balance <= 0}
+                            onClick={() => {
+                              setFlash(null);
+                              setCollecting(l);
+                            }}
+                          >
+                            <HandCoins className="h-4 w-4" />
+                            <span className="hidden md:inline">Collect Payment</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {isOpen && (
@@ -199,6 +260,35 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
             await onSaved();
           }}
         />
+      </Modal>
+
+      <Modal open={!!deletingOutlet} title="Delete this outlet?" onClose={() => setDeletingOutlet(null)}>
+        {deletingOutlet && (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-xl bg-warning p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
+              <div className="text-sm">
+                <p className="font-semibold">{deletingOutlet.outletName}</p>
+                <p className="mt-1 text-foreground">
+                  Refused if it has any order history — hide it instead to keep it out of order-taking without losing its records.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="btn btn-secondary h-12 text-base" onClick={() => setDeletingOutlet(null)}>
+                Keep outlet
+              </button>
+              <button
+                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal open={managingRoutes} title="Manage routes" onClose={() => setManagingRoutes(false)}>

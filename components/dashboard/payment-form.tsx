@@ -5,7 +5,7 @@ import { HandCoins, Loader2 } from "lucide-react";
 import type { PaymentMethod, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, formatDate } from "./ui";
+import { Alert, PaymentMethodPicker, formatDate } from "./ui";
 import { Combobox } from "./Combobox";
 
 export interface CollectPaymentTarget {
@@ -13,7 +13,7 @@ export interface CollectPaymentTarget {
   outletName: string;
   balance: number;
   /** Oldest first — the order a payment settles them in. */
-  openInvoices: { id: string; balanceDue: number; createdAt: string }[];
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
 }
 
 /**
@@ -65,7 +65,9 @@ export function CollectPaymentForm({
         notes: notes.trim() || undefined,
       });
       await onDone(
-        `Collected ${formatMoney(res.amount)} from ${target.outletName} — applied to ${res.allocations.map((a) => a.invoiceId).join(", ")}`,
+        `Collected ${formatMoney(res.amount)} from ${target.outletName} — applied to ${res.allocations
+          .map((a) => (a.invoiceNumber ? `Bill #${a.invoiceNumber}` : "an unbilled order"))
+          .join(", ")}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to record payment");
@@ -108,13 +110,7 @@ export function CollectPaymentForm({
         )}
         <div>
           <span className="label">Method</span>
-          <div className="grid grid-cols-2 gap-2">
-            {(["CASH", "UPI"] as const).map((m) => (
-              <button key={m} type="button" onClick={() => setMethod(m)} className={`btn ${method === m ? "btn-primary" : "btn-secondary"}`}>
-                {m}
-              </button>
-            ))}
-          </div>
+          <PaymentMethodPicker value={method} onChange={setMethod} />
         </div>
         <div>
           <label className="label" htmlFor="pay-notes">Notes</label>
@@ -131,7 +127,7 @@ export function CollectPaymentForm({
             {preview.map((p) => (
               <li key={p.id} className={`flex items-center justify-between px-3 py-2 ${p.applied > 0 ? "" : "text-muted-foreground"}`}>
                 <span>
-                  <span className="font-mono text-xs">{p.id}</span>{" "}
+                  <span className="font-mono text-xs">{p.invoiceNumber ?? "Unbilled"}</span>{" "}
                   <span className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</span>
                 </span>
                 <span className="tabular-nums">

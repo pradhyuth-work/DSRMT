@@ -21,14 +21,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const openInvoices = await prisma.invoice.findMany({
       where: { outletId: id, balanceDue: { gt: 0 }, fulfilmentStatus: { not: "CANCELLED" } },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true, balanceDue: true, createdAt: true },
+      select: { id: true, invoiceNumber: true, balanceDue: true, createdAt: true },
     });
 
     const body: OutletBalanceDTO = {
       outletId: outlet.id,
       outletName: outlet.name,
       balance: round2(openInvoices.reduce((s, i) => s + i.balanceDue, 0)),
-      openInvoices: openInvoices.map((i) => ({ id: i.id, balanceDue: i.balanceDue, createdAt: i.createdAt.toISOString() })),
+      openInvoices: openInvoices.map((i) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        balanceDue: i.balanceDue,
+        createdAt: i.createdAt.toISOString(),
+      })),
     };
     return NextResponse.json(body);
   } catch (err) {

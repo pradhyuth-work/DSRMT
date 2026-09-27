@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Banknote,
   Check,
   ChevronLeft,
   IndianRupee,
@@ -13,13 +12,12 @@ import {
   Plus,
   Search,
   ShoppingBag,
-  Smartphone,
   Store,
 } from "lucide-react";
 import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert } from "./ui";
+import { Alert, PaymentMethodPicker } from "./ui";
 import type { DashboardData } from "./Dashboard";
 
 type Step = "outlet" | "browse" | "review" | "done";
@@ -38,7 +36,10 @@ export default function AgentOrderForm({
   user: AuthUser;
   onSaved: () => Promise<void>;
 }) {
-  const { products, outlets } = data;
+  const { products } = data;
+  // Hidden outlets stay fully visible in ledgers/reports — they just drop out of the
+  // order-taking picker.
+  const outlets = useMemo(() => data.outlets.filter((o) => !o.hidden), [data.outlets]);
   const singleOutlet = outlets.length === 1 ? outlets[0] : null;
 
   const [outletId, setOutletId] = useState<string | null>(singleOutlet?.id ?? null);
@@ -170,10 +171,6 @@ export default function AgentOrderForm({
         </div>
         <div className="w-full max-w-xs space-y-2 rounded-xl bg-secondary p-4 text-left text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Order</span>
-            <span className="font-mono font-semibold">{lastInvoice.id}</span>
-          </div>
-          <div className="flex justify-between">
             <span className="text-muted-foreground">Total</span>
             <span className="font-semibold">{formatMoney(lastInvoice.totalAmount)}</span>
           </div>
@@ -184,7 +181,7 @@ export default function AgentOrderForm({
             </div>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">Waiting to be dispatched — you can track it under My orders.</p>
+        <p className="text-sm text-muted-foreground">Waiting to be billed and dispatched — you can track it under My orders.</p>
         <button className="btn btn-primary h-14 w-full max-w-xs text-base" onClick={resetForNextOrder}>
           <Plus className="h-5 w-5" /> Start a new order
         </button>
@@ -260,19 +257,7 @@ export default function AgentOrderForm({
                   Full amount ({formatMoney(total)})
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {(["CASH", "UPI"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPaymentMethod(m)}
-                    className={`btn h-14 text-base ${paymentMethod === m ? "btn-primary" : "btn-secondary"}`}
-                  >
-                    {m === "CASH" ? <Banknote className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
-                    {m === "CASH" ? "Cash" : "UPI"}
-                  </button>
-                ))}
-              </div>
+              <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} size="lg" />
               {overpaid && <Alert kind="warning">That's more than the order total.</Alert>}
             </div>
           )}
