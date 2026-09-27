@@ -114,12 +114,10 @@ async function loadData(role: Role): Promise<DashboardData> {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
-        <BrandMark size={18} strokeWidth={2.2} />
-      </div>
+      <BrandMark size={36} className="shrink-0" />
       <div>
-        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi MT</p>
-        {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">billing &amp; dispatch</p>}
+        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi Enterprise</p>
+        {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">MT &middot; billing &amp; dispatch</p>}
       </div>
     </div>
   );
@@ -278,10 +276,8 @@ export default function Dashboard() {
           <header className="flex h-[76px] items-center justify-between border-b border-foreground/10">
             {isAgent ? (
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <BrandMark size={18} />
-                </div>
-                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi MT</h1>
+                <BrandMark size={36} className="shrink-0" />
+                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi Enterprise</h1>
               </div>
             ) : (
               <>

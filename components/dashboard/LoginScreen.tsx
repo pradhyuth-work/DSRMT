@@ -36,12 +36,11 @@ export default function LoginScreen({
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-xl bg-primary p-3 text-primary-foreground">
-            <BrandMark size={24} strokeWidth={1.8} />
-          </div>
+          <BrandMark size={56} />
           <div>
-            <h1 className="text-xl font-semibold">Varasidhi MT Billing</h1>
-            <p className="text-sm text-muted-foreground">Sign in to continue</p>
+            <h1 className="text-xl font-semibold">Varasidhi Enterprise</h1>
+            <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-muted-foreground/70">MT &middot; billing &amp; dispatch</p>
+            <p className="mt-2 text-sm text-muted-foreground">Sign in to continue</p>
           </div>
         </div>
 
