@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlarmClockCheck,
   Boxes,
   ClipboardList,
   IndianRupee,
@@ -361,11 +362,17 @@ export default function Dashboard() {
           )}
 
           {user.role === "admin" && (
-            <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
               <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} tone="lime" />
               <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="gold" />
               <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
               <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="teal" />
+              <StatCard
+                label="Outlets 30+ Days"
+                value={metrics ? String(metrics.outletsOver30Days) : "—"}
+                icon={AlarmClockCheck}
+                tone="rose"
+              />
             </section>
           )}
 
@@ -421,7 +428,7 @@ export default function Dashboard() {
                 )}
                 {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
                 {tab === "staff" && <StaffPerformanceView />}
-                {tab === "reports" && <SalesReports outlets={data.outlets} />}
+                {tab === "reports" && <SalesReports outlets={data.outlets} products={data.products} />}
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}

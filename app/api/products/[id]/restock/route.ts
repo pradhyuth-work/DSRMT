@@ -10,14 +10,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await authorize(req, ["admin"]);
     const { id } = await params;
-    const { quantity, reason } = await parseBody(req, restockSchema);
+    const { quantity, reason, supplierRef } = await parseBody(req, restockSchema);
 
     const product = await prisma.$transaction(async (tx) => {
       const exists = await tx.product.findUnique({ where: { id }, select: { id: true } });
       if (!exists) throw new HttpError(404, "Product not found");
       const updated = await tx.product.update({ where: { id }, data: { stockQty: { increment: quantity } } });
       await tx.stockMovement.create({
-        data: { productId: id, change: quantity, type: "RECEIVE", reason: reason || null, staffId: user.id },
+        data: { productId: id, change: quantity, type: "RECEIVE", reason: reason || null, supplierRef: supplierRef || null, staffId: user.id },
       });
       return updated;
     });

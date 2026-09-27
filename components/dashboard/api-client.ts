@@ -2,6 +2,7 @@ import type {
   AdjustStockInput,
   ApiError,
   AuthUser,
+  BalanceAdjustmentDTO,
   BillOrderInput,
   BulkOutletInput,
   BulkOutletResponse,
@@ -9,6 +10,8 @@ import type {
   BulkRateResponse,
   BulkReceiveInput,
   BulkReceiveResponse,
+  ChangeProductCodeInput,
+  CorrectBalanceInput,
   CreatePaymentInput,
   CreatePaymentResponse,
   CreateProductInput,
@@ -36,6 +39,7 @@ import type {
   SalesReportResponse,
   StaffDTO,
   StockMovementDTO,
+  StockMovementsQuery,
   UpdateOrderInput,
   UpdateOutletInput,
   UpdateProductInput,
@@ -84,10 +88,30 @@ const patch = <T>(url: string, body: unknown) => send<T>("PATCH", url, body);
 const enc = encodeURIComponent;
 
 /** Builds a query string from a plain object, dropping undefined/empty values. */
-function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery): string {
+function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery | StockMovementsQuery): string {
   if (!params) return "";
   const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
+}
+
+/** Downloads a file the browser can't reach with a plain <a href> because it needs the
+ * bearer token — used for every CSV/JSON export. Reads the filename off Content-Disposition. */
+async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+  if (!res.ok) {
+    const data: unknown = await res.json().catch(() => null);
+    throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export const api = {
@@ -102,8 +126,9 @@ export const api = {
     post<ProductDTO>(`/api/products/${enc(productId)}/adjust`, input),
   bulkReceive: (input: BulkReceiveInput) => post<BulkReceiveResponse>("/api/products/bulk-receive", input),
   bulkUpdateRates: (input: BulkRateInput) => post<BulkRateResponse>("/api/products/bulk-rate", input),
+  changeProductCode: (id: string, input: ChangeProductCodeInput) => patch<ProductDTO>(`/api/products/${enc(id)}/code`, input),
   deleteProduct: (id: string) => request<{ ok: true }>(`/api/products/${enc(id)}`, { method: "DELETE" }),
-  stockMovements: () => request<StockMovementDTO[]>("/api/stock-movements"),
+  stockMovements: (query?: StockMovementsQuery) => request<StockMovementDTO[]>(`/api/stock-movements${qs(query)}`),
 
   outlets: () => request<OutletDTO[]>("/api/outlets"),
   bulkCreateOutlets: (input: BulkOutletInput) => post<BulkOutletResponse>("/api/outlets/bulk-create", input),
@@ -111,6 +136,8 @@ export const api = {
   hideOutlet: (id: string, input: HideOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}/hidden`, input),
   deleteOutlet: (id: string) => request<{ ok: true }>(`/api/outlets/${enc(id)}`, { method: "DELETE" }),
   outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
+  correctBalance: (id: string, input: CorrectBalanceInput) => patch<BalanceAdjustmentDTO>(`/api/outlets/${enc(id)}/balance`, input),
+  balanceAdjustments: () => request<BalanceAdjustmentDTO[]>("/api/outlets/balance-adjustments"),
 
   routes: () => request<RouteDTO[]>("/api/routes"),
   createRoute: (input: CreateRouteInput) => post<RouteDTO>("/api/routes", input),
@@ -122,6 +149,8 @@ export const api = {
   payments: (query?: PaymentsQuery) => request<PaymentDTO[]>(`/api/payments${qs(query)}`),
   createPayment: (input: CreatePaymentInput) => post<CreatePaymentResponse>("/api/payments", input),
   deletePayment: (id: string) => request<{ ok: true }>(`/api/payments/${enc(id)}`, { method: "DELETE" }),
+  downloadPaymentsCsv: (query?: PaymentsQuery) => downloadFile(`/api/payments/csv${qs(query)}`, "payments.csv"),
+  downloadSalesReportCsv: (query?: SalesReportQuery) => downloadFile(`/api/reports/sales/csv${qs(query)}`, "sales-report.csv"),
 
   createSale: (input: CreateSaleInput) => post<CreateSaleResponse>("/api/sales", input),
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
@@ -136,23 +165,5 @@ export const api = {
   resetPassword: (id: string, password: string) =>
     post<ResetPasswordResponse>(`/api/staff/${enc(id)}/password`, { password }),
 
-  /** Downloads the full-data backup JSON via the browser's normal save-file flow. The
-   * endpoint needs the bearer token, so this can't be a plain <a href> link. */
-  async downloadBackup() {
-    const token = getToken();
-    const res = await fetch("/api/backup", { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
-    if (!res.ok) {
-      const data: unknown = await res.json().catch(() => null);
-      throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`);
-    }
-    const disposition = res.headers.get("Content-Disposition") ?? "";
-    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "dsrmt-backup.json";
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  },
+  downloadBackup: () => downloadFile("/api/backup", "dsrmt-backup.json"),
 };

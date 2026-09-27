@@ -1,20 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, Download, HardDriveDownload, IndianRupee, Loader2, Wallet } from "lucide-react";
-import type { OutletDTO, SalesReportResponse } from "@/lib/types";
+import { ClipboardList, Download, FileSpreadsheet, HardDriveDownload, IndianRupee, Loader2, Wallet } from "lucide-react";
+import type { OutletDTO, ProductDTO, SalesReportResponse } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState, StatCard } from "./ui";
+import { Alert, DaysOutstandingBadge, EmptyState, StatCard } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { Combobox } from "./Combobox";
 
-type View = "product" | "outlet" | "sku";
+type View = "product" | "outlet" | "sku" | "inventory";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "product", label: "By Product" },
   { id: "outlet", label: "By Outlet" },
   { id: "sku", label: "SKU Matrix" },
+  { id: "inventory", label: "Live Inventory" },
 ];
 
 /** Quotes a CSV field only when it needs it — keeps plain numbers and names readable. */
@@ -38,7 +39,7 @@ function downloadCsv(filename: string, header: string[], rows: (string | number)
  * Admin sales reports: date + outlet filtered, with the same three breakdowns as the
  * reference DSR site — by product, by outlet, and an outlet × product SKU matrix.
  */
-export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
+export default function SalesReports({ outlets, products }: { outlets: OutletDTO[]; products: ProductDTO[] }) {
   const [range, setRange] = useState<DateRange>({});
   const [outletId, setOutletId] = useState("");
   const [view, setView] = useState<View>("product");
@@ -46,6 +47,7 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +101,18 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
     }
   }
 
+  async function downloadReportCsv() {
+    setDownloadingReport(true);
+    setError(null);
+    try {
+      await api.downloadSalesReportCsv({ ...range, outletId: outletId || undefined });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download report");
+    } finally {
+      setDownloadingReport(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -120,6 +134,15 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
           </button>
           <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={!report}>
             <Download className="h-4 w-4" /> Download CSV
+          </button>
+          <button
+            className="btn btn-secondary sm:w-auto"
+            onClick={() => void downloadReportCsv()}
+            disabled={downloadingReport}
+            title="By-product and by-outlet breakdowns, generated server-side for this exact filter"
+          >
+            {downloadingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            Report CSV
           </button>
         </div>
       </div>
@@ -146,7 +169,9 @@ export default function SalesReports({ outlets }: { outlets: OutletDTO[] }) {
         ))}
       </div>
 
-      {loading && !report ? (
+      {view === "inventory" ? (
+        <LiveInventoryTable products={products} />
+      ) : loading && !report ? (
         <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" /> Loading…
         </div>
@@ -208,6 +233,7 @@ function ByOutletTable({ rows }: { rows: SalesReportResponse["byOutlet"] }) {
               <th className="th text-right">Gross Sales</th>
               <th className="th text-right">Payments Received</th>
               <th className="th text-right">Balance</th>
+              <th className="th text-right">Days of Credit</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -220,8 +246,64 @@ function ByOutletTable({ rows }: { rows: SalesReportResponse["byOutlet"] }) {
                 <td className={`td text-right tabular-nums ${o.balance > 0 ? "text-warning-foreground" : "text-muted-foreground"}`}>
                   {formatMoney(o.balance)}
                 </td>
+                <td className="td text-right">
+                  {o.oldestInvoiceDays !== null ? <DaysOutstandingBadge days={o.oldestInvoiceDays} /> : <span className="text-muted-foreground">—</span>}
+                </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const LOW_STOCK_THRESHOLD = 10;
+
+/** Every product's current stock and price, as of right now — a straight read from
+ * Product, not a date-ranged report. Outlets in this model never carry their own stock
+ * (warehouse → dispatched in one step), unlike the reference app's route buyers, so
+ * there's no "stock at outlet" breakdown here — this is the whole picture. */
+function LiveInventoryTable({ products }: { products: ProductDTO[] }) {
+  if (products.length === 0) return <div className="card"><EmptyState>No products yet.</EmptyState></div>;
+  const totalUnits = products.reduce((s, p) => s + (p.stockQty ?? 0), 0);
+  const totalValue = products.reduce((s, p) => s + (p.stockQty ?? 0) * p.unitPrice, 0);
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3 text-sm text-muted-foreground">
+        <span>{products.length} products</span>
+        <span>
+          {totalUnits.toLocaleString("en-IN")} units on hand · {formatMoney(totalValue)} at current rates
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-secondary">
+            <tr>
+              <th className="th">#</th>
+              <th className="th">Product</th>
+              <th className="th text-right">Unit Price</th>
+              <th className="th text-right">In Stock</th>
+              <th className="th text-right">Stock Value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {products.map((p) => {
+              const qty = p.stockQty ?? 0;
+              const style =
+                qty === 0 ? "bg-danger text-danger-foreground" : qty < LOW_STOCK_THRESHOLD ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
+              return (
+                <tr key={p.id} className="hover:bg-secondary">
+                  <td className="td text-muted-foreground">#{p.productCode}</td>
+                  <td className="td font-medium">{p.name}</td>
+                  <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
+                  <td className="td text-right">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${style}`}>{qty}</span>
+                  </td>
+                  <td className="td text-right tabular-nums">{formatMoney(qty * p.unitPrice)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

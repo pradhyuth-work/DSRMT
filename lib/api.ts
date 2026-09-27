@@ -45,3 +45,24 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
   console.error(err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
+
+/** Quotes a field only when it needs it (contains a comma, quote or newline) — keeps plain numbers and names readable. */
+function csvField(value: string | number | null | undefined): string {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Builds a CSV document (header row + data rows) as one string, CRLF-terminated per row. */
+export function toCsv(header: string[], rows: (string | number | null | undefined)[][]): string {
+  return [header, ...rows].map((r) => r.map(csvField).join(",")).join("\r\n") + "\r\n";
+}
+
+/** A downloadable CSV response, matching the attachment style of GET /api/backup. */
+export function csvResponse(csv: string, filename: string): Response {
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}

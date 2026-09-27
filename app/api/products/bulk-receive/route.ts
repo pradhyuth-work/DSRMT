@@ -20,7 +20,7 @@ import type { BulkReceiveResponse, BulkReceiveResultRow } from "@/lib/types";
 export async function POST(req: Request) {
   try {
     const user = await authorize(req, ["admin"]);
-    const { rows } = await parseBody(req, bulkReceiveSchema);
+    const { rows, supplierRef } = await parseBody(req, bulkReceiveSchema);
 
     const results = await prisma.$transaction(async (tx) => {
       const codes = rows.map((r) => r.productCode).filter((c): c is number => c !== undefined);
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         if (p.action === "RESTOCK") {
           const updated = await tx.product.update({ where: { id: p.productId }, data: { stockQty: { increment: p.quantity } } });
           await tx.stockMovement.create({
-            data: { productId: p.productId, change: p.quantity, type: "RECEIVE", reason: "Bulk upload", staffId: user.id },
+            data: { productId: p.productId, change: p.quantity, type: "RECEIVE", reason: "Bulk upload", supplierRef: supplierRef || null, staffId: user.id },
           });
           out.push({ row: p.row, action: "RESTOCK", productId: updated.id, productCode: updated.productCode, productName: updated.name, newStockQty: updated.stockQty });
         } else {
@@ -95,7 +95,14 @@ export async function POST(req: Request) {
           const created = await tx.product.create({ data: { productCode, name: p.name, unitPrice: p.unitPrice, stockQty: p.quantity } });
           if (p.quantity > 0) {
             await tx.stockMovement.create({
-              data: { productId: created.id, change: p.quantity, type: "RECEIVE", reason: "Bulk upload — opening stock", staffId: user.id },
+              data: {
+                productId: created.id,
+                change: p.quantity,
+                type: "RECEIVE",
+                reason: "Bulk upload — opening stock",
+                supplierRef: supplierRef || null,
+                staffId: user.id,
+              },
             });
           }
           out.push({ row: p.row, action: "CREATE", productId: created.id, productCode: created.productCode, productName: created.name, newStockQty: created.stockQty });

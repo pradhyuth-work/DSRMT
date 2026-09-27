@@ -5,7 +5,7 @@ import { HandCoins, Loader2 } from "lucide-react";
 import type { PaymentMethod, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, PaymentMethodPicker, formatDate } from "./ui";
+import { Alert, DaysOutstandingBadge, PaymentMethodPicker, formatDate } from "./ui";
 import { Combobox } from "./Combobox";
 
 export interface CollectPaymentTarget {
@@ -13,7 +13,7 @@ export interface CollectPaymentTarget {
   outletName: string;
   balance: number;
   /** Oldest first — the order a payment settles them in. */
-  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string; daysOutstanding: number }[];
 }
 
 /**
@@ -128,7 +128,10 @@ export function CollectPaymentForm({
               <li key={p.id} className={`flex items-center justify-between px-3 py-2 ${p.applied > 0 ? "" : "text-muted-foreground"}`}>
                 <span>
                   <span className="font-mono text-xs">{p.invoiceNumber ?? "Unbilled"}</span>{" "}
-                  <span className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground">{formatDate(p.createdAt)}</span>{" "}
+                  <span className="text-xs">
+                    (<DaysOutstandingBadge days={p.daysOutstanding} />)
+                  </span>
                 </span>
                 <span className="tabular-nums">
                   {formatMoney(p.applied)} <span className="text-xs text-muted-foreground">→ {formatMoney(p.after)} left</span>

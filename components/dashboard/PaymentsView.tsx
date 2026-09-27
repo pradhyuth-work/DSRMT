@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
+import { Download, HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
 import type { AuthUser, OutletDTO, PaymentDTO, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
@@ -27,6 +27,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   const [collecting, setCollecting] = useState(false);
   const [deletingPayment, setDeletingPayment] = useState<PaymentDTO | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -46,6 +47,18 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   }, [load]);
 
   const total = round2((payments ?? []).reduce((s, p) => s + p.amount, 0));
+
+  async function downloadCsv() {
+    setDownloading(true);
+    setError(null);
+    try {
+      await api.downloadPaymentsCsv({ outletId: outletId || undefined, staffId: isAdmin ? staffId || undefined : undefined, ...range });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download CSV");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function confirmDeletePayment() {
     if (!deletingPayment) return;
@@ -88,9 +101,15 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
           )}
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
-        <button className="btn btn-primary sm:w-auto" onClick={() => setCollecting(true)}>
-          <HandCoins className="h-4 w-4" /> Collect Payment
-        </button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadCsv()} disabled={downloading}>
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download CSV
+          </button>
+          <button className="btn btn-primary sm:w-auto" onClick={() => setCollecting(true)}>
+            <HandCoins className="h-4 w-4" /> Collect Payment
+          </button>
+        </div>
       </div>
 
       <StatCard label={`Total ${payments ? `(${payments.length})` : ""}`} value={formatMoney(total)} icon={Wallet2} tone="lime" />

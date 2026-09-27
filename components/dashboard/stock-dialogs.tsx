@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, SlidersHorizontal } from "lucide-react";
+import { Hash, Loader2, Pencil, PlusCircle, SlidersHorizontal } from "lucide-react";
 import type { ProductDTO } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert } from "./ui";
@@ -111,6 +111,103 @@ export function EditProductForm({ product, onDone }: { product: ProductDTO; onDo
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
         Save
+      </button>
+    </form>
+  );
+}
+
+/** Receive stock for one product, with an optional supplier/bill reference recorded
+ * against the RECEIVE movement it creates. */
+export function RestockForm({ product, onDone }: { product: ProductDTO; onDone: (message: string) => Promise<void> }) {
+  const [qty, setQty] = useState("");
+  const [supplierRef, setSupplierRef] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const n = Number.parseInt(qty, 10);
+  const valid = Number.isInteger(n) && n > 0;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.restock(product.id, { quantity: n, supplierRef: supplierRef.trim() || undefined });
+      await onDone(`Restocked ${updated.name}: +${n} (now ${updated.stockQty})`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Restock failed");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Current stock: <span className="font-semibold tabular-nums">{product.stockQty ?? 0}</span>
+      </p>
+      <div>
+        <label className="label" htmlFor="rs-qty">Quantity received</label>
+        <input id="rs-qty" type="number" min={1} step={1} className="input" value={qty} onChange={(e) => setQty(e.target.value)} autoFocus />
+      </div>
+      <div>
+        <label className="label" htmlFor="rs-supplier">Supplier / bill reference</label>
+        <input
+          id="rs-supplier"
+          className="input"
+          value={supplierRef}
+          onChange={(e) => setSupplierRef(e.target.value)}
+          placeholder="Optional — e.g. supplier name or bill number"
+          maxLength={120}
+        />
+      </div>
+      {error && <Alert kind="error">{error}</Alert>}
+      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+        Receive stock
+      </button>
+    </form>
+  );
+}
+
+/** Explicitly renumbers a product's #code. Reuses the same shift-on-collision behaviour as
+ * creating a product at a taken code — only the products between the old and new position move. */
+export function ChangeCodeForm({ product, onDone }: { product: ProductDTO; onDone: (message: string) => Promise<void> }) {
+  const [newCode, setNewCode] = useState(String(product.productCode));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const n = Number.parseInt(newCode, 10);
+  const valid = Number.isInteger(n) && n > 0 && n !== product.productCode;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.changeProductCode(product.id, { newCode: n });
+      await onDone(`${updated.name} is now #${updated.productCode}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change product code");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Current code: <span className="font-semibold tabular-nums">#{product.productCode}</span>
+      </p>
+      <div>
+        <label className="label" htmlFor="cc-code">New code</label>
+        <input id="cc-code" type="number" min={1} step={1} className="input" value={newCode} onChange={(e) => setNewCode(e.target.value)} autoFocus />
+        <p className="mt-1 text-xs text-muted-foreground">If this number is already used, only the products between the old and new position shift by one.</p>
+      </div>
+      {error && <Alert kind="error">{error}</Alert>}
+      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Hash className="h-4 w-4" />}
+        Save new code
       </button>
     </form>
   );

@@ -84,13 +84,16 @@ model Outlet {
   address   String   @default("")
   gstNumber String?
   routeId   String?
-  /** Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected. */
+  /**
+   * Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected.
+   */
   hidden    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  route    Route?              @relation(fields: [routeId], references: [id])
-  invoices Invoice[]
-  payments PaymentCollection[]
+  route              Route?              @relation(fields: [routeId], references: [id])
+  invoices           Invoice[]
+  payments           PaymentCollection[]
+  balanceAdjustments BalanceAdjustment[]
 
   @@index([routeId])
 }
@@ -114,13 +117,17 @@ model Staff {
   cancelledInvoices  Invoice[]           @relation("InvoiceCancelledBy")
   payments           PaymentCollection[]
   stockMovements     StockMovement[]
+  balanceAdjustments BalanceAdjustment[]
   route              Route?
 }
 
-/// Invoice ids are human-readable, e.g. INV-1001. staffId is the order owner.
+/// id is an internal cuid; invoiceNumber is the human-facing bill-book number, entered by
+/// hand when billed (never auto-generated). staffId is the order owner.
 model Invoice {
   id               String           @id @default(cuid())
-  /** The physical bill-book number, entered by hand when the order is billed — never auto-generated. */
+  /**
+   * The physical bill-book number, entered by hand when the order is billed — never auto-generated.
+   */
   invoiceNumber    String?          @unique
   outletId         String
   staffId          String
@@ -185,14 +192,17 @@ model PaymentCollection {
 
 /// Audit trail for every stock change. change is signed (+ in, - out).
 model StockMovement {
-  id        String            @id @default(cuid())
-  productId String
-  change    Int
-  type      StockMovementType
-  reason    String?
-  invoiceId String?
-  staffId   String
-  createdAt DateTime          @default(now())
+  id          String            @id @default(cuid())
+  productId   String
+  change      Int
+  type        StockMovementType
+  reason      String?
+  /// The supplier's bill/reference for a RECEIVE — free text, optional, set at the batch
+  /// level on a bulk upload (every row in that batch carries the same reference).
+  supplierRef String?
+  invoiceId   String?
+  staffId     String
+  createdAt   DateTime          @default(now())
 
   product Product  @relation(fields: [productId], references: [id])
   invoice Invoice? @relation(fields: [invoiceId], references: [id])
@@ -200,4 +210,30 @@ model StockMovement {
 
   @@index([productId, createdAt])
   @@index([invoiceId])
+}
+
+/// A manual correction to an outlet's ledger balance (admin only). Outlets have no single
+/// mutable "balance" column — it's derived by summing every non-cancelled invoice's
+/// balanceDue — so a correction is not represented as a fake zero-item invoice (that would
+/// pollute order lists, the dispatch queue and per-product reports with a line that was
+/// never a real sale). Instead each correction is folded into the outlet's ledger as its
+/// own chronological entry (see lib/reports.ts), alongside invoices and payments, so the
+/// running balance always adds up. mode 'set' writes newBalance directly; 'adjust' applies
+/// value as a signed delta on top of the balance at the time of the correction. reason is
+/// mandatory — this moves money on paper, so an unexplained correction isn't accepted.
+model BalanceAdjustment {
+  id          String   @id @default(cuid())
+  outletId    String
+  oldBalance  Float
+  newBalance  Float
+  delta       Float
+  mode        String
+  reason      String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  outlet    Outlet @relation(fields: [outletId], references: [id])
+  createdBy Staff  @relation(fields: [createdById], references: [id])
+
+  @@index([outletId, createdAt])
 }

@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { round2 } from "./money";
+import { DAYS_CRITICAL_THRESHOLD, daysOutstanding, round2 } from "./money";
 import type {
   LedgerEntry,
   OutletLedger,
@@ -53,6 +53,10 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
               createdAt: true,
             },
           },
+          balanceAdjustments: {
+            orderBy: { createdAt: "asc" },
+            select: { id: true, delta: true, mode: true, reason: true, createdAt: true },
+          },
         },
       }),
       prisma.staff.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true } }),
@@ -69,6 +73,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       }),
     ]);
 
+  const now = new Date();
   const outletLedgers: OutletLedger[] = outlets.map((outlet) => {
     const rows: Omit<LedgerEntry, "runningBalance">[] = [
       ...outlet.invoices.map((inv) => ({
@@ -87,8 +92,20 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
         debit: 0,
         credit: p.amount,
       })),
+      // A positive delta means the balance went up (a debit — they owe more); a negative
+      // delta means it went down (a credit). Folding corrections in here, rather than only
+      // tracking them in BalanceAdjustment, is what keeps the running balance below always
+      // equal to sum(open invoices) + sum(corrections) — see the model's doc comment.
+      ...outlet.balanceAdjustments.map((a) => ({
+        date: a.createdAt.toISOString(),
+        type: "ADJUSTMENT" as const,
+        reference: "Correction",
+        description: `Balance ${a.mode === "set" ? "set" : "adjusted"} — ${a.reason}`,
+        debit: a.delta > 0 ? a.delta : 0,
+        credit: a.delta < 0 ? -a.delta : 0,
+      })),
     ];
-    // Chronological; on identical timestamps invoices come before the payments that settle them.
+    // Chronological; on identical timestamps invoices come before the payments/adjustments that follow them.
     rows.sort((a, b) => a.date.localeCompare(b.date) || (a.type === "INVOICE" ? -1 : 1) - (b.type === "INVOICE" ? -1 : 1));
 
     let running = 0;
@@ -99,6 +116,10 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
 
     const totalBilled = round2(outlet.invoices.reduce((s, i) => s + i.totalAmount, 0));
     const totalPaid = round2(outlet.payments.reduce((s, p) => s + p.amount, 0));
+    const adjustmentSum = round2(outlet.balanceAdjustments.reduce((s, a) => s + a.delta, 0));
+    const openInvoices = outlet.invoices
+      .filter((i) => i.balanceDue > 0)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
     return {
       outletId: outlet.id,
       outletName: outlet.name,
@@ -110,14 +131,25 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       hidden: outlet.hidden,
       totalBilled,
       totalPaid,
-      balance: round2(outlet.invoices.reduce((s, i) => s + i.balanceDue, 0)),
-      openInvoices: outlet.invoices
-        .filter((i) => i.balanceDue > 0)
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
-        .map((i) => ({ id: i.id, invoiceNumber: i.invoiceNumber, balanceDue: i.balanceDue, createdAt: i.createdAt.toISOString() })),
+      balance: round2(outlet.invoices.reduce((s, i) => s + i.balanceDue, 0) + adjustmentSum),
+      oldestInvoiceDays: openInvoices.length > 0 ? daysOutstanding(openInvoices[0].createdAt, now) : null,
+      openInvoices: openInvoices.map((i) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        balanceDue: i.balanceDue,
+        createdAt: i.createdAt.toISOString(),
+        daysOutstanding: daysOutstanding(i.createdAt, now),
+      })),
       entries,
     };
   });
+
+  const outletsOver30Days = outletLedgers.filter((l) => l.balance > 0 && (l.oldestInvoiceDays ?? 0) > DAYS_CRITICAL_THRESHOLD).length;
+
+  // dashboard.totalOutstanding intentionally stays invoice-only (unlike each outlet's own
+  // `balance` above, which folds in manual corrections) — it's "money genuinely owed
+  // against real invoices system-wide", a different figure from any one outlet's corrected
+  // ledger total, and nobody asked for the headline number to move because of a correction.
 
   const staffPerformance: StaffPerformance[] = staff.map((member) => {
     const inv = staffInvoices.find((g) => g.staffId === member.id);
@@ -150,6 +182,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       totalOutstanding: round2(invoiceTotals._sum.balanceDue ?? 0),
       totalStockUnits: stockTotals._sum.stockQty ?? 0,
       invoiceCount: invoiceTotals._count,
+      outletsOver30Days,
     },
     outletLedgers,
     staffPerformance,
@@ -178,6 +211,8 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
       select: {
         id: true,
         totalAmount: true,
+        balanceDue: true,
+        createdAt: true,
         outletId: true,
         outlet: { select: { name: true } },
         items: {
@@ -198,12 +233,15 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
   const paymentsByOutlet = new Map(payments.map((p) => [p.outletId, round2(p._sum.amount ?? 0)]));
 
   const productAgg = new Map<string, { productName: string; unitPrice: number; orders: Set<string>; qtySold: number; revenue: number }>();
-  const outletAgg = new Map<string, { outletName: string; orders: number; grossSales: number }>();
+  const outletAgg = new Map<string, { outletName: string; orders: number; grossSales: number; oldestUnpaid: Date | null }>();
 
   for (const inv of invoices) {
-    const outlet = outletAgg.get(inv.outletId) ?? { outletName: inv.outlet.name, orders: 0, grossSales: 0 };
+    const outlet = outletAgg.get(inv.outletId) ?? { outletName: inv.outlet.name, orders: 0, grossSales: 0, oldestUnpaid: null };
     outlet.orders += 1;
     outlet.grossSales = round2(outlet.grossSales + inv.totalAmount);
+    if (inv.balanceDue > 0 && (outlet.oldestUnpaid === null || inv.createdAt < outlet.oldestUnpaid)) {
+      outlet.oldestUnpaid = inv.createdAt;
+    }
     outletAgg.set(inv.outletId, outlet);
 
     for (const item of inv.items) {
@@ -243,6 +281,7 @@ export async function buildSalesReport(filters: SalesReportFilters = {}): Promis
         grossSales: o.grossSales,
         paymentsReceived,
         balance: round2(o.grossSales - paymentsReceived),
+        oldestInvoiceDays: o.oldestUnpaid ? daysOutstanding(o.oldestUnpaid) : null,
       };
     })
     .sort((a, b) => b.grossSales - a.grossSales);

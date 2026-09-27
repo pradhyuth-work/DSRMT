@@ -57,6 +57,28 @@ export interface HideOutletInput {
   hidden: boolean;
 }
 
+export type BalanceAdjustmentMode = "set" | "adjust";
+
+export interface CorrectBalanceInput {
+  mode: BalanceAdjustmentMode;
+  /** The target balance for "set"; the signed amount to apply for "adjust". */
+  value: number;
+  reason: string;
+}
+
+export interface BalanceAdjustmentDTO {
+  id: string;
+  outletId: string;
+  outletName: string;
+  oldBalance: number;
+  newBalance: number;
+  delta: number;
+  mode: BalanceAdjustmentMode;
+  reason: string;
+  createdByName: string;
+  createdAt: string;
+}
+
 export interface UpdateOutletInput {
   name?: string;
   phone?: string;
@@ -112,7 +134,9 @@ export interface OutletBalanceDTO {
   outletId: string;
   outletName: string;
   balance: number;
-  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
+  /** Age of the single oldest open invoice, in days — null when there's nothing outstanding. */
+  oldestInvoiceDays: number | null;
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string; daysOutstanding: number }[];
 }
 
 export interface StaffDTO {
@@ -224,11 +248,17 @@ export interface UpdateProductInput {
   unitPrice?: number;
 }
 
+export interface ChangeProductCodeInput {
+  newCode: number;
+}
+
 export interface AdjustStockInput {
   /** Signed change: positive adds stock, negative removes it. */
   change: number;
   reason: string;
 }
+
+export type StockMovementDirection = "IN" | "OUT";
 
 export interface StockMovementDTO {
   id: string;
@@ -236,10 +266,20 @@ export interface StockMovementDTO {
   productName: string;
   change: number;
   type: StockMovementType;
+  /** Derived from type (and, for ADJUST, the sign of change) — RECEIVE/CANCEL_RETURN and a
+   * positive ADJUST are "IN"; DISPATCH and a negative ADJUST are "OUT". */
+  direction: StockMovementDirection;
   reason: string | null;
+  supplierRef: string | null;
   invoiceId: string | null;
   staffName: string;
   createdAt: string;
+}
+
+export interface StockMovementsQuery {
+  productId?: string;
+  from?: string;
+  to?: string;
 }
 
 export interface CreatePaymentInput {
@@ -304,6 +344,8 @@ export interface BulkReceiveRow {
 
 export interface BulkReceiveInput {
   rows: BulkReceiveRow[];
+  /** Applied to every StockMovement row this upload creates — one supplier bill covering the whole batch. */
+  supplierRef?: string;
 }
 
 export interface BulkReceiveResultRow {
@@ -343,6 +385,8 @@ export interface BulkRateResponse {
 export interface RestockInput {
   quantity: number;
   reason?: string;
+  /** The supplier's bill/reference for this receipt — free text, optional. */
+  supplierRef?: string;
 }
 
 export interface DashboardMetrics {
@@ -351,11 +395,13 @@ export interface DashboardMetrics {
   totalOutstanding: number;
   totalStockUnits: number;
   invoiceCount: number;
+  /** Outlets whose single oldest unpaid invoice is past DAYS_CRITICAL_THRESHOLD (lib/money.ts). */
+  outletsOver30Days: number;
 }
 
 export interface LedgerEntry {
   date: string;
-  type: "INVOICE" | "PAYMENT";
+  type: "INVOICE" | "PAYMENT" | "ADJUSTMENT";
   reference: string;
   description: string;
   debit: number;
@@ -374,9 +420,12 @@ export interface OutletLedger {
   hidden: boolean;
   totalBilled: number;
   totalPaid: number;
+  /** Sum of every open invoice's balance plus every manual correction's net effect — the true all-time ledger total. */
   balance: number;
+  /** Age of the single oldest open invoice, in days — null when there's nothing outstanding. */
+  oldestInvoiceDays: number | null;
   /** Unsettled invoices, oldest first — the order payments are applied in. */
-  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string }[];
+  openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string; daysOutstanding: number }[];
   entries: LedgerEntry[];
 }
 
@@ -428,6 +477,8 @@ export interface OutletSalesRow {
   grossSales: number;
   paymentsReceived: number;
   balance: number;
+  /** Age, in days, of the oldest invoice in this range that still has a balance due — null if none. */
+  oldestInvoiceDays: number | null;
 }
 
 export interface SkuMatrixResponse {

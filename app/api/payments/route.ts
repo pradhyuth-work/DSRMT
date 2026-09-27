@@ -4,6 +4,7 @@ import { HttpError, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { createPaymentSchema, paymentsQuerySchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
+import { fetchPayments } from "@/lib/payments";
 import type { CreatePaymentResponse, PaymentAllocation, PaymentDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,35 +20,7 @@ export async function GET(req: Request) {
   try {
     const user = await authorize(req, ["admin", "stock"]);
     const q = paymentsQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
-
-    const payments = await prisma.paymentCollection.findMany({
-      where: {
-        outletId: q.outletId,
-        staffId: user.role === "stock" ? user.id : q.staffId,
-        createdAt: q.from || q.to ? { gte: q.from, lte: q.to } : undefined,
-      },
-      orderBy: { createdAt: "desc" },
-      take: LIMIT,
-      include: {
-        outlet: { select: { name: true } },
-        staff: { select: { name: true } },
-        invoice: { select: { invoiceNumber: true } },
-      },
-    });
-
-    const body: PaymentDTO[] = payments.map((p) => ({
-      id: p.id,
-      outletId: p.outletId,
-      outletName: p.outlet.name,
-      staffId: p.staffId,
-      staffName: p.staff.name,
-      invoiceId: p.invoiceId,
-      invoiceNumber: p.invoice?.invoiceNumber ?? null,
-      amount: p.amount,
-      paymentMethod: p.paymentMethod,
-      notes: p.notes,
-      createdAt: p.createdAt.toISOString(),
-    }));
+    const body: PaymentDTO[] = await fetchPayments(user, q, LIMIT);
     return NextResponse.json(body);
   } catch (err) {
     return errorResponse(err);

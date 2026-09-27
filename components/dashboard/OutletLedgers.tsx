@@ -1,11 +1,25 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Eye, EyeOff, HandCoins, Loader2, Plus, Route as RouteIcon, Search, Trash2 } from "lucide-react";
-import type { OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
+import {
+  AlertTriangle,
+  Calculator,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  HandCoins,
+  History,
+  Loader2,
+  Plus,
+  Route as RouteIcon,
+  Search,
+  Trash2,
+} from "lucide-react";
+import type { BalanceAdjustmentDTO, BalanceAdjustmentMode, OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState, Modal, formatDate } from "./ui";
+import { Alert, DaysOutstandingBadge, EmptyState, Modal, formatDate } from "./ui";
 import { CollectPaymentForm } from "./payment-form";
 import RoutesManager from "./RoutesManager";
 import BulkOutletModal from "./BulkOutletModal";
@@ -33,6 +47,10 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
   const [togglingHidden, setTogglingHidden] = useState<string | null>(null);
   const [deletingOutlet, setDeletingOutlet] = useState<OutletLedger | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [correcting, setCorrecting] = useState<OutletLedger | null>(null);
+  const [showingHistory, setShowingHistory] = useState(false);
+  const [history, setHistory] = useState<BalanceAdjustmentDTO[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   const filtered = useMemo(() => {
@@ -68,6 +86,16 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
       setFlash({ kind: "error", text: err instanceof Error ? err.message : "Failed to update outlet" });
     } finally {
       setTogglingHidden(null);
+    }
+  }
+
+  async function openHistory() {
+    setHistory(null);
+    setHistoryError(null);
+    try {
+      setHistory(await api.balanceAdjustments());
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to load correction history");
     }
   }
 
@@ -116,6 +144,15 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
         <button className="btn btn-secondary sm:w-auto" onClick={() => setManagingRoutes(true)}>
           <RouteIcon className="h-4 w-4" /> Manage routes
         </button>
+        <button
+          className="btn btn-secondary sm:w-auto"
+          onClick={() => {
+            setShowingHistory(true);
+            void openHistory();
+          }}
+        >
+          <History className="h-4 w-4" /> Correction history
+        </button>
         <button className="btn btn-secondary sm:w-auto" onClick={() => setAddingOutlet(true)}>
           <Plus className="h-4 w-4" /> Add outlet
         </button>
@@ -132,6 +169,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                 <th className="th text-right">Total Billed</th>
                 <th className="th text-right">Total Paid</th>
                 <th className="th text-right">Balance</th>
+                <th className="th text-right">Days of Credit</th>
                 <th className="th text-right">Action</th>
               </tr>
             </thead>
@@ -179,8 +217,19 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                       <td className={`td text-right font-semibold tabular-nums ${l.balance > 0 ? "text-warning-foreground" : "text-muted-foreground"}`}>
                         {formatMoney(l.balance)}
                       </td>
+                      <td className="td text-right">
+                        {l.oldestInvoiceDays !== null ? <DaysOutstandingBadge days={l.oldestInvoiceDays} /> : <span className="text-muted-foreground">—</span>}
+                      </td>
                       <td className="td">
                         <div className="flex justify-end gap-1">
+                          <button
+                            className="btn btn-secondary px-2.5"
+                            onClick={() => setCorrecting(l)}
+                            aria-label={`Correct balance for ${l.outletName}`}
+                            title="Correct balance"
+                          >
+                            <Calculator className="h-4 w-4" />
+                          </button>
                           <button
                             className="btn btn-secondary px-2.5"
                             disabled={togglingHidden === l.outletId}
@@ -220,7 +269,8 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={7} className="bg-secondary px-4 py-3">
+                        <td colSpan={8} className="space-y-3 bg-secondary px-4 py-3">
+                          <OpenInvoicesBreakdown ledger={l} />
                           <LedgerTable ledger={l} />
                         </td>
                       </tr>
@@ -301,6 +351,80 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
           }}
         />
       </Modal>
+
+      <Modal open={!!correcting} title={`Correct balance — ${correcting?.outletName ?? ""}`} onClose={() => setCorrecting(null)}>
+        {correcting && (
+          <CorrectBalanceForm
+            key={correcting.outletId}
+            ledger={correcting}
+            onDone={async (message) => {
+              setCorrecting(null);
+              setFlash({ kind: "success", text: message });
+              await onSaved();
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal open={showingHistory} title="Balance correction history" onClose={() => setShowingHistory(false)}>
+        {historyError && <Alert kind="error">{historyError}</Alert>}
+        {!history && !historyError ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+          </div>
+        ) : history && history.length === 0 ? (
+          <EmptyState>No corrections have been made yet.</EmptyState>
+        ) : history ? (
+          <ul className="max-h-[60vh] divide-y divide-border overflow-y-auto">
+            {history.map((a) => (
+              <li key={a.id} className="py-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">{a.outletName}</p>
+                  <span className={`font-semibold tabular-nums ${a.delta > 0 ? "text-warning-foreground" : "text-success-foreground"}`}>
+                    {a.delta > 0 ? "+" : ""}
+                    {formatMoney(a.delta)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formatMoney(a.oldBalance)} → {formatMoney(a.newBalance)} ({a.mode === "set" ? "set" : "adjusted"})
+                </p>
+                <p className="mt-1 text-foreground">{a.reason}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatDate(a.createdAt)} · {a.createdByName}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}
+
+/** Each open invoice's own age, alongside the outstanding total — the running balance
+ * alone doesn't tell you which invoice has actually been sitting the longest. */
+function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
+  if (ledger.openInvoices.length === 0) return null;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <table className="min-w-full divide-y divide-border text-sm">
+        <thead>
+          <tr>
+            <th className="th">Open invoice</th>
+            <th className="th text-right">Balance</th>
+            <th className="th text-right">Days of Credit</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {ledger.openInvoices.map((i) => (
+            <tr key={i.id}>
+              <td className="td font-mono text-xs">{i.invoiceNumber ?? "Unbilled"}</td>
+              <td className="td text-right tabular-nums">{formatMoney(i.balanceDue)}</td>
+              <td className="td text-right"><DaysOutstandingBadge days={i.daysOutstanding} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -334,6 +458,90 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** "set" writes an exact target balance; "adjust" applies the amount as a signed delta on
+ * top of whatever the balance is right now. A reason is mandatory — this moves money on
+ * paper. Refused server-side while the outlet has an order in flight. */
+function CorrectBalanceForm({ ledger, onDone }: { ledger: OutletLedger; onDone: (message: string) => Promise<void> }) {
+  const [mode, setMode] = useState<BalanceAdjustmentMode>("adjust");
+  const [value, setValue] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const valueNum = Number.parseFloat(value);
+  const valid = Number.isFinite(valueNum) && (mode === "set" || valueNum !== 0) && reason.trim().length > 0;
+  const preview = Number.isFinite(valueNum) ? (mode === "set" ? valueNum : ledger.balance + valueNum) : null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.correctBalance(ledger.outletId, { mode, value: valueNum, reason: reason.trim() });
+      await onDone(`${ledger.outletName}'s balance ${mode === "set" ? "set to" : "adjusted to"} ${formatMoney(preview ?? 0)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to correct balance");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-sm">
+        <span className="text-muted-foreground">Current balance</span>
+        <span className="font-semibold tabular-nums">{formatMoney(ledger.balance)}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {(["adjust", "set"] as const).map((m) => (
+          <button key={m} type="button" onClick={() => setMode(m)} className={`btn ${mode === m ? "btn-primary" : "btn-secondary"}`}>
+            {m === "adjust" ? "Adjust by (±)" : "Set to exactly"}
+          </button>
+        ))}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="cb-value">{mode === "adjust" ? "Amount (use − for a credit)" : "New balance"}</label>
+        <input
+          id="cb-value"
+          type="number"
+          step="0.01"
+          className="input"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={mode === "adjust" ? "e.g. -500 or 500" : "e.g. 0"}
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="label" htmlFor="cb-reason">Reason</label>
+        <input
+          id="cb-reason"
+          className="input"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. Written off, opening balance fix, paper ledger reconciliation"
+          maxLength={200}
+        />
+      </div>
+
+      {preview !== null && (
+        <p className="text-sm text-muted-foreground">
+          New balance: <span className="font-semibold tabular-nums text-foreground">{formatMoney(preview)}</span>
+        </p>
+      )}
+      {error && <Alert kind="error">{error}</Alert>}
+
+      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+        Save correction
+      </button>
+    </form>
   );
 }
 

@@ -5,6 +5,8 @@ import type {
   BulkOutletInput,
   BulkRateInput,
   BulkReceiveInput,
+  ChangeProductCodeInput,
+  CorrectBalanceInput,
   CreatePaymentInput,
   CreateProductInput,
   CreateRouteInput,
@@ -53,6 +55,9 @@ const gstNumber = z.preprocess(
 );
 const productCode = z.coerce.number().int().positive();
 const dateStr = z.string().trim().min(1).pipe(z.coerce.date());
+// A ledger balance can legitimately be negative (an outlet in credit), unlike `money`.
+const signedMoney = z.coerce.number().finite();
+const supplierRef = z.string().trim().max(120).optional();
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1, "Username is required"),
@@ -108,6 +113,7 @@ const bulkReceiveRowSchema = z.object({
 
 export const bulkReceiveSchema = z.object({
   rows: z.array(bulkReceiveRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
+  supplierRef,
 }) satisfies z.ZodType<BulkReceiveInput, z.ZodTypeDef, unknown>;
 
 const bulkRateRowSchema = z.object({
@@ -118,6 +124,12 @@ const bulkRateRowSchema = z.object({
 export const bulkRateSchema = z.object({
   rows: z.array(bulkRateRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
 }) satisfies z.ZodType<BulkRateInput, z.ZodTypeDef, unknown>;
+
+export const changeProductCodeSchema = z.object({ newCode: productCode }) satisfies z.ZodType<
+  ChangeProductCodeInput,
+  z.ZodTypeDef,
+  unknown
+>;
 
 export const updateProductSchema = z
   .object({
@@ -133,6 +145,7 @@ export const updateProductSchema = z
 export const restockSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
   reason: z.string().trim().max(200).optional(),
+  supplierRef,
 }) satisfies z.ZodType<RestockInput, z.ZodTypeDef, unknown>;
 
 export const adjustStockSchema = z.object({
@@ -179,6 +192,17 @@ export const updateOutletSchema = z
   ) satisfies z.ZodType<UpdateOutletInput, z.ZodTypeDef, unknown>;
 
 export const hideOutletSchema = z.object({ hidden: z.boolean() }) satisfies z.ZodType<HideOutletInput, z.ZodTypeDef, unknown>;
+
+export const correctBalanceSchema = z
+  .object({
+    mode: z.enum(["set", "adjust"]),
+    value: signedMoney,
+    reason: z.string().trim().min(1, "A reason is required for a balance correction").max(200),
+  })
+  .refine((v) => v.mode !== "adjust" || v.value !== 0, {
+    message: "Enter a non-zero amount to adjust by",
+    path: ["value"],
+  }) satisfies z.ZodType<CorrectBalanceInput, z.ZodTypeDef, unknown>;
 
 const bulkOutletRowSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -230,4 +254,10 @@ export const salesReportQuerySchema = z.object({
   from: dateStr.optional(),
   to: dateStr.optional(),
   outletId: id.optional(),
+});
+
+export const stockMovementsQuerySchema = z.object({
+  productId: id.optional(),
+  from: dateStr.optional(),
+  to: dateStr.optional(),
 });

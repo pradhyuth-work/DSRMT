@@ -66,6 +66,7 @@ function rowsFromCsv(text: string): GridRow[] {
 
 export default function BulkReceiveModal({ onDone }: { onDone: (message: string) => Promise<void> }) {
   const [rows, setRows] = useState<GridRow[]>([emptyRow()]);
+  const [supplierRef, setSupplierRef] = useState("");
   const [pasteText, setPasteText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         unitPrice: r.unitPrice.trim() ? Number.parseFloat(r.unitPrice) : undefined,
         quantity: Number.parseInt(r.quantity, 10),
       }));
-      const { results } = await api.bulkReceive({ rows: payloadRows });
+      const { results } = await api.bulkReceive({ rows: payloadRows, supplierRef: supplierRef.trim() || undefined });
       setSummary(results);
       await onDone(
         `${results.filter((r) => r.action === "RESTOCK").length} restocked, ${results.filter((r) => r.action === "CREATE").length} created`,
@@ -170,6 +171,18 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         Give a <b>productCode</b> that already exists to add <b>quantity</b> to that product (leave name/price blank).
         Leave productCode blank, or use a new one, to create a product — then name and unitPrice are required.
       </p>
+
+      <div>
+        <label className="label" htmlFor="supplier-ref">Supplier / bill reference</label>
+        <input
+          id="supplier-ref"
+          className="input"
+          value={supplierRef}
+          onChange={(e) => setSupplierRef(e.target.value)}
+          placeholder="Optional — recorded against every row in this batch"
+          maxLength={120}
+        />
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="min-w-full divide-y divide-border text-sm">

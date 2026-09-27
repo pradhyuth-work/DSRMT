@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { AlertTriangle, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Hash, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload } from "lucide-react";
 import type { ProductDTO, Role, StockMovementDTO, StockMovementType } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
-import { AdjustStockForm, EditProductForm } from "./stock-dialogs";
+import { DateRangeFilter, type DateRange } from "./date-range";
+import { AdjustStockForm, ChangeCodeForm, EditProductForm, RestockForm } from "./stock-dialogs";
 import BulkReceiveModal from "./BulkReceiveModal";
 import BulkRateModal from "./BulkRateModal";
 
@@ -19,7 +20,7 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   CANCEL_RETURN: "Returned (cancelled)",
 };
 
-type Dialog = { kind: "adjust" | "edit"; product: ProductDTO } | { kind: "bulk" } | { kind: "bulk-rate" } | null;
+type Dialog = { kind: "adjust" | "edit" | "restock" | "code"; product: ProductDTO } | { kind: "bulk" } | { kind: "bulk-rate" } | null;
 
 /**
  * Receiving and adjusting stock, adding products, and editing them are all admin-only now
@@ -42,12 +43,37 @@ export default function InventoryManager({
   const [dialog, setDialog] = useState<Dialog>(null);
   const [deletingProduct, setDeletingProduct] = useState<ProductDTO | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [range, setRange] = useState<DateRange>({});
+  const [rangedMovements, setRangedMovements] = useState<StockMovementDTO[] | null>(null);
+  const [movementsError, setMovementsError] = useState<string | null>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
   const done = async (text: string) => {
     setDialog(null);
     setMessage({ kind: "success", text });
     await onSaved();
   };
+
+  // The movements prop is the unfiltered recent log loaded with the rest of the dashboard;
+  // picking a date range fetches a scoped list instead, same self-fetch pattern used
+  // elsewhere for date-filtered reports (StaffPerformance, Payments).
+  const loadRanged = useCallback(async () => {
+    if (!range.from && !range.to) {
+      setRangedMovements(null);
+      return;
+    }
+    try {
+      setRangedMovements(await api.stockMovements(range));
+      setMovementsError(null);
+    } catch (err) {
+      setMovementsError(err instanceof Error ? err.message : "Failed to load stock movements");
+    }
+  }, [range]);
+
+  useEffect(() => {
+    void loadRanged();
+  }, [loadRanged]);
+
+  const visibleMovements = rangedMovements ?? movements;
 
   async function confirmDeleteProduct() {
     if (!deletingProduct) return;
@@ -98,7 +124,6 @@ export default function InventoryManager({
                   <th className="th">Product</th>
                   <th className="th text-right">Unit Price</th>
                   <th className="th text-right">In Stock</th>
-                  {canManage && <th className="th text-right">Receive</th>}
                   {canManage && <th className="th text-right">Manage</th>}
                 </tr>
               </thead>
@@ -113,18 +138,15 @@ export default function InventoryManager({
                     </td>
                     {canManage && (
                       <td className="td">
-                        <RestockControl
-                          product={p}
-                          onResult={async (ok, text) => {
-                            setMessage({ kind: ok ? "success" : "error", text });
-                            if (ok) await onSaved();
-                          }}
-                        />
-                      </td>
-                    )}
-                    {canManage && (
-                      <td className="td">
                         <div className="flex justify-end gap-1">
+                          <button
+                            className="btn btn-secondary px-2.5"
+                            onClick={() => setDialog({ kind: "restock", product: p })}
+                            aria-label={`Receive stock for ${p.name}`}
+                            title="Receive stock"
+                          >
+                            <PlusCircle className="h-4 w-4" />
+                          </button>
                           <button
                             className="btn btn-secondary px-2.5"
                             onClick={() => setDialog({ kind: "adjust", product: p })}
@@ -132,6 +154,14 @@ export default function InventoryManager({
                             title="Adjust stock"
                           >
                             <SlidersHorizontal className="h-4 w-4" />
+                          </button>
+                          <button
+                            className="btn btn-secondary px-2.5"
+                            onClick={() => setDialog({ kind: "code", product: p })}
+                            aria-label={`Change code for ${p.name}`}
+                            title="Change code"
+                          >
+                            <Hash className="h-4 w-4" />
                           </button>
                           <button
                             className="btn btn-secondary px-2.5"
@@ -161,25 +191,41 @@ export default function InventoryManager({
         </div>
 
         <div className="card">
-          <h2 className="flex items-center gap-2 border-b border-border px-5 py-3 font-semibold">
-            <History className="h-4 w-4 text-primary" /> Stock movements
-          </h2>
-          {movements.length === 0 ? (
-            <EmptyState>No stock movements yet.</EmptyState>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <History className="h-4 w-4 text-primary" /> Stock movements
+            </h2>
+            <DateRangeFilter value={range} onChange={setRange} />
+          </div>
+          {movementsError && (
+            <div className="px-5 py-3">
+              <Alert kind="error">{movementsError}</Alert>
+            </div>
+          )}
+          {visibleMovements.length === 0 ? (
+            <EmptyState>No stock movements {range.from || range.to ? "in this range" : "yet"}.</EmptyState>
           ) : (
             <ul className="max-h-96 divide-y divide-border overflow-y-auto">
-              {movements.map((m) => (
+              {visibleMovements.map((m) => (
                 <li key={m.id} className="flex items-start justify-between gap-3 px-5 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{m.productName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {MOVEMENT_LABEL[m.type]}
-                      {m.invoiceId && <> · {m.invoiceId}</>}
-                      {m.reason && <> · {m.reason}</>}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(m.createdAt)} · {m.staffName}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-2">
+                    {m.direction === "IN" ? (
+                      <ArrowDownCircle className="mt-0.5 h-4 w-4 shrink-0 text-success-foreground" />
+                    ) : (
+                      <ArrowUpCircle className="mt-0.5 h-4 w-4 shrink-0 text-danger-foreground" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{m.productName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {MOVEMENT_LABEL[m.type]}
+                        {m.invoiceId && <> · {m.invoiceId}</>}
+                        {m.reason && <> · {m.reason}</>}
+                        {m.supplierRef && <> · {m.supplierRef}</>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(m.createdAt)} · {m.staffName}
+                      </p>
+                    </div>
                   </div>
                   <span className={`shrink-0 font-semibold tabular-nums ${m.change > 0 ? "text-success-foreground" : "text-danger-foreground"}`}>
                     {m.change > 0 ? "+" : ""}
@@ -194,6 +240,8 @@ export default function InventoryManager({
 
       <Modal open={!!dialog} title={dialogTitle(dialog)} onClose={closeDialog}>
         {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
+        {dialog?.kind === "restock" && <RestockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
+        {dialog?.kind === "code" && <ChangeCodeForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "edit" && <EditProductForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "bulk" && <BulkReceiveModal onDone={done} />}
         {dialog?.kind === "bulk-rate" && <BulkRateModal products={products} onDone={done} />}
@@ -229,57 +277,24 @@ export default function InventoryManager({
   );
 }
 
+const DIALOG_TITLE: Record<"adjust" | "edit" | "restock" | "code", string> = {
+  adjust: "Adjust stock",
+  restock: "Receive stock",
+  code: "Change code",
+  edit: "Edit product",
+};
+
 function dialogTitle(dialog: Dialog): string {
   if (!dialog) return "";
   if (dialog.kind === "bulk") return "Bulk receive stock";
   if (dialog.kind === "bulk-rate") return "Bulk update rates";
-  return `${dialog.kind === "adjust" ? "Adjust stock" : "Edit product"} — ${dialog.product.name}`;
+  return `${DIALOG_TITLE[dialog.kind]} — ${dialog.product.name}`;
 }
 
 function StockBadge({ qty }: { qty: number }) {
   const style =
     qty === 0 ? "bg-danger text-danger-foreground" : qty < LOW_STOCK_THRESHOLD ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${style}`}>{qty}</span>;
-}
-
-function RestockControl({ product, onResult }: { product: ProductDTO; onResult: (ok: boolean, text: string) => Promise<void> }) {
-  const [qty, setQty] = useState("");
-  const [busy, setBusy] = useState(false);
-  const n = Number.parseInt(qty, 10);
-  const valid = Number.isInteger(n) && n > 0;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setBusy(true);
-    try {
-      const updated = await api.restock(product.id, { quantity: n });
-      setQty("");
-      await onResult(true, `Restocked ${updated.name}: +${n} (now ${updated.stockQty})`);
-    } catch (err) {
-      await onResult(false, err instanceof Error ? err.message : "Restock failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="flex justify-end gap-2">
-      <input
-        type="number"
-        min={1}
-        step={1}
-        placeholder="Qty"
-        className="input w-24"
-        value={qty}
-        onChange={(e) => setQty(e.target.value)}
-        aria-label={`Restock quantity for ${product.name}`}
-      />
-      <button type="submit" className="btn btn-secondary px-3" disabled={!valid || busy} aria-label="Restock">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
-      </button>
-    </form>
-  );
 }
 
 function AddProductForm({ onSaved }: { onSaved: (text: string) => Promise<void> }) {

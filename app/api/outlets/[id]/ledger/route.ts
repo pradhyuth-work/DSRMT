@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
-import { round2 } from "@/lib/money";
+import { daysOutstanding, round2 } from "@/lib/money";
 import type { OutletBalanceDTO } from "@/lib/types";
 
 /**
  * Just enough of an outlet's ledger to collect a payment sensibly: its outstanding balance
  * and open invoices, oldest first (the order a payment settles them in). Available to admin
  * and stock (both can now collect payments) without exposing the full admin-only reports.
+ *
+ * `balance` here stays invoice-only (unlike OutletLedger.balance in the full reports view,
+ * which also folds in manual corrections) — collecting a payment settles real open
+ * invoices, oldest first, and a correction isn't tied to any one of them to settle.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,11 +32,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       outletId: outlet.id,
       outletName: outlet.name,
       balance: round2(openInvoices.reduce((s, i) => s + i.balanceDue, 0)),
+      oldestInvoiceDays: openInvoices.length > 0 ? daysOutstanding(openInvoices[0].createdAt) : null,
       openInvoices: openInvoices.map((i) => ({
         id: i.id,
         invoiceNumber: i.invoiceNumber,
         balanceDue: i.balanceDue,
         createdAt: i.createdAt.toISOString(),
+        daysOutstanding: daysOutstanding(i.createdAt),
       })),
     };
     return NextResponse.json(body);

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Banknote, CheckCircle2, FileText, Landmark, X, type LucideIcon } from "lucide-react";
 import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
+import { DAYS_CRITICAL_THRESHOLD, DAYS_WARNING_THRESHOLD } from "@/lib/money";
 
 type SelectableMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -154,6 +155,21 @@ export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
     CANCELLED: "bg-muted text-muted-foreground",
   };
   return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${styles[status]}`}>{status}</span>;
+}
+
+/**
+ * "Days of credit" indicator for an outstanding balance's age — plain text under
+ * DAYS_WARNING_THRESHOLD, amber past it, bold red past DAYS_CRITICAL_THRESHOLD
+ * (lib/money.ts). Those two numbers are defaults, not a business rule; change them there.
+ */
+export function DaysOutstandingBadge({ days }: { days: number }) {
+  const style =
+    days > DAYS_CRITICAL_THRESHOLD
+      ? "font-bold text-danger-foreground"
+      : days > DAYS_WARNING_THRESHOLD
+        ? "font-semibold text-warning-foreground"
+        : "text-muted-foreground";
+  return <span className={`tabular-nums ${style}`}>{days} day{days === 1 ? "" : "s"}</span>;
 }
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
