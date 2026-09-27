@@ -39,7 +39,7 @@ export default function LoginScreen({
             <ReceiptText className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">DSRMT Billing</h1>
+            <h1 className="text-xl font-semibold">Varasidhi MT Billing</h1>
             <p className="text-sm text-muted-foreground">Sign in to continue</p>
           </div>
         </div>

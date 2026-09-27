@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DSRMT — Billing & Dispatch",
+  title: "Varasidhi MT — Billing & Dispatch",
   description: "Order billing, inventory dispatch, outlet ledgers and staff reconciliation",
 };
 

@@ -117,7 +117,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
         <ReceiptText size={18} strokeWidth={2.5} />
       </div>
       <div>
-        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>DSRMT</p>
+        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi MT</p>
         {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">billing &amp; dispatch</p>}
       </div>
     </div>
@@ -280,7 +280,7 @@ export default function Dashboard() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                   <ReceiptText size={18} />
                 </div>
-                <h1 className="text-lg font-bold tracking-[-.03em]">DSRMT</h1>
+                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi MT</h1>
               </div>
             ) : (
               <>
