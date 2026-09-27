@@ -116,7 +116,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
     <div className="flex items-center gap-3">
       <BrandMark size={36} className="shrink-0" />
       <div>
-        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi Enterprise</p>
+        <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi Enterprises</p>
         {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">MT &middot; billing &amp; dispatch</p>}
       </div>
     </div>
@@ -277,7 +277,7 @@ export default function Dashboard() {
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <BrandMark size={36} className="shrink-0" />
-                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi Enterprise</h1>
+                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi Enterprises</h1>
               </div>
             ) : (
               <>

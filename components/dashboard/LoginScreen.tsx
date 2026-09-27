@@ -38,7 +38,7 @@ export default function LoginScreen({
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandMark size={56} />
           <div>
-            <h1 className="text-xl font-semibold">Varasidhi Enterprise</h1>
+            <h1 className="text-xl font-semibold">Varasidhi Enterprises</h1>
             <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-muted-foreground/70">MT &middot; billing &amp; dispatch</p>
             <p className="mt-2 text-sm text-muted-foreground">Sign in to continue</p>
           </div>
