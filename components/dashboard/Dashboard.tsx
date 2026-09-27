@@ -36,6 +36,7 @@ import { formatMoney } from "@/lib/money";
 import { api, setUnauthorizedHandler } from "./api-client";
 import { clearToken, getToken, setToken } from "./session";
 import { Alert, StatCard } from "./ui";
+import { BrandMark } from "./BrandMark";
 import LoginScreen from "./LoginScreen";
 import SaleForm from "./SaleForm";
 import AgentOrderForm from "./AgentOrderForm";
@@ -114,7 +115,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
-        <ReceiptText size={18} strokeWidth={2.5} />
+        <BrandMark size={18} strokeWidth={2.2} />
       </div>
       <div>
         <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi MT</p>
@@ -278,7 +279,7 @@ export default function Dashboard() {
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <ReceiptText size={18} />
+                  <BrandMark size={18} />
                 </div>
                 <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi MT</h1>
               </div>

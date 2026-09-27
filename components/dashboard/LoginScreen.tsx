@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, LogIn, ReceiptText } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 import type { AuthUser } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert } from "./ui";
+import { BrandMark } from "./BrandMark";
 
 export default function LoginScreen({
   notice,
@@ -35,8 +36,8 @@ export default function LoginScreen({
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-xl bg-primary p-3 text-white">
-            <ReceiptText className="h-6 w-6" />
+          <div className="rounded-xl bg-primary p-3 text-primary-foreground">
+            <BrandMark size={24} strokeWidth={1.8} />
           </div>
           <div>
             <h1 className="text-xl font-semibold">Varasidhi MT Billing</h1>
