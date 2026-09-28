@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
-import { ALL_ROLES, authorize } from "@/lib/auth";
+import { authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { round2, statusFor } from "@/lib/money";
 import { toggleSchemeSchema } from "@/lib/validation";
 import type { OrderDTO } from "@/lib/types";
 
 /**
- * Switches an order between normal and scheme pricing. Anyone can toggle it (agents only
- * on their own orders, same scoping as cancel), but only while the order is still PENDING —
- * once billed, the bill number is tied to whatever total was on it at the time, so the
- * price can't move out from under it. Every line reprices off the product's current
- * unitPrice/schemePrice; a missing schemePrice on any item blocks turning scheme on.
+ * Switches an order between normal and scheme pricing. Admin and agents can toggle it
+ * (agents only on their own orders, same scoping as cancel) — stock incharge doesn't get
+ * this control. Only while the order is still PENDING — once billed, the bill number is
+ * tied to whatever total was on it at the time, so the price can't move out from under it.
+ * Every line reprices off the product's current unitPrice/schemePrice; a missing
+ * schemePrice on any item blocks turning scheme on.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authorize(req, ALL_ROLES);
+    const user = await authorize(req, ["admin", "agent"]);
     const { id } = await params;
     const { hasScheme } = await parseBody(req, toggleSchemeSchema);
 

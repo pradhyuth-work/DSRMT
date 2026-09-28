@@ -33,6 +33,9 @@ export default function OrdersView({
 }) {
   // Stock incharge works the pending queue; everyone else starts with the full list.
   const [filter, setFilter] = useState<Filter>(user.role === "stock" ? "PENDING" : "ALL");
+  // Only meaningful for admin/stock, who see every agent's orders — agents only ever see
+  // their own regardless, so the filter is never shown to them.
+  const [agentFilter, setAgentFilter] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
@@ -40,23 +43,39 @@ export default function OrdersView({
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
 
+  const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
+
+  const agentOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const o of data.outlets) {
+      if (o.agentId) byId.set(o.agentId, o.agentName ?? o.agentId);
+    }
+    return [...byId.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [data.outlets]);
+
+  const byAgent = useCallback(
+    (o: OrderDTO) => !agentFilter || outletById.get(o.outletId)?.agentId === agentFilter,
+    [agentFilter, outletById],
+  );
+
   const orders = useMemo(() => {
-    const list = filter === "ALL" ? data.orders : data.orders.filter((o) => o.fulfilmentStatus === filter);
+    const list = (filter === "ALL" ? data.orders : data.orders.filter((o) => o.fulfilmentStatus === filter)).filter(byAgent);
     // Oldest first for the pending/billed queues so the longest-waiting order is on top.
     return filter === "PENDING" || filter === "BILLED" ? [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : list;
-  }, [data.orders, filter]);
+  }, [data.orders, filter, byAgent]);
 
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { ALL: data.orders.length, PENDING: 0, BILLED: 0, DISPATCHED: 0, CANCELLED: 0 };
-    for (const o of data.orders) c[o.fulfilmentStatus]++;
+    const c: Record<Filter, number> = { ALL: 0, PENDING: 0, BILLED: 0, DISPATCHED: 0, CANCELLED: 0 };
+    for (const o of data.orders.filter(byAgent)) {
+      c.ALL++;
+      c[o.fulfilmentStatus]++;
+    }
     return c;
-  }, [data.orders]);
+  }, [data.orders, byAgent]);
 
   // Billing and dispatch are done by the same office/warehouse staff, in that order.
   const canBill = user.role === "admin" || user.role === "stock";
   const canDispatch = user.role === "admin" || user.role === "stock";
-
-  const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
 
   // When looking at the billed queue, group by the outlet's field agent so stock/admin can
   // hand over everything a route needs in one dispatch instead of one click per order. Only
@@ -156,10 +175,22 @@ export default function OrdersView({
             </button>
           ))}
         </div>
-        <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
-          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Download CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {user.role !== "agent" && agentOptions.length > 0 && (
+            <Combobox
+              className="w-44"
+              value={agentFilter}
+              onChange={setAgentFilter}
+              ariaLabel="Filter by field agent"
+              placeholder="All field agents"
+              options={[{ value: "", label: "All field agents" }, ...agentOptions]}
+            />
+          )}
+          <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download CSV
+          </button>
+        </div>
       </div>
 
       {message && <Alert kind={message.kind}>{message.text}</Alert>}
@@ -212,38 +243,40 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={o.hasScheme}
-                  disabled={busy || o.fulfilmentStatus !== "PENDING"}
-                  onClick={() =>
-                    void run(
-                      o.id,
-                      () => api.toggleScheme(o.id, !o.hasScheme),
-                      `${orderLabel(o)} switched to ${!o.hasScheme ? "with scheme" : "without scheme"} pricing`,
-                    )
-                  }
-                  className="mt-3 flex w-full items-center justify-between rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground transition disabled:cursor-not-allowed disabled:opacity-60"
-                  title={o.fulfilmentStatus !== "PENDING" ? "Locked — this order has already been billed" : undefined}
-                >
-                  <span>{o.hasScheme ? "With scheme" : "Without scheme"}</span>
-                  <span
-                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                      o.hasScheme ? "bg-success" : "bg-border"
-                    }`}
+                {user.role !== "stock" && (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={o.hasScheme}
+                    disabled={busy || o.fulfilmentStatus !== "PENDING"}
+                    onClick={() =>
+                      void run(
+                        o.id,
+                        () => api.toggleScheme(o.id, !o.hasScheme),
+                        `${orderLabel(o)} switched to ${!o.hasScheme ? "with scheme" : "without scheme"} pricing`,
+                      )
+                    }
+                    className="mt-3 flex w-full items-center justify-between rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground transition disabled:cursor-not-allowed disabled:opacity-60"
+                    title={o.fulfilmentStatus !== "PENDING" ? "Locked — this order has already been billed" : undefined}
                   >
+                    <span>{o.hasScheme ? "With scheme" : "Without scheme"}</span>
                     <span
-                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                        o.hasScheme ? "translate-x-[18px]" : "translate-x-0.5"
+                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                        o.hasScheme ? "bg-success" : "bg-border"
                       }`}
-                    />
-                  </span>
-                </button>
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          o.hasScheme ? "translate-x-[18px]" : "translate-x-0.5"
+                        }`}
+                      />
+                    </span>
+                  </button>
+                )}
 
                 <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
                   {o.items.map((i) => {
-                    const { basic, gst } = splitBasicAndGst(i.unitPrice);
+                    const { gst } = splitBasicAndGst(i.unitPrice);
                     return (
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
@@ -253,7 +286,7 @@ export default function OrdersView({
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
                         </div>
                         <div className="flex justify-between gap-2 text-[11px] text-muted-foreground">
-                          <span>Basic {formatMoney(basic)}/pc</span>
+                          <span>Unit price {formatMoney(i.unitPrice)}/pc</span>
                           <span className="tabular-nums">GST {formatMoney(gst)}/pc</span>
                         </div>
                       </li>
