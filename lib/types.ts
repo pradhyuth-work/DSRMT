@@ -190,6 +190,8 @@ export interface CreateSaleInput {
   paidAmount: number;
   paymentMethod: PaymentMethod;
   notes?: string;
+  /** Prices every line off Product.schemePrice instead of unitPrice. Every item's product must have one set. */
+  hasScheme?: boolean;
 }
 
 export interface CreateSaleResponse {
@@ -200,6 +202,7 @@ export interface CreateSaleResponse {
     balanceDue: number;
     status: InvoiceStatus;
     fulfilmentStatus: FulfilmentStatus;
+    hasScheme: boolean;
     createdAt: string;
     items: { productId: string; productName: string; quantity: number; unitPrice: number; subtotal: number }[];
   };

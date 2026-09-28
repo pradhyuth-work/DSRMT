@@ -77,6 +77,7 @@ export const createSaleSchema = z.object({
   paidAmount: money.default(0),
   paymentMethod: paymentMethod.default("CASH"),
   notes: z.string().trim().max(500).optional(),
+  hasScheme: z.boolean().default(false),
 }) satisfies z.ZodType<CreateSaleInput, z.ZodTypeDef, unknown>;
 
 export const updateOrderSchema = z

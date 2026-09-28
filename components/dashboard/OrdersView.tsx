@@ -77,12 +77,14 @@ export default function OrdersView({
   }, [orders, filter, canDispatch, outletById]);
 
   const [bulkDispatchingKey, setBulkDispatchingKey] = useState<string | null>(null);
+  const [dispatchPreview, setDispatchPreview] = useState<{ key: string; agentName: string; orders: OrderDTO[] } | null>(null);
   async function dispatchGroup(g: { key: string; agentName: string; orders: OrderDTO[] }) {
     setBulkDispatchingKey(g.key);
     setMessage(null);
     try {
       const { orders: dispatched } = await api.dispatchBulk({ orderIds: g.orders.map((o) => o.id) });
       setMessage({ kind: "success", text: `${dispatched.length} orders dispatched for ${g.agentName} — stock deducted` });
+      setDispatchPreview(null);
       await onSaved();
     } catch (err) {
       setMessage({ kind: "error", text: err instanceof Error ? err.message : "Failed to dispatch orders" });
@@ -90,6 +92,21 @@ export default function OrdersView({
       setBulkDispatchingKey(null);
     }
   }
+
+  // Per-SKU quantities across every order in the group, so stock/admin can see exactly what
+  // will leave the warehouse before committing to the dispatch.
+  const dispatchPreviewTotals = useMemo(() => {
+    if (!dispatchPreview) return [];
+    const totals = new Map<string, { productId: string; productName: string; quantity: number }>();
+    for (const o of dispatchPreview.orders) {
+      for (const i of o.items) {
+        const t = totals.get(i.productId) ?? { productId: i.productId, productName: i.productName, quantity: 0 };
+        t.quantity += i.quantity;
+        totals.set(i.productId, t);
+      }
+    }
+    return [...totals.values()].sort((a, b) => a.productName.localeCompare(b.productName));
+  }, [dispatchPreview]);
   const canCancel = (o: OrderDTO) =>
     user.role === "admin"
       ? o.fulfilmentStatus !== "CANCELLED" && o.paidAmount === 0
@@ -157,13 +174,8 @@ export default function OrdersView({
                   {g.orders.length} orders ready · {formatMoney(g.total)} combined
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn btn-primary h-10 shrink-0 text-sm"
-                disabled={bulkDispatchingKey === g.key}
-                onClick={() => void dispatchGroup(g)}
-              >
-                {bulkDispatchingKey === g.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+              <button type="button" className="btn btn-primary h-10 shrink-0 text-sm" onClick={() => setDispatchPreview(g)}>
+                <Truck className="h-4 w-4" />
                 Dispatch all {g.orders.length}
               </button>
             </div>
@@ -202,6 +214,8 @@ export default function OrdersView({
 
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={o.hasScheme}
                   disabled={busy || o.fulfilmentStatus !== "PENDING"}
                   onClick={() =>
                     void run(
@@ -210,17 +224,26 @@ export default function OrdersView({
                       `${orderLabel(o)} switched to ${!o.hasScheme ? "with scheme" : "without scheme"} pricing`,
                     )
                   }
-                  className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    o.hasScheme ? "border-success bg-success text-success-foreground" : "border-border bg-secondary text-muted-foreground"
-                  }`}
+                  className="mt-3 flex w-full items-center justify-between rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground transition disabled:cursor-not-allowed disabled:opacity-60"
                   title={o.fulfilmentStatus !== "PENDING" ? "Locked — this order has already been billed" : undefined}
                 >
-                  {o.hasScheme ? "✓ With Scheme" : "Without Scheme"}
+                  <span>{o.hasScheme ? "With scheme" : "Without scheme"}</span>
+                  <span
+                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                      o.hasScheme ? "bg-success" : "bg-border"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                        o.hasScheme ? "translate-x-[18px]" : "translate-x-0.5"
+                      }`}
+                    />
+                  </span>
                 </button>
 
                 <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
                   {o.items.map((i) => {
-                    const { basic, gst } = splitBasicAndGst(i.subtotal);
+                    const { basic, gst } = splitBasicAndGst(i.unitPrice);
                     return (
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
@@ -230,8 +253,8 @@ export default function OrdersView({
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
                         </div>
                         <div className="flex justify-between gap-2 text-[11px] text-muted-foreground">
-                          <span>Basic {formatMoney(basic)}</span>
-                          <span className="tabular-nums">GST {formatMoney(gst)}</span>
+                          <span>Basic {formatMoney(basic)}/pc</span>
+                          <span className="tabular-nums">GST {formatMoney(gst)}/pc</span>
                         </div>
                       </li>
                     );
@@ -380,6 +403,43 @@ export default function OrdersView({
               >
                 {busyId === confirmingCancel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
                 Yes, cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!dispatchPreview} title={`Dispatch for ${dispatchPreview?.agentName ?? ""}`} onClose={() => setDispatchPreview(null)}>
+        {dispatchPreview && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {dispatchPreview.orders.length} orders · stock will be deducted for the totals below
+            </p>
+            <ul className="max-h-80 space-y-1.5 overflow-y-auto border-y border-border py-2 text-sm">
+              {dispatchPreviewTotals.map((s) => (
+                <li key={s.productId} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate">{s.productName}</span>
+                  <span className="shrink-0 tabular-nums font-semibold">{s.quantity}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="btn btn-secondary h-12 text-base"
+                disabled={bulkDispatchingKey === dispatchPreview.key}
+                onClick={() => setDispatchPreview(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary h-12 text-base"
+                disabled={bulkDispatchingKey === dispatchPreview.key}
+                onClick={() => void dispatchGroup(dispatchPreview)}
+              >
+                {bulkDispatchingKey === dispatchPreview.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                Confirm & dispatch
               </button>
             </div>
           </div>
