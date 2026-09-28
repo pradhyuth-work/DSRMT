@@ -18,6 +18,8 @@ import type {
   CreateSaleInput,
   CreateSaleResponse,
   CreateStaffInput,
+  DispatchBulkInput,
+  DispatchBulkResponse,
   FulfilmentStatus,
   HideOutletInput,
   LoginInput,
@@ -158,6 +160,7 @@ export const api = {
   updateOrder: (id: string, input: UpdateOrderInput) => patch<OrderDTO>(`/api/orders/${enc(id)}`, input),
   billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   dispatchOrder: (id: string) => post<OrderDTO>(`/api/orders/${enc(id)}/dispatch`),
+  dispatchBulk: (input: DispatchBulkInput) => post<DispatchBulkResponse>("/api/orders/dispatch-bulk", input),
   cancelOrder: (id: string) => post<OrderDTO>(`/api/orders/${enc(id)}/cancel`),
 
   staff: () => request<StaffDTO[]>("/api/staff"),

@@ -55,6 +55,40 @@ export default function OrdersView({
   // Billing and dispatch are done by the same office/warehouse staff, in that order.
   const canBill = user.role === "admin" || user.role === "stock";
   const canDispatch = user.role === "admin" || user.role === "stock";
+
+  // When looking at the billed queue, group by the outlet's field agent so stock/admin can
+  // hand over everything a route needs in one dispatch instead of one click per order. Only
+  // surfaced when there's actually more than one order to combine.
+  const agentGroups = useMemo(() => {
+    if (filter !== "BILLED" || !canDispatch) return [];
+    const outletById = new Map(data.outlets.map((o) => [o.id, o]));
+    const groups = new Map<string, { key: string; agentName: string; orders: OrderDTO[]; total: number }>();
+    for (const o of orders) {
+      const outlet = outletById.get(o.outletId);
+      const key = outlet?.agentId ?? "__none__";
+      const agentName = outlet?.agentName ?? "No field agent assigned";
+      const g = groups.get(key) ?? { key, agentName, orders: [], total: 0 };
+      g.orders.push(o);
+      g.total = round2(g.total + o.totalAmount);
+      groups.set(key, g);
+    }
+    return [...groups.values()].filter((g) => g.orders.length > 1).sort((a, b) => b.orders.length - a.orders.length);
+  }, [orders, filter, canDispatch, data.outlets]);
+
+  const [bulkDispatchingKey, setBulkDispatchingKey] = useState<string | null>(null);
+  async function dispatchGroup(g: { key: string; agentName: string; orders: OrderDTO[] }) {
+    setBulkDispatchingKey(g.key);
+    setMessage(null);
+    try {
+      const { orders: dispatched } = await api.dispatchBulk({ orderIds: g.orders.map((o) => o.id) });
+      setMessage({ kind: "success", text: `${dispatched.length} orders dispatched for ${g.agentName} — stock deducted` });
+      await onSaved();
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Failed to dispatch orders" });
+    } finally {
+      setBulkDispatchingKey(null);
+    }
+  }
   const canCancel = (o: OrderDTO) =>
     user.role === "admin"
       ? o.fulfilmentStatus !== "CANCELLED" && o.paidAmount === 0
@@ -111,6 +145,30 @@ export default function OrdersView({
       </div>
 
       {message && <Alert kind={message.kind}>{message.text}</Alert>}
+
+      {agentGroups.length > 0 && (
+        <div className="space-y-2">
+          {agentGroups.map((g) => (
+            <div key={g.key} className="card flex flex-wrap items-center justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{g.agentName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {g.orders.length} orders ready · {formatMoney(g.total)} combined
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary h-10 shrink-0 text-sm"
+                disabled={bulkDispatchingKey === g.key}
+                onClick={() => void dispatchGroup(g)}
+              >
+                {bulkDispatchingKey === g.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                Dispatch all {g.orders.length}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <div className="card">

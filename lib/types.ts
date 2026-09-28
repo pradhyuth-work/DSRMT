@@ -243,6 +243,14 @@ export interface UpdateOrderInput {
   items?: SaleItemInput[];
 }
 
+export interface DispatchBulkInput {
+  orderIds: string[];
+}
+
+export interface DispatchBulkResponse {
+  orders: OrderDTO[];
+}
+
 export interface UpdateProductInput {
   name?: string;
   unitPrice?: number;

@@ -12,6 +12,7 @@ import type {
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
+  DispatchBulkInput,
   HideOutletInput,
   LoginInput,
   ResetPinInput,
@@ -90,6 +91,10 @@ export const updateOrderSchema = z
 export const billOrderSchema = z.object({
   invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40),
 }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
+export const dispatchBulkSchema = z.object({
+  orderIds: z.array(id).min(1, "Select at least one order").max(100, "At most 100 orders at once"),
+}) satisfies z.ZodType<DispatchBulkInput, z.ZodTypeDef, unknown>;
 
 export const createPaymentSchema = z.object({
   outletId: id,
