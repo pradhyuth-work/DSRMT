@@ -8,11 +8,11 @@ import type { FulfilmentStatus, OrderDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES: FulfilmentStatus[] = ["PENDING", "DISPATCHED", "CANCELLED"];
+const STATUSES: FulfilmentStatus[] = ["PENDING", "BILLED", "DISPATCHED", "CANCELLED"];
 const LIMIT = 200;
 
 /**
- * Lists orders, newest first (?status=PENDING|DISPATCHED|CANCELLED to filter).
+ * Lists orders, newest first (?status=PENDING|BILLED|DISPATCHED|CANCELLED to filter).
  * Admin and stock see every order; agents only ever see orders they own.
  */
 export async function GET(req: Request) {
