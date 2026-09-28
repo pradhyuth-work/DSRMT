@@ -56,12 +56,13 @@ export default function OrdersView({
   const canBill = user.role === "admin" || user.role === "stock";
   const canDispatch = user.role === "admin" || user.role === "stock";
 
+  const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
+
   // When looking at the billed queue, group by the outlet's field agent so stock/admin can
   // hand over everything a route needs in one dispatch instead of one click per order. Only
   // surfaced when there's actually more than one order to combine.
   const agentGroups = useMemo(() => {
     if (filter !== "BILLED" || !canDispatch) return [];
-    const outletById = new Map(data.outlets.map((o) => [o.id, o]));
     const groups = new Map<string, { key: string; agentName: string; orders: OrderDTO[]; total: number }>();
     for (const o of orders) {
       const outlet = outletById.get(o.outletId);
@@ -73,7 +74,7 @@ export default function OrdersView({
       groups.set(key, g);
     }
     return [...groups.values()].filter((g) => g.orders.length > 1).sort((a, b) => b.orders.length - a.orders.length);
-  }, [orders, filter, canDispatch, data.outlets]);
+  }, [orders, filter, canDispatch, outletById]);
 
   const [bulkDispatchingKey, setBulkDispatchingKey] = useState<string | null>(null);
   async function dispatchGroup(g: { key: string; agentName: string; orders: OrderDTO[] }) {
@@ -178,6 +179,7 @@ export default function OrdersView({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {orders.map((o) => {
             const busy = busyId === o.id;
+            const outletGst = outletById.get(o.outletId)?.gstNumber ?? null;
             return (
               <article key={o.id} className="card flex flex-col p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -190,6 +192,7 @@ export default function OrdersView({
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
                     </p>
+                    <p className="font-mono text-[11px] text-muted-foreground">GSTIN: {outletGst ?? "Not on file"}</p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <FulfilmentBadge status={o.fulfilmentStatus} />
@@ -197,15 +200,24 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                <ul className="my-3 space-y-1 border-y border-border py-2 text-sm">
-                  {o.items.map((i) => (
-                    <li key={i.productId} className="flex justify-between gap-2">
-                      <span className="min-w-0 truncate">
-                        {i.quantity} × {i.productName}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">{formatMoney(i.subtotal)}</span>
-                    </li>
-                  ))}
+                <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
+                  {o.items.map((i) => {
+                    const { basic, gst } = splitBasicAndGst(i.subtotal);
+                    return (
+                      <li key={i.productId}>
+                        <div className="flex justify-between gap-2">
+                          <span className="min-w-0 truncate">
+                            {i.quantity} × {i.productName}
+                          </span>
+                          <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>Basic {formatMoney(basic)}</span>
+                          <span className="tabular-nums">GST {formatMoney(gst)}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 {(() => {
