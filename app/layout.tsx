@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Varasidhi MT — Billing & Dispatch",
   description: "Order billing, inventory dispatch, outlet ledgers and staff reconciliation",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

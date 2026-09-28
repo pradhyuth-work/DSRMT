@@ -1,0 +1,12 @@
+{
+  "name": "Varasidhi Enterprises",
+  "short_name": "Varasidhi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#202737",
+  "theme_color": "#202737",
+  "icons": [
+    { "src": "/icon.png", "sizes": "139x139", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
