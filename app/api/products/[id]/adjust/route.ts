@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { adjustStockSchema } from "@/lib/validation";
 import { toProductDTO } from "@/lib/products";
@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const updated = await tx.product.update({ where: { id }, data: { stockQty: { increment: change } } });
       await tx.stockMovement.create({ data: { productId: id, change, type: "ADJUST", reason, staffId: user.id } });
       return updated;
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
     return NextResponse.json(toProductDTO(product, user.role));
   } catch (err) {
     return errorResponse(err);

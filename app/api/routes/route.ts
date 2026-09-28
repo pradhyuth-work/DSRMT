@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { errorResponse, parseBody } from "@/lib/api";
+import { TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { createRouteSchema } from "@/lib/validation";
 import { assertValidRouteAgent, routeSelect, toRouteDTO, vacateOtherRoutes } from "@/lib/routes";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       await assertValidRouteAgent(tx, input.agentId);
       if (input.agentId) await vacateOtherRoutes(tx, input.agentId);
       return tx.route.create({ data: { name: input.name, agentId: input.agentId }, select: routeSelect });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
     return NextResponse.json(toRouteDTO(route), { status: 201 });
   } catch (err) {
     return errorResponse(err);

@@ -109,7 +109,7 @@ export async function POST(req: Request) {
         }
       }
       return out;
-    });
+    }, { timeout: 60_000, maxWait: 10_000 });
 
     const body: BulkReceiveResponse = { results };
     return NextResponse.json(body, { status: 201 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { createPaymentSchema, paymentsQuerySchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         remaining = round2(remaining - applied);
       }
       return result;
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: CreatePaymentResponse = { amount, allocations };
     return NextResponse.json(body, { status: 201 });

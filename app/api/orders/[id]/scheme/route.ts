@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { ALL_ROLES, authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { round2, statusFor } from "@/lib/money";
@@ -59,7 +59,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: { hasScheme, totalAmount, balanceDue, status: statusFor(totalAmount, invoice.paidAmount) },
         include: orderInclude,
       });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: OrderDTO = toOrderDTO(order);
     return NextResponse.json(body);

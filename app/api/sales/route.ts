@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { createSaleSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       }
 
       return { ...created, lines };
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: CreateSaleResponse = {
       invoice: {

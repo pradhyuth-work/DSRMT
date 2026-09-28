@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { orderInclude, toOrderDTO } from "@/lib/orders";
 import { dispatchBulkSchema } from "@/lib/validation";
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         );
       }
       return updated;
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: DispatchBulkResponse = { orders: orders.map(toOrderDTO) };
     return NextResponse.json(body);

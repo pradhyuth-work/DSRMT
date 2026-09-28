@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { billOrderSchema } from "@/lib/validation";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         data: { invoiceNumber, fulfilmentStatus: "BILLED", billedAt: new Date(), billedById: user.id },
         include: orderInclude,
       });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: OrderDTO = toOrderDTO(order);
     return NextResponse.json(body);

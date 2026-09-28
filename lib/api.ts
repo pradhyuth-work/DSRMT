@@ -3,6 +3,16 @@ import { Prisma } from "@prisma/client";
 import { ZodError, type ZodType, type ZodTypeDef } from "zod";
 import type { ApiError } from "./types";
 
+/**
+ * Prisma's interactive-transaction default (5s) was tuned for a local/direct connection.
+ * Production talks to Supabase over the pooler with real network latency on every round
+ * trip inside the transaction, so a normal-sized order dispatch can legitimately take a
+ * few seconds longer than that and hit P2028 ("Transaction already closed") even though
+ * nothing is actually wrong. Every non-bulk transaction in the app uses this instead; the
+ * bulk-upload routes (up to 500 rows) set their own, larger timeout.
+ */
+export const TRANSACTION_TIMEOUT_MS = 20_000;
+
 /** Thrown inside handlers/transactions to produce a specific HTTP error response. */
 export class HttpError extends Error {
   constructor(

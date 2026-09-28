@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { errorResponse, parseBody } from "@/lib/api";
+import { TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { ALL_ROLES, authorize } from "@/lib/auth";
 import { createProductSchema } from "@/lib/validation";
 import { round2 } from "@/lib/money";
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         });
       }
       return created;
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
     return NextResponse.json(toProductDTO(product, user.role), { status: 201 });
   } catch (err) {
     return errorResponse(err);

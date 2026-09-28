@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         out.push({ row: p.row, productId: updated.id, productCode: updated.productCode, productName: updated.name, unitPrice: updated.unitPrice });
       }
       return out;
-    });
+    }, { timeout: 60_000, maxWait: 10_000 });
 
     const body: BulkRateResponse = { results };
     return NextResponse.json(body);

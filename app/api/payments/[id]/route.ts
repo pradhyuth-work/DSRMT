@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { round2, statusFor } from "@/lib/money";
 
@@ -33,7 +33,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       }
 
       await tx.paymentCollection.delete({ where: { id } });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

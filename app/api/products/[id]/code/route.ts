@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { errorResponse, parseBody } from "@/lib/api";
+import { TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { changeProductCodeSchema } from "@/lib/validation";
 import { changeProductCode } from "@/lib/product-codes";
@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const product = await prisma.$transaction(async (tx) => {
       await changeProductCode(tx, id, newCode);
       return tx.product.findUniqueOrThrow({ where: { id } });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     return NextResponse.json(toProductDTO(product, user.role));
   } catch (err) {

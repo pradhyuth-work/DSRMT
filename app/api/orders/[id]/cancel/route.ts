@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse } from "@/lib/api";
+import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import type { OrderDTO } from "@/lib/types";
@@ -54,7 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         data: { fulfilmentStatus: "CANCELLED", cancelledAt: new Date(), cancelledById: user.id },
         include: orderInclude,
       });
-    });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
 
     const body: OrderDTO = toOrderDTO(order);
     return NextResponse.json(body);

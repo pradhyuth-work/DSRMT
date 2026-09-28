@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         out.push({ row: p.row, outletId: created.id, outletName: created.name, routeName: created.route?.name ?? null });
       }
       return out;
-    });
+    }, { timeout: 60_000, maxWait: 10_000 });
 
     const body: BulkOutletResponse = { results };
     return NextResponse.json(body, { status: 201 });
