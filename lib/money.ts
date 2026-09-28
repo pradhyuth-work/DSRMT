@@ -13,6 +13,19 @@ export function formatMoney(value: number): string {
   return inr.format(value);
 }
 
+/**
+ * GST is 40% of MRP for every product in this business (tobacco trade convention) — not a
+ * per-product rate, so no schema field for it. Prices are GST-inclusive: `amount` is the
+ * MRP already charged, and this splits it into what was basic price vs. tax, purely for
+ * display (order cards, CSV export). Never changes the amount actually billed.
+ */
+const GST_RATE_ON_MRP = 0.4;
+
+export function splitBasicAndGst(amount: number): { basic: number; gst: number } {
+  const gst = round2(amount * GST_RATE_ON_MRP);
+  return { basic: round2(amount - gst), gst };
+}
+
 export function statusFor(total: number, paid: number): "PAID" | "PARTIAL" | "UNPAID" {
   if (paid <= 0) return "UNPAID";
   if (round2(total - paid) <= 0) return "PAID";

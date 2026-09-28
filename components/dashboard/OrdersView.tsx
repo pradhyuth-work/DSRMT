@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, FileCheck, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, Download, FileCheck, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
-import { formatMoney, round2 } from "@/lib/money";
+import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, StatusBadge, formatDate } from "./ui";
 import { Combobox } from "./Combobox";
@@ -61,6 +61,19 @@ export default function OrdersView({
       : user.role === "agent" && o.fulfilmentStatus === "PENDING" && o.paidAmount === 0;
   const canEdit = (o: OrderDTO) => user.role === "admin" && o.fulfilmentStatus === "PENDING";
 
+  const [downloading, setDownloading] = useState(false);
+  async function downloadCsv() {
+    setDownloading(true);
+    setMessage(null);
+    try {
+      await api.downloadOrdersCsv(filter === "ALL" ? undefined : filter);
+    } catch (err) {
+      setMessage({ kind: "error", text: err instanceof Error ? err.message : "Failed to download CSV" });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function run(id: string, action: () => Promise<OrderDTO>, success: string) {
     setBusyId(id);
     setMessage(null);
@@ -77,18 +90,24 @@ export default function OrdersView({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFilter(f.id)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-              filter === f.id ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground hover:bg-secondary"
-            }`}
-          >
-            {f.label} <span className="opacity-70">({counts[f.id]})</span>
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                filter === f.id ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              {f.label} <span className="opacity-70">({counts[f.id]})</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Download CSV
+        </button>
       </div>
 
       {message && <Alert kind={message.kind}>{message.text}</Alert>}
@@ -131,6 +150,21 @@ export default function OrdersView({
                   ))}
                 </ul>
 
+                {(() => {
+                  const { basic, gst } = splitBasicAndGst(o.totalAmount);
+                  return (
+                    <dl className="mb-2 grid grid-cols-2 gap-2 border-b border-border pb-2 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">Basic price</dt>
+                        <dd className="tabular-nums">{formatMoney(basic)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">GST</dt>
+                        <dd className="tabular-nums">{formatMoney(gst)}</dd>
+                      </div>
+                    </dl>
+                  );
+                })()}
                 <dl className="grid grid-cols-3 gap-2 text-xs">
                   <div>
                     <dt className="text-muted-foreground">Total</dt>

@@ -154,6 +154,7 @@ export const api = {
 
   createSale: (input: CreateSaleInput) => post<CreateSaleResponse>("/api/sales", input),
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
+  downloadOrdersCsv: (status?: FulfilmentStatus) => downloadFile(`/api/orders/csv${status ? `?status=${status}` : ""}`, "orders.csv"),
   updateOrder: (id: string, input: UpdateOrderInput) => patch<OrderDTO>(`/api/orders/${enc(id)}`, input),
   billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   dispatchOrder: (id: string) => post<OrderDTO>(`/api/orders/${enc(id)}/dispatch`),
