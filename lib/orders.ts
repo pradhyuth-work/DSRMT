@@ -12,7 +12,9 @@ export interface PricedLine {
 }
 
 /**
- * Merges duplicate products, prices each line at the current unit price and checks the
+ * Merges duplicate products, prices each line at the current unit price (or schemePrice,
+ * when `hasScheme` — used when editing an order that already has scheme pricing on, so
+ * adding/removing items doesn't silently revert it to normal pricing) and checks the
  * requested quantity against current stock. Stock is not reserved here; it is deducted
  * at dispatch. Field agents get an error without exact stock counts.
  */
@@ -20,6 +22,7 @@ export async function priceLines(
   tx: Prisma.TransactionClient,
   items: SaleItemInput[],
   role: Role,
+  hasScheme = false,
 ): Promise<{ lines: PricedLine[]; totalAmount: number }> {
   const quantities = new Map<string, number>();
   for (const item of items) {
@@ -48,14 +51,25 @@ export async function priceLines(
     throw new HttpError(400, `Insufficient stock: ${summary}`, { shortages });
   }
 
+  if (hasScheme) {
+    const missing = [...quantities.keys()]
+      .map((productId) => productById.get(productId)!)
+      .filter((p) => p.schemePrice == null)
+      .map((p) => p.name);
+    if (missing.length > 0) {
+      throw new HttpError(400, `No scheme price set for: ${missing.join(", ")} — set one from Stock first`);
+    }
+  }
+
   const lines = [...quantities].map(([productId, quantity]) => {
     const product = productById.get(productId)!;
+    const unitPrice = hasScheme ? product.schemePrice! : product.unitPrice;
     return {
       productId,
       productName: product.name,
       quantity,
-      unitPrice: product.unitPrice,
-      subtotal: round2(product.unitPrice * quantity),
+      unitPrice,
+      subtotal: round2(unitPrice * quantity),
     };
   });
   return { lines, totalAmount: round2(lines.reduce((sum, l) => sum + l.subtotal, 0)) };
@@ -92,6 +106,7 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
     balanceDue: o.balanceDue,
     status: o.status,
     fulfilmentStatus: o.fulfilmentStatus,
+    hasScheme: o.hasScheme,
     createdAt: o.createdAt.toISOString(),
     billedAt: o.billedAt?.toISOString() ?? null,
     billedByName: o.billedBy?.name ?? null,

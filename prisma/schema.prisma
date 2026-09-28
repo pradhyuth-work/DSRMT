@@ -52,6 +52,10 @@ model Product {
   productCode Int      @unique
   name        String   @unique
   unitPrice   Float
+  /// Optional promotional per-unit price. When an order is toggled "with scheme", every
+  /// line reprices off this instead of unitPrice — null blocks the toggle for orders that
+  /// include this product until a scheme price is set.
+  schemePrice Float?
   /// Never negative: enforced by a CHECK constraint in the migration.
   stockQty    Int      @default(0)
   createdAt   DateTime @default(now())
@@ -136,6 +140,9 @@ model Invoice {
   balanceDue       Float
   status           InvoiceStatus    @default(UNPAID)
   fulfilmentStatus FulfilmentStatus @default(PENDING)
+  /// Whether this order is currently priced with scheme rates (Product.schemePrice) rather
+  /// than normal unitPrice. Toggleable by anyone while PENDING; locked once billed.
+  hasScheme        Boolean          @default(false)
   billedAt         DateTime?
   billedById       String?
   dispatchedAt     DateTime?

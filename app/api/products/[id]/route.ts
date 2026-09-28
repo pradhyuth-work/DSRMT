@@ -21,6 +21,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       data: {
         name: input.name,
         unitPrice: input.unitPrice === undefined ? undefined : round2(input.unitPrice),
+        schemePrice: input.schemePrice === undefined ? undefined : input.schemePrice === null ? null : round2(input.schemePrice),
       },
     });
     return NextResponse.json(toProductDTO(product, user.role));

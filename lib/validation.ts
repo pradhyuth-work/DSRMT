@@ -17,6 +17,7 @@ import type {
   LoginInput,
   ResetPinInput,
   RestockInput,
+  ToggleSchemeInput,
   UpdateOrderInput,
   UpdateOutletInput,
   UpdateProductInput,
@@ -96,6 +97,12 @@ export const dispatchBulkSchema = z.object({
   orderIds: z.array(id).min(1, "Select at least one order").max(100, "At most 100 orders at once"),
 }) satisfies z.ZodType<DispatchBulkInput, z.ZodTypeDef, unknown>;
 
+export const toggleSchemeSchema = z.object({ hasScheme: z.boolean() }) satisfies z.ZodType<
+  ToggleSchemeInput,
+  z.ZodTypeDef,
+  unknown
+>;
+
 export const createPaymentSchema = z.object({
   outletId: id,
   // Required for admins (who choose which staff member collected it); ignored for the
@@ -140,16 +147,22 @@ export const changeProductCodeSchema = z.object({ newCode: productCode }) satisf
   unknown
 >;
 
+// An empty string clears the scheme price (back to null / no scheme set).
+const schemePrice = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  money.positive("Scheme price must be greater than zero").nullable().optional(),
+);
+
 export const updateProductSchema = z
   .object({
     name: z.string().trim().min(1, "Name is required").max(120).optional(),
     unitPrice: money.positive("Price must be greater than zero").optional(),
+    schemePrice,
   })
-  .refine((v) => v.name !== undefined || v.unitPrice !== undefined, "Nothing to update") satisfies z.ZodType<
-  UpdateProductInput,
-  z.ZodTypeDef,
-  unknown
->;
+  .refine(
+    (v) => v.name !== undefined || v.unitPrice !== undefined || v.schemePrice !== undefined,
+    "Nothing to update",
+  ) satisfies z.ZodType<UpdateProductInput, z.ZodTypeDef, unknown>;
 
 export const restockSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),

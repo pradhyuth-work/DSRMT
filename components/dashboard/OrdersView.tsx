@@ -200,6 +200,24 @@ export default function OrdersView({
                   </div>
                 </div>
 
+                <button
+                  type="button"
+                  disabled={busy || o.fulfilmentStatus !== "PENDING"}
+                  onClick={() =>
+                    void run(
+                      o.id,
+                      () => api.toggleScheme(o.id, !o.hasScheme),
+                      `${orderLabel(o)} switched to ${!o.hasScheme ? "with scheme" : "without scheme"} pricing`,
+                    )
+                  }
+                  className={`mt-3 w-full rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    o.hasScheme ? "border-success bg-success text-success-foreground" : "border-border bg-secondary text-muted-foreground"
+                  }`}
+                  title={o.fulfilmentStatus !== "PENDING" ? "Locked — this order has already been billed" : undefined}
+                >
+                  {o.hasScheme ? "✓ With Scheme" : "Without Scheme"}
+                </button>
+
                 <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
                   {o.items.map((i) => {
                     const { basic, gst } = splitBasicAndGst(i.subtotal);

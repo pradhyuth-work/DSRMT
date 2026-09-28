@@ -8,6 +8,7 @@ export function toProductDTO(p: Product, role: Role): ProductDTO {
     productCode: p.productCode,
     name: p.name,
     unitPrice: p.unitPrice,
+    schemePrice: p.schemePrice,
     inStock: p.stockQty > 0,
     createdAt: p.createdAt.toISOString(),
   };

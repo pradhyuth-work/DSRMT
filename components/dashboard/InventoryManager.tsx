@@ -123,6 +123,7 @@ export default function InventoryManager({
                   <th className="th">#</th>
                   <th className="th">Product</th>
                   <th className="th text-right">Unit Price</th>
+                  <th className="th text-right">Scheme Price</th>
                   <th className="th text-right">In Stock</th>
                   {canManage && <th className="th text-right">Manage</th>}
                 </tr>
@@ -133,6 +134,9 @@ export default function InventoryManager({
                     <td className="td text-muted-foreground">#{p.productCode}</td>
                     <td className="td font-medium">{p.name}</td>
                     <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
+                    <td className="td text-right tabular-nums text-muted-foreground">
+                      {p.schemePrice != null ? formatMoney(p.schemePrice) : "—"}
+                    </td>
                     <td className="td text-right">
                       <StockBadge qty={p.stockQty ?? 0} />
                     </td>

@@ -77,10 +77,12 @@ export function AdjustStockForm({ product, onDone }: { product: ProductDTO; onDo
 export function EditProductForm({ product, onDone }: { product: ProductDTO; onDone: (message: string) => Promise<void> }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.unitPrice));
+  const [schemePrice, setSchemePrice] = useState(product.schemePrice != null ? String(product.schemePrice) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const priceNum = Number.parseFloat(price);
-  const valid = name.trim().length > 0 && priceNum > 0;
+  const schemePriceNum = schemePrice.trim() === "" ? null : Number.parseFloat(schemePrice);
+  const valid = name.trim().length > 0 && priceNum > 0 && (schemePriceNum === null || schemePriceNum > 0);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +90,7 @@ export function EditProductForm({ product, onDone }: { product: ProductDTO; onDo
     setBusy(true);
     setError(null);
     try {
-      const updated = await api.updateProduct(product.id, { name: name.trim(), unitPrice: priceNum });
+      const updated = await api.updateProduct(product.id, { name: name.trim(), unitPrice: priceNum, schemePrice: schemePriceNum });
       await onDone(`Updated ${updated.name}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");
@@ -105,6 +107,20 @@ export function EditProductForm({ product, onDone }: { product: ProductDTO; onDo
       <div>
         <label className="label" htmlFor="ep-price">Unit price (₹)</label>
         <input id="ep-price" type="number" min={0.01} step="0.01" className="input" value={price} onChange={(e) => setPrice(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="ep-scheme-price">Scheme price (₹)</label>
+        <input
+          id="ep-scheme-price"
+          type="number"
+          min={0.01}
+          step="0.01"
+          className="input"
+          placeholder="Leave blank if this product has no scheme"
+          value={schemePrice}
+          onChange={(e) => setSchemePrice(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">Used when an order is toggled &quot;with scheme&quot; — leave blank to block that toggle for this product.</p>
       </div>
       <p className="text-xs text-muted-foreground">Price changes apply to new orders only; existing orders keep their prices.</p>
       {error && <Alert kind="error">{error}</Alert>}

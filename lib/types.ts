@@ -32,6 +32,8 @@ export interface ProductDTO {
   productCode: number;
   name: string;
   unitPrice: number;
+  /** Promotional per-unit price for "with scheme" orders. Null until an admin sets one. */
+  schemePrice: number | null;
   /** Omitted for field agents, who only see whether an item is in stock. */
   stockQty?: number;
   inStock: boolean;
@@ -224,6 +226,8 @@ export interface OrderDTO {
   balanceDue: number;
   status: InvoiceStatus;
   fulfilmentStatus: FulfilmentStatus;
+  /** Whether this order is priced with scheme rates. Toggleable by anyone while PENDING; locked once billed. */
+  hasScheme: boolean;
   createdAt: string;
   billedAt: string | null;
   billedByName: string | null;
@@ -243,6 +247,10 @@ export interface UpdateOrderInput {
   items?: SaleItemInput[];
 }
 
+export interface ToggleSchemeInput {
+  hasScheme: boolean;
+}
+
 export interface DispatchBulkInput {
   orderIds: string[];
 }
@@ -254,6 +262,8 @@ export interface DispatchBulkResponse {
 export interface UpdateProductInput {
   name?: string;
   unitPrice?: number;
+  /** Pass null to clear it. */
+  schemePrice?: number | null;
 }
 
 export interface ChangeProductCodeInput {

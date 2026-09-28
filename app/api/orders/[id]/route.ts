@@ -29,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       let totals = {};
       if (input.items) {
-        const { lines, totalAmount } = await priceLines(tx, input.items, user.role);
+        const { lines, totalAmount } = await priceLines(tx, input.items, user.role, invoice.hasScheme);
         if (invoice.paidAmount > totalAmount) {
           throw new HttpError(400, `New total (${totalAmount}) is less than the amount already paid (${invoice.paidAmount})`);
         }
