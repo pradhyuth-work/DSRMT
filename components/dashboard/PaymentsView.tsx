@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
 import type { AuthUser, OutletDTO, PaymentDTO, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
@@ -208,7 +208,9 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   );
 }
 
-/** Outlet picker that loads that outlet's balance on selection, then hands off to the form. */
+/** Field agent, then outlet picker — narrowing to that agent's outlets before loading its
+ * balance, so collecting for a specific route's outlets doesn't mean hunting one out of
+ * every outlet in the system. */
 function CollectPaymentFlow({
   outlets,
   staffOptions,
@@ -218,10 +220,35 @@ function CollectPaymentFlow({
   staffOptions?: StaffDTO[];
   onDone: (message: string) => Promise<void>;
 }) {
+  const [agentId, setAgentId] = useState("");
   const [outletId, setOutletId] = useState("");
   const [target, setTarget] = useState<CollectPaymentTarget | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const agentOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    let hasUnassigned = false;
+    for (const o of outlets) {
+      if (o.agentId) byId.set(o.agentId, o.agentName ?? o.agentId);
+      else hasUnassigned = true;
+    }
+    const opts = [...byId.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    if (hasUnassigned) opts.push({ value: "__none__", label: "No field agent assigned" });
+    return opts;
+  }, [outlets]);
+
+  const outletsForAgent = useMemo(
+    () => outlets.filter((o) => (agentId === "__none__" ? !o.agentId : o.agentId === agentId)),
+    [outlets, agentId],
+  );
+
+  function pickAgent(id: string) {
+    setAgentId(id);
+    setOutletId("");
+    setTarget(null);
+    setError(null);
+  }
 
   async function pick(id: string) {
     setOutletId(id);
@@ -242,13 +269,25 @@ function CollectPaymentFlow({
   return (
     <div className="space-y-4">
       <div>
+        <label className="label" htmlFor="cp-agent">Field agent</label>
+        <Combobox
+          id="cp-agent"
+          value={agentId}
+          onChange={pickAgent}
+          placeholder="Select field agent…"
+          options={agentOptions}
+        />
+      </div>
+
+      <div>
         <label className="label" htmlFor="cp-outlet">Outlet</label>
         <Combobox
           id="cp-outlet"
           value={outletId}
           onChange={(v) => void pick(v)}
-          placeholder="Select outlet…"
-          options={outlets.map((o) => ({ value: o.id, label: o.name }))}
+          placeholder={agentId ? "Select outlet…" : "Select a field agent first"}
+          disabled={!agentId}
+          options={outletsForAgent.map((o) => ({ value: o.id, label: o.name }))}
         />
       </div>
 

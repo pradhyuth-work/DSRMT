@@ -35,23 +35,25 @@ export async function GET(req: Request) {
     }).then((rows) => rows.map(toOrderDTO));
 
     const csv = toCsv(
-      ["Date", "Bill #", "Outlet", "Staff", "Fulfilment", "Payment Status", "Items", "Basic Price", "GST", "Total", "Paid", "Balance"],
-      orders.map((o) => {
+      ["Date", "Bill #", "Outlet", "Staff", "Fulfilment", "Payment Status", "Scheme", "Item", "Quantity", "Basic Price", "GST", "Total", "Paid", "Balance"],
+      orders.flatMap((o) => {
         const { basic, gst } = splitBasicAndGst(o.totalAmount);
-        return [
+        return o.items.map((i) => [
           new Date(o.createdAt).toLocaleString("en-IN"),
           o.invoiceNumber ?? "Not billed",
           o.outletName,
           o.staffName,
           o.fulfilmentStatus,
           o.status,
-          o.items.map((i) => `${i.quantity}x ${i.productName}`).join("; "),
+          o.hasScheme ? "Scheme" : "No Scheme",
+          i.productName,
+          i.quantity,
           formatMoney(basic),
           formatMoney(gst),
           formatMoney(o.totalAmount),
           formatMoney(o.paidAmount),
           formatMoney(o.balanceDue),
-        ];
+        ]);
       }),
     );
 
