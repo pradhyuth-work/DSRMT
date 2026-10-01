@@ -130,6 +130,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                   <th className="th">Outlet</th>
                   {isAdmin && <th className="th">Collected by</th>}
                   <th className="th">Method</th>
+                  <th className="th">Cheque</th>
                   <th className="th">Invoice</th>
                   <th className="th">Notes</th>
                   <th className="th text-right">Amount</th>
@@ -143,6 +144,9 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                     <td className="td font-medium">{p.outletName}</td>
                     {isAdmin && <td className="td">{p.staffName}</td>}
                     <td className="td">{p.paymentMethod}</td>
+                    <td className="td whitespace-nowrap text-xs text-muted-foreground">
+                      {p.chequeNumber ? `#${p.chequeNumber}${p.chequeDate ? ` · ${formatDate(p.chequeDate)}` : ""}` : ""}
+                    </td>
                     <td className="td font-mono text-xs">{p.invoiceNumber ?? "Unbilled"}</td>
                     <td className="td max-w-48 truncate text-muted-foreground">{p.notes ?? ""}</td>
                     <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(p.amount)}</td>
@@ -196,6 +200,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
       <Modal open={collecting} title="Collect payment" onClose={() => setCollecting(false)}>
         <CollectPaymentFlow
           outlets={outlets}
+          user={user}
           staffOptions={isAdmin ? staff : undefined}
           onDone={async (message) => {
             setCollecting(false);
@@ -213,10 +218,12 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
  * every outlet in the system. */
 function CollectPaymentFlow({
   outlets,
+  user,
   staffOptions,
   onDone,
 }: {
   outlets: OutletDTO[];
+  user: AuthUser;
   staffOptions?: StaffDTO[];
   onDone: (message: string) => Promise<void>;
 }) {
@@ -298,7 +305,7 @@ function CollectPaymentFlow({
       )}
       {error && <Alert kind="error">{error}</Alert>}
       {target && target.balance <= 0 && <Alert kind="warning">This outlet has no outstanding balance.</Alert>}
-      {target && target.balance > 0 && <CollectPaymentForm target={target} staffOptions={staffOptions} onDone={onDone} />}
+      {target && target.balance > 0 && <CollectPaymentForm target={target} user={user} staffOptions={staffOptions} onDone={onDone} />}
     </div>
   );
 }

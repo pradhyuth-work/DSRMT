@@ -32,24 +32,37 @@ export async function GET(req: Request) {
  * One PaymentCollection row is written per invoice the payment touches, so every rupee is
  * traceable to the invoice it settled.
  *
- * Admin can attribute the collection to any staff member (whoever actually collected the
- * cash in the field). Stock incharge can only ever attribute it to themselves.
+ * Received by defaults to the signed-in user. Admin may attribute it to another admin/stock
+ * user; stock incharge can only ever attribute it to themselves. Field agents never can.
+ * A CHEQUE payment carries one or more cheques (serial number + date); each settles invoices in turn.
  */
 export async function POST(req: Request) {
   try {
     const user = await authorize(req, ["admin", "stock"]);
     const input = await parseBody(req, createPaymentSchema);
-    const staffId = user.role === "stock" ? user.id : input.staffId;
-    if (!staffId) throw new HttpError(400, "staffId: Select who collected this payment");
-    const amount = round2(input.amount);
+    // Received by: the signed-in user by default. Only admins and stock incharges can receive
+    // payments, so an admin may name another of those — never a field agent.
+    const staffId = user.role === "stock" ? user.id : input.staffId ?? user.id;
+
+    // One entry per cheque (each settles invoices in turn, FIFO); a single entry otherwise.
+    const parts =
+      input.paymentMethod === "CHEQUE"
+        ? (input.cheques ?? []).map((c) => ({
+            amount: round2(c.amount),
+            chequeNumber: c.serialNumber,
+            chequeDate: new Date(`${c.date}T00:00:00.000Z`),
+          }))
+        : [{ amount: round2(input.amount ?? 0), chequeNumber: null, chequeDate: null }];
+    const amount = round2(parts.reduce((sum, p) => sum + p.amount, 0));
 
     const allocations = await prisma.$transaction(async (tx) => {
       const [outlet, staff] = await Promise.all([
         tx.outlet.findUnique({ where: { id: input.outletId }, select: { id: true } }),
-        tx.staff.findUnique({ where: { id: staffId }, select: { id: true } }),
+        tx.staff.findUnique({ where: { id: staffId }, select: { id: true, role: true } }),
       ]);
       if (!outlet) throw new HttpError(400, "Outlet not found");
       if (!staff) throw new HttpError(400, "Staff member not found");
+      if (staff.role === "agent") throw new HttpError(400, "Only an admin or manager can receive payments");
 
       // Lock the outlet's open invoices so concurrent collections can't apply to the same balance.
       await tx.$queryRaw`
@@ -67,28 +80,36 @@ export async function POST(req: Request) {
       }
 
       const result: PaymentAllocation[] = [];
-      let remaining = amount;
-      for (const inv of openInvoices) {
-        if (remaining <= 0) break;
-        const applied = round2(Math.min(remaining, inv.balanceDue));
-        const paidAmount = round2(inv.paidAmount + applied);
-        const balanceDue = round2(inv.totalAmount - paidAmount);
-        const status = statusFor(inv.totalAmount, paidAmount);
+      for (const part of parts) {
+        let remaining = part.amount;
+        for (const inv of openInvoices) {
+          if (remaining <= 0) break;
+          if (inv.balanceDue <= 0) continue;
+          const applied = round2(Math.min(remaining, inv.balanceDue));
+          inv.paidAmount = round2(inv.paidAmount + applied);
+          inv.balanceDue = round2(inv.totalAmount - inv.paidAmount);
+          const status = statusFor(inv.totalAmount, inv.paidAmount);
 
-        await tx.invoice.update({ where: { id: inv.id }, data: { paidAmount, balanceDue, status } });
-        await tx.paymentCollection.create({
-          data: {
-            outletId: input.outletId,
-            staffId,
-            invoiceId: inv.id,
-            amount: applied,
-            paymentMethod: input.paymentMethod,
-            notes: input.notes || null,
-          },
-        });
+          await tx.invoice.update({
+            where: { id: inv.id },
+            data: { paidAmount: inv.paidAmount, balanceDue: inv.balanceDue, status },
+          });
+          await tx.paymentCollection.create({
+            data: {
+              outletId: input.outletId,
+              staffId,
+              invoiceId: inv.id,
+              amount: applied,
+              paymentMethod: input.paymentMethod,
+              chequeNumber: part.chequeNumber,
+              chequeDate: part.chequeDate,
+              notes: input.notes || null,
+            },
+          });
 
-        result.push({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, applied, balanceDue, status });
-        remaining = round2(remaining - applied);
+          result.push({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, applied, balanceDue: inv.balanceDue, status });
+          remaining = round2(remaining - applied);
+        }
       }
       return result;
     }, { timeout: TRANSACTION_TIMEOUT_MS });

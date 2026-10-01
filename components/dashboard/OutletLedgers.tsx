@@ -16,7 +16,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import type { BalanceAdjustmentDTO, BalanceAdjustmentMode, OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
+import type { AuthUser, BalanceAdjustmentDTO, BalanceAdjustmentMode, OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, DaysOutstandingBadge, EmptyState, Modal, formatDate } from "./ui";
@@ -34,7 +34,7 @@ interface LedgerData {
 
 const UNASSIGNED = "__unassigned__";
 
-export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onSaved: () => Promise<void> }) {
+export default function OutletLedgers({ data, user, onSaved }: { data: LedgerData; user: AuthUser; onSaved: () => Promise<void> }) {
   const ledgers = data.reports.outletLedgers;
   const agents = useMemo(() => data.staff.filter((s) => s.role === "agent"), [data.staff]);
   const [search, setSearch] = useState("");
@@ -291,6 +291,7 @@ export default function OutletLedgers({ data, onSaved }: { data: LedgerData; onS
           <CollectPaymentForm
             key={collecting.outletId}
             target={{ outletId: collecting.outletId, outletName: collecting.outletName, balance: collecting.balance, openInvoices: collecting.openInvoices }}
+            user={user}
             staffOptions={data.staff}
             onDone={async (message) => {
               setCollecting(null);

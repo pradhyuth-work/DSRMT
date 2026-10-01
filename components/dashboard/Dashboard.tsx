@@ -424,6 +424,7 @@ export default function Dashboard() {
                 {tab === "ledgers" && data.reports && (
                   <OutletLedgers
                     data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
+                    user={user}
                     onSaved={refresh}
                   />
                 )}

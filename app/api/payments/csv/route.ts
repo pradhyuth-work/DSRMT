@@ -20,12 +20,14 @@ export async function GET(req: Request) {
     const payments = await fetchPayments(user, q, LIMIT);
 
     const csv = toCsv(
-      ["Date", "Outlet", "Collected By", "Method", "Amount", "Invoice #", "Notes"],
+      ["Date", "Outlet", "Collected By", "Method", "Cheque #", "Cheque Date", "Amount", "Invoice #", "Notes"],
       payments.map((p) => [
         new Date(p.createdAt).toLocaleString("en-IN"),
         p.outletName,
         p.staffName,
         p.paymentMethod,
+        p.chequeNumber ?? "",
+        p.chequeDate ? new Date(p.chequeDate).toLocaleDateString("en-IN") : "",
         formatMoney(p.amount),
         p.invoiceNumber ?? "Unbilled",
         p.notes ?? "",
