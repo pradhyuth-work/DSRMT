@@ -106,12 +106,28 @@ export const toggleSchemeSchema = z.object({ hasScheme: z.boolean() }) satisfies
 
 export const createPaymentSchema = z.object({
   outletId: id,
-  // Required for admins (who choose which staff member collected it); ignored for the
-  // stock role, which can only ever attribute a payment to itself.
+  // Optional for admins (defaults to themselves); ignored for the stock role, which can
+  // only ever attribute a payment to itself.
   staffId: id.optional(),
-  amount: money.positive("Amount must be greater than zero"),
+  amount: money.positive("Amount must be greater than zero").optional(),
   paymentMethod,
+  cheques: z
+    .array(
+      z.object({
+        serialNumber: z.string().trim().min(1, "Cheque serial number is required").max(40),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Cheque date is required"),
+        amount: money.positive("Cheque amount must be greater than zero"),
+      }),
+    )
+    .max(50)
+    .optional(),
   notes: z.string().trim().max(500).optional(),
+}).superRefine((v, ctx) => {
+  if (v.paymentMethod === "CHEQUE") {
+    if (!v.cheques?.length) ctx.addIssue({ code: "custom", path: ["cheques"], message: "Add at least one cheque" });
+  } else if (v.amount === undefined) {
+    ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount must be greater than zero" });
+  }
 }) satisfies z.ZodType<CreatePaymentInput, z.ZodTypeDef, unknown>;
 
 export const createProductSchema = z.object({

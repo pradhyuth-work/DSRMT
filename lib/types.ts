@@ -305,11 +305,22 @@ export interface StockMovementsQuery {
 
 export interface CreatePaymentInput {
   outletId: string;
-  /** Required for admins; ignored for the stock role (always attributed to itself). */
+  /** Who received it — an admin or stock incharge. Defaults to the signed-in user; ignored
+   * for the stock role (always attributed to itself). */
   staffId?: string;
-  amount: number;
+  /** Ignored for CHEQUE payments, where the total is the sum of `cheques`. */
+  amount?: number;
   paymentMethod: PaymentMethod;
+  /** Required (at least one) for CHEQUE payments. */
+  cheques?: ChequeInput[];
   notes?: string;
+}
+
+export interface ChequeInput {
+  serialNumber: string;
+  /** YYYY-MM-DD, the date written on the cheque. */
+  date: string;
+  amount: number;
 }
 
 export interface PaymentAllocation {
@@ -335,6 +346,8 @@ export interface PaymentDTO {
   invoiceNumber: string | null;
   amount: number;
   paymentMethod: PaymentMethod;
+  chequeNumber: string | null;
+  chequeDate: string | null;
   notes: string | null;
   createdAt: string;
 }

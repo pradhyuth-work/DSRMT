@@ -42,6 +42,8 @@ export async function fetchPayments(user: AuthUser, filters: PaymentsFilters, li
     invoiceNumber: p.invoice?.invoiceNumber ?? null,
     amount: p.amount,
     paymentMethod: p.paymentMethod,
+    chequeNumber: p.chequeNumber,
+    chequeDate: p.chequeDate?.toISOString() ?? null,
     notes: p.notes,
     createdAt: p.createdAt.toISOString(),
   }));

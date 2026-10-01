@@ -187,6 +187,9 @@ model PaymentCollection {
   amount        Float
   paymentMethod PaymentMethod
   notes         String?
+  /// Only for CHEQUE payments: the cheque's serial number and the date written on it.
+  chequeNumber  String?
+  chequeDate    DateTime?
   createdAt     DateTime      @default(now())
 
   outlet  Outlet   @relation(fields: [outletId], references: [id])
