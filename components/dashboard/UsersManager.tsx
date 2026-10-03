@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { KeyRound, Loader2, UserPlus, UserRound } from "lucide-react";
 import type { AuthUser, Role, StaffDTO } from "@/lib/types";
 import { api } from "./api-client";
-import { Alert, EmptyState, Modal } from "./ui";
+import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, usePagination } from "./ui";
 
 const ROLES: { id: Role; label: string }[] = [
   { id: "admin", label: "Admin" },
@@ -27,6 +27,7 @@ export default function UsersManager({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [credentialsFor, setCredentialsFor] = useState<StaffDTO | null>(null);
   const closeCredentials = useCallback(() => setCredentialsFor(null), []);
+  const staffPage = usePagination(staff);
 
   async function update(s: StaffDTO, patch: { role?: Role; active?: boolean }, text: string) {
     setBusyId(s.id);
@@ -58,7 +59,7 @@ export default function UsersManager({
             <EmptyState>No users yet.</EmptyState>
           </div>
         )}
-        {staff.map((s) => {
+        {staffPage.pageItems.map((s) => {
           const isMe = s.id === user.id;
           const busy = busyId === s.id;
           return (
@@ -116,6 +117,17 @@ export default function UsersManager({
             </div>
           );
         })}
+        {staff.length > 0 && (
+          <div className="card">
+            <Pagination
+              page={staffPage.page}
+              totalPages={staffPage.totalPages}
+              totalItems={staffPage.totalItems}
+              pageSize={PAGE_SIZE}
+              onPageChange={staffPage.setPage}
+            />
+          </div>
+        )}
       </div>
 
       <Modal

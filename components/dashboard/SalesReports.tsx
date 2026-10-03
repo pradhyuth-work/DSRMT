@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ClipboardList, Download, FileSpreadsheet, HardDriveDownload, IndianRupee, Loader2, Wallet } from "lucide-react";
 import type { OutletDTO, ProductDTO, SalesReportResponse } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, DaysOutstandingBadge, EmptyState, StatCard } from "./ui";
+import { Alert, DaysOutstandingBadge, EmptyState, PAGE_SIZE, Pagination, StatCard, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { Combobox } from "./Combobox";
 
@@ -187,6 +187,7 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
 }
 
 function ByProductTable({ rows }: { rows: SalesReportResponse["byProduct"] }) {
+  const page = usePagination(rows);
   if (rows.length === 0) return <div className="card"><EmptyState>No sales in this range.</EmptyState></div>;
   return (
     <div className="card overflow-hidden">
@@ -203,7 +204,7 @@ function ByProductTable({ rows }: { rows: SalesReportResponse["byProduct"] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.map((p) => (
+            {page.pageItems.map((p) => (
               <tr key={p.productId} className="hover:bg-secondary">
                 <td className="td font-medium">{p.productName}</td>
                 <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
@@ -216,11 +217,13 @@ function ByProductTable({ rows }: { rows: SalesReportResponse["byProduct"] }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page.page} totalPages={page.totalPages} totalItems={page.totalItems} pageSize={PAGE_SIZE} onPageChange={page.setPage} />
     </div>
   );
 }
 
 function ByOutletTable({ rows }: { rows: SalesReportResponse["byOutlet"] }) {
+  const page = usePagination(rows);
   if (rows.length === 0) return <div className="card"><EmptyState>No sales in this range.</EmptyState></div>;
   return (
     <div className="card overflow-hidden">
@@ -237,7 +240,7 @@ function ByOutletTable({ rows }: { rows: SalesReportResponse["byOutlet"] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.map((o) => (
+            {page.pageItems.map((o) => (
               <tr key={o.outletId} className="hover:bg-secondary">
                 <td className="td font-medium">{o.outletName}</td>
                 <td className="td text-right tabular-nums">{o.orders}</td>
@@ -254,6 +257,7 @@ function ByOutletTable({ rows }: { rows: SalesReportResponse["byOutlet"] }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page.page} totalPages={page.totalPages} totalItems={page.totalItems} pageSize={PAGE_SIZE} onPageChange={page.setPage} />
     </div>
   );
 }
@@ -265,6 +269,7 @@ const LOW_STOCK_THRESHOLD = 10;
  * (warehouse → dispatched in one step), unlike the reference app's route buyers, so
  * there's no "stock at outlet" breakdown here — this is the whole picture. */
 function LiveInventoryTable({ products }: { products: ProductDTO[] }) {
+  const page = usePagination(products);
   if (products.length === 0) return <div className="card"><EmptyState>No products yet.</EmptyState></div>;
   const totalUnits = products.reduce((s, p) => s + (p.stockQty ?? 0), 0);
   const totalValue = products.reduce((s, p) => s + (p.stockQty ?? 0) * p.unitPrice, 0);
@@ -288,7 +293,7 @@ function LiveInventoryTable({ products }: { products: ProductDTO[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {products.map((p) => {
+            {page.pageItems.map((p) => {
               const qty = p.stockQty ?? 0;
               const style =
                 qty === 0 ? "bg-danger text-danger-foreground" : qty < LOW_STOCK_THRESHOLD ? "bg-warning text-warning-foreground" : "bg-success text-success-foreground";
@@ -307,11 +312,17 @@ function LiveInventoryTable({ products }: { products: ProductDTO[] }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page.page} totalPages={page.totalPages} totalItems={page.totalItems} pageSize={PAGE_SIZE} onPageChange={page.setPage} />
     </div>
   );
 }
 
 function SkuMatrixTable({ matrix }: { matrix: SalesReportResponse["skuMatrix"] }) {
+  // Pair each outlet with its original row index so paginated rows can still look up the
+  // right column in matrix.cells; column totals are summed over every outlet, not just the
+  // visible page.
+  const indexedOutlets = useMemo(() => matrix.outlets.map((o, oi) => ({ ...o, oi })), [matrix.outlets]);
+  const page = usePagination(indexedOutlets);
   if (matrix.outlets.length === 0 || matrix.products.length === 0) {
     return <div className="card"><EmptyState>No sales in this range.</EmptyState></div>;
   }
@@ -330,11 +341,11 @@ function SkuMatrixTable({ matrix }: { matrix: SalesReportResponse["skuMatrix"] }
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {matrix.outlets.map((o, oi) => (
+            {page.pageItems.map((o) => (
               <tr key={o.id} className="hover:bg-secondary">
                 <td className="td sticky left-0 z-10 bg-card font-medium">{o.name}</td>
                 {matrix.products.map((p, pi) => {
-                  const qty = matrix.cells[oi][pi];
+                  const qty = matrix.cells[o.oi][pi];
                   return (
                     <td key={p.id} className={`td text-right tabular-nums ${qty === 0 ? "text-muted-foreground/40" : ""}`}>
                       {qty || "—"}
@@ -358,6 +369,7 @@ function SkuMatrixTable({ matrix }: { matrix: SalesReportResponse["skuMatrix"] }
           </tfoot>
         </table>
       </div>
+      <Pagination page={page.page} totalPages={page.totalPages} totalItems={page.totalItems} pageSize={PAGE_SIZE} onPageChange={page.setPage} />
     </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, Banknote, CheckCircle2, FileText, Landmark, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, X, type LucideIcon } from "lucide-react";
 import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
 import { DAYS_CRITICAL_THRESHOLD, DAYS_WARNING_THRESHOLD } from "@/lib/money";
 
@@ -177,6 +177,78 @@ export function DaysOutstandingBadge({ days }: { days: number }) {
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-10 text-center text-sm text-muted-foreground">{children}</div>;
+}
+
+/** The page size used by every paginated list in the dashboard. */
+export const PAGE_SIZE = 20;
+
+/**
+ * Slices `items` into pages of `pageSize`. Clamps back down automatically when a filter
+ * shrinks the list out from under the current page, so you're never stranded on an empty one.
+ */
+export function usePagination<T>(items: T[], pageSize = PAGE_SIZE) {
+  const [page, setPage] = useState(1);
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pageItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page, pageSize]);
+
+  return { page, setPage, pageItems, totalPages, totalItems };
+}
+
+export function Pagination({
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalItems);
+  return (
+    <div className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <span>
+        Showing {start}–{end} of {totalItems}
+      </span>
+      <div className="flex items-center justify-end gap-1">
+        <button
+          type="button"
+          className="btn btn-secondary px-2.5"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="px-2 tabular-nums">
+          Page {page} of {totalPages}
+        </span>
+        <button
+          type="button"
+          className="btn btn-secondary px-2.5"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function formatDate(iso: string): string {

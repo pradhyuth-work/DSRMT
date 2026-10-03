@@ -5,7 +5,7 @@ import { AlertTriangle, Ban, Download, FileCheck, Loader2, Minus, Pencil, Plus, 
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState, FulfilmentBadge, Modal, StatusBadge, formatDate } from "./ui";
+import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
 import type { DashboardData } from "./Dashboard";
 
@@ -132,6 +132,8 @@ export default function OrdersView({
       : user.role === "agent" && o.fulfilmentStatus === "PENDING" && o.paidAmount === 0;
   const canEdit = (o: OrderDTO) => user.role === "admin" && o.fulfilmentStatus === "PENDING";
 
+  const ordersPage = usePagination(orders);
+
   const [downloading, setDownloading] = useState(false);
   async function downloadCsv() {
     setDownloading(true);
@@ -220,7 +222,7 @@ export default function OrdersView({
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {orders.map((o) => {
+          {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
             const outletGst = outletById.get(o.outletId)?.gstNumber ?? null;
             return (
@@ -377,6 +379,18 @@ export default function OrdersView({
               </article>
             );
           })}
+        </div>
+      )}
+
+      {ordersPage.totalPages > 1 && (
+        <div className="card">
+          <Pagination
+            page={ordersPage.page}
+            totalPages={ordersPage.totalPages}
+            totalItems={ordersPage.totalItems}
+            pageSize={PAGE_SIZE}
+            onPageChange={ordersPage.setPage}
+          />
         </div>
       )}
 

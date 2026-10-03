@@ -5,7 +5,7 @@ import { Banknote, ClipboardList, FileText, Landmark, Loader2, UserRound } from 
 import type { StaffPerformance } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState } from "./ui";
+import { Alert, EmptyState, PAGE_SIZE, Pagination, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 
 /** Sales figures are dated by the order; collections by the payment — so filtering to a
@@ -29,6 +29,9 @@ export default function StaffPerformanceView() {
   }, [range, load]);
 
   const maxSales = Math.max(...(rows ?? []).map((r) => r.totalSales), 1);
+  // Shared across the card grid and the table below — they show the exact same staff in the
+  // exact same order, so one page position keeps them in sync instead of two separate controls.
+  const perfPage = usePagination(rows ?? []);
 
   return (
     <div className="space-y-6">
@@ -44,7 +47,7 @@ export default function StaffPerformanceView() {
       ) : (
         <>
       <div className="grid gap-4 md:grid-cols-3">
-        {rows.map((r) => {
+        {perfPage.pageItems.map((r) => {
           const collectionRate = r.totalSales > 0 ? Math.round((1 - r.uncollectedBalance / r.totalSales) * 100) : 0;
           return (
             <div key={r.staffId} className="card space-y-4 p-5">
@@ -97,7 +100,7 @@ export default function StaffPerformanceView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((r) => (
+              {perfPage.pageItems.map((r) => (
                 <tr key={r.staffId} className="hover:bg-secondary">
                   <td className="td font-medium">{r.staffName}</td>
                   <td className="td text-right tabular-nums">{r.totalOrders}</td>
@@ -119,6 +122,13 @@ export default function StaffPerformanceView() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={perfPage.page}
+          totalPages={perfPage.totalPages}
+          totalItems={perfPage.totalItems}
+          pageSize={PAGE_SIZE}
+          onPageChange={perfPage.setPage}
+        />
       </div>
       <p className="text-xs text-muted-foreground">
         Sales are dated by the order; collections by the payment. Uncollected is the remaining balance (as of now) on

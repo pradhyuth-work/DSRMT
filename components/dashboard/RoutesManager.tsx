@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader2, Plus, Route as RouteIcon, Trash2 } from "lucide-react";
 import type { RouteDTO, StaffDTO } from "@/lib/types";
 import { api } from "./api-client";
-import { Alert, EmptyState } from "./ui";
+import { Alert, EmptyState, PAGE_SIZE, Pagination, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
 
 /**
@@ -26,6 +26,7 @@ export default function RoutesManager({
   // An agent already on another route can't be picked again from this list — the server
   // would just move them, but showing that up front avoids a surprising side effect.
   const takenAgentIds = new Set(routes.map((r) => r.agentId).filter((id): id is string => !!id));
+  const routesPage = usePagination(routes);
 
   async function reassign(route: RouteDTO, agentId: string) {
     setBusyId(route.id);
@@ -71,7 +72,7 @@ export default function RoutesManager({
         <EmptyState>No routes yet — add one above.</EmptyState>
       ) : (
         <ul className="space-y-2">
-          {routes.map((r) => (
+          {routesPage.pageItems.map((r) => (
             <li key={r.id} className="flex items-center gap-2 rounded-xl border border-border bg-secondary p-3">
               <RouteIcon className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
@@ -108,6 +109,13 @@ export default function RoutesManager({
           ))}
         </ul>
       )}
+      <Pagination
+        page={routesPage.page}
+        totalPages={routesPage.totalPages}
+        totalItems={routesPage.totalItems}
+        pageSize={PAGE_SIZE}
+        onPageChange={routesPage.setPage}
+      />
     </div>
   );
 }

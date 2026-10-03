@@ -11,6 +11,7 @@ import {
   HandCoins,
   History,
   Loader2,
+  Pencil,
   Plus,
   Route as RouteIcon,
   Search,
@@ -19,7 +20,7 @@ import {
 import type { AuthUser, BalanceAdjustmentDTO, BalanceAdjustmentMode, OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, DaysOutstandingBadge, EmptyState, Modal, formatDate } from "./ui";
+import { Alert, DaysOutstandingBadge, EmptyState, Modal, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { CollectPaymentForm } from "./payment-form";
 import RoutesManager from "./RoutesManager";
 import BulkOutletModal from "./BulkOutletModal";
@@ -48,6 +49,7 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
   const [deletingOutlet, setDeletingOutlet] = useState<OutletLedger | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [correcting, setCorrecting] = useState<OutletLedger | null>(null);
+  const [editingOutlet, setEditingOutlet] = useState<OutletDTO | null>(null);
   const [showingHistory, setShowingHistory] = useState(false);
   const [history, setHistory] = useState<BalanceAdjustmentDTO[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -62,6 +64,9 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
       return true;
     });
   }, [ledgers, search, agentFilter]);
+
+  const ledgersPage = usePagination(filtered);
+  const historyPage = usePagination(history ?? []);
 
   async function reassignRoute(outletId: string, routeId: string) {
     setReassigning(outletId);
@@ -174,7 +179,7 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((l) => {
+              {ledgersPage.pageItems.map((l) => {
                 const isOpen = expanded === l.outletId;
                 return (
                   <Fragment key={l.outletId}>
@@ -222,6 +227,14 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
                       </td>
                       <td className="td">
                         <div className="flex justify-end gap-1">
+                          <button
+                            className="btn btn-secondary px-2.5"
+                            onClick={() => setEditingOutlet(data.outlets.find((o) => o.id === l.outletId) ?? null)}
+                            aria-label={`Edit ${l.outletName}`}
+                            title="Edit outlet details"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
                           <button
                             className="btn btn-secondary px-2.5"
                             onClick={() => setCorrecting(l)}
@@ -284,6 +297,13 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
         {filtered.length === 0 && (
           <EmptyState>{ledgers.length === 0 ? "No outlets yet." : "No outlets match your search."}</EmptyState>
         )}
+        <Pagination
+          page={ledgersPage.page}
+          totalPages={ledgersPage.totalPages}
+          totalItems={ledgersPage.totalItems}
+          pageSize={PAGE_SIZE}
+          onPageChange={ledgersPage.setPage}
+        />
       </div>
 
       <Modal open={!!collecting} title={`Collect payment — ${collecting?.outletName ?? ""}`} onClose={() => setCollecting(null)}>
@@ -367,6 +387,21 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
         )}
       </Modal>
 
+      <Modal open={!!editingOutlet} title={`Edit outlet — ${editingOutlet?.name ?? ""}`} onClose={() => setEditingOutlet(null)}>
+        {editingOutlet && (
+          <EditOutletForm
+            key={editingOutlet.id}
+            outlet={editingOutlet}
+            routes={data.routes}
+            onDone={async (message) => {
+              setEditingOutlet(null);
+              setFlash({ kind: "success", text: message });
+              await onSaved();
+            }}
+          />
+        )}
+      </Modal>
+
       <Modal open={showingHistory} title="Balance correction history" onClose={() => setShowingHistory(false)}>
         {historyError && <Alert kind="error">{historyError}</Alert>}
         {!history && !historyError ? (
@@ -377,7 +412,7 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
           <EmptyState>No corrections have been made yet.</EmptyState>
         ) : history ? (
           <ul className="max-h-[60vh] divide-y divide-border overflow-y-auto">
-            {history.map((a) => (
+            {historyPage.pageItems.map((a) => (
               <li key={a.id} className="py-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium">{a.outletName}</p>
@@ -397,6 +432,15 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
             ))}
           </ul>
         ) : null}
+        {history && history.length > 0 && (
+          <Pagination
+            page={historyPage.page}
+            totalPages={historyPage.totalPages}
+            totalItems={historyPage.totalItems}
+            pageSize={PAGE_SIZE}
+            onPageChange={historyPage.setPage}
+          />
+        )}
       </Modal>
     </div>
   );
@@ -405,6 +449,7 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
 /** Each open invoice's own age, alongside the outstanding total — the running balance
  * alone doesn't tell you which invoice has actually been sitting the longest. */
 function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
+  const invoicesPage = usePagination(ledger.openInvoices);
   if (ledger.openInvoices.length === 0) return null;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -417,7 +462,7 @@ function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {ledger.openInvoices.map((i) => (
+          {invoicesPage.pageItems.map((i) => (
             <tr key={i.id}>
               <td className="td font-mono text-xs">{i.invoiceNumber ?? "Unbilled"}</td>
               <td className="td text-right tabular-nums">{formatMoney(i.balanceDue)}</td>
@@ -426,11 +471,19 @@ function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
           ))}
         </tbody>
       </table>
+      <Pagination
+        page={invoicesPage.page}
+        totalPages={invoicesPage.totalPages}
+        totalItems={invoicesPage.totalItems}
+        pageSize={PAGE_SIZE}
+        onPageChange={invoicesPage.setPage}
+      />
     </div>
   );
 }
 
 function LedgerTable({ ledger }: { ledger: OutletLedger }) {
+  const entriesPage = usePagination(ledger.entries);
   if (ledger.entries.length === 0) return <EmptyState>No transactions for this outlet yet.</EmptyState>;
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
@@ -446,7 +499,7 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {ledger.entries.map((e, i) => (
+          {entriesPage.pageItems.map((e, i) => (
             <tr key={`${e.reference}-${e.type}-${i}`}>
               <td className="td whitespace-nowrap text-muted-foreground">{formatDate(e.date)}</td>
               <td className="td font-mono text-xs">{e.reference}</td>
@@ -458,6 +511,13 @@ function LedgerTable({ ledger }: { ledger: OutletLedger }) {
           ))}
         </tbody>
       </table>
+      <Pagination
+        page={entriesPage.page}
+        totalPages={entriesPage.totalPages}
+        totalItems={entriesPage.totalItems}
+        pageSize={PAGE_SIZE}
+        onPageChange={entriesPage.setPage}
+      />
     </div>
   );
 }
@@ -541,6 +601,86 @@ function CorrectBalanceForm({ ledger, onDone }: { ledger: OutletLedger; onDone: 
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
         Save correction
+      </button>
+    </form>
+  );
+}
+
+/** Edits an outlet's own details — name, phone, address, GST, route. The server already
+ * validates GST format and that the route exists, so this only guards against an empty name. */
+function EditOutletForm({ outlet, routes, onDone }: { outlet: OutletDTO; routes: RouteDTO[]; onDone: (message: string) => Promise<void> }) {
+  const [name, setName] = useState(outlet.name);
+  const [phone, setPhone] = useState(outlet.phone);
+  const [address, setAddress] = useState(outlet.address);
+  const [gstNumber, setGstNumber] = useState(outlet.gstNumber ?? "");
+  const [routeId, setRouteId] = useState(outlet.routeId ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const valid = name.trim().length > 0;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateOutlet(outlet.id, {
+        name: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        gstNumber: gstNumber.trim() ? gstNumber.trim().toUpperCase() : null,
+        routeId: routeId || null,
+      });
+      await onDone(`${name.trim()} updated`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update outlet");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <label className="label" htmlFor="eo-name">Name</label>
+        <input id="eo-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      </div>
+      <div>
+        <label className="label" htmlFor="eo-phone">Phone</label>
+        <input id="eo-phone" className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="eo-address">Address</label>
+        <input id="eo-address" className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="eo-gst">GST number</label>
+        <input
+          id="eo-gst"
+          className="input"
+          value={gstNumber}
+          onChange={(e) => setGstNumber(e.target.value)}
+          placeholder="15-character GSTIN, or leave blank"
+          maxLength={15}
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="eo-route">Route</label>
+        <Combobox
+          id="eo-route"
+          value={routeId}
+          onChange={setRouteId}
+          ariaLabel="Route"
+          placeholder="— No route —"
+          options={[{ value: "", label: "— No route —" }, ...routes.map((r) => ({ value: r.id, label: r.name, description: r.agentName ?? "Unassigned" }))]}
+        />
+      </div>
+
+      {error && <Alert kind="error">{error}</Alert>}
+
+      <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+        Save changes
       </button>
     </form>
   );

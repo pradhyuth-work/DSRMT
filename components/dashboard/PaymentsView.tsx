@@ -5,7 +5,7 @@ import { Download, HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
 import type { AuthUser, OutletDTO, PaymentDTO, StaffDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState, Modal, StatCard, formatDate } from "./ui";
+import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, StatCard, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { CollectPaymentForm, type CollectPaymentTarget } from "./payment-form";
 import { Combobox } from "./Combobox";
@@ -47,6 +47,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   }, [load]);
 
   const total = round2((payments ?? []).reduce((s, p) => s + p.amount, 0));
+  const paymentsPage = usePagination(payments ?? []);
 
   async function downloadCsv() {
     setDownloading(true);
@@ -138,7 +139,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {(payments ?? []).map((p) => (
+                {paymentsPage.pageItems.map((p) => (
                   <tr key={p.id} className="hover:bg-secondary">
                     <td className="td whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
                     <td className="td font-medium">{p.outletName}</td>
@@ -169,6 +170,13 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
           </div>
         )}
         {payments && payments.length === 0 && <EmptyState>No payments match these filters.</EmptyState>}
+        <Pagination
+          page={paymentsPage.page}
+          totalPages={paymentsPage.totalPages}
+          totalItems={paymentsPage.totalItems}
+          pageSize={PAGE_SIZE}
+          onPageChange={paymentsPage.setPage}
+        />
       </div>
 
       <Modal open={!!deletingPayment} title="Delete this payment?" onClose={() => setDeletingPayment(null)}>
