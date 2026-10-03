@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Hash, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Check, Hash, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import type { ProductDTO, Role, StockMovementDTO, StockMovementType } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
-import { Alert, EmptyState, Modal, formatDate } from "./ui";
+import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { AdjustStockForm, ChangeCodeForm, EditProductForm, RestockForm } from "./stock-dialogs";
 import BulkReceiveModal from "./BulkReceiveModal";
 import BulkRateModal from "./BulkRateModal";
+import BulkAdjustModal from "./BulkAdjustModal";
 
 const LOW_STOCK_THRESHOLD = 10;
 
@@ -20,7 +21,12 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   CANCEL_RETURN: "Returned (cancelled)",
 };
 
-type Dialog = { kind: "adjust" | "edit" | "restock" | "code"; product: ProductDTO } | { kind: "bulk" } | { kind: "bulk-rate" } | null;
+type Dialog =
+  | { kind: "adjust" | "edit" | "restock" | "code"; product: ProductDTO }
+  | { kind: "bulk" }
+  | { kind: "bulk-rate" }
+  | { kind: "bulk-adjust" }
+  | null;
 
 /**
  * Receiving and adjusting stock, adding products, and editing them are all admin-only now
@@ -74,6 +80,8 @@ export default function InventoryManager({
   }, [loadRanged]);
 
   const visibleMovements = rangedMovements ?? movements;
+  const productsPage = usePagination(products);
+  const movementsPage = usePagination(visibleMovements);
 
   async function confirmDeleteProduct() {
     if (!deletingProduct) return;
@@ -109,6 +117,9 @@ export default function InventoryManager({
             <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
               <Upload className="h-4 w-4" /> Bulk update rates
             </button>
+            <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
+              <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
+            </button>
             <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk" })}>
               <Upload className="h-4 w-4" /> Bulk receive stock
             </button>
@@ -129,13 +140,19 @@ export default function InventoryManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {products.map((p) => (
+                {productsPage.pageItems.map((p) => (
                   <tr key={p.id} className="hover:bg-secondary">
                     <td className="td text-muted-foreground">#{p.productCode}</td>
                     <td className="td font-medium">{p.name}</td>
                     <td className="td text-right tabular-nums">{formatMoney(p.unitPrice)}</td>
                     <td className="td text-right tabular-nums text-muted-foreground">
-                      {p.schemePrice != null ? formatMoney(p.schemePrice) : "—"}
+                      {canManage ? (
+                        <SchemeToggleCell product={p} onSaved={onSaved} />
+                      ) : p.schemePrice != null ? (
+                        formatMoney(p.schemePrice)
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="td text-right">
                       <StockBadge qty={p.stockQty ?? 0} />
@@ -192,6 +209,13 @@ export default function InventoryManager({
             </table>
           </div>
           {products.length === 0 && <EmptyState>No products yet{canManage ? " — add one to get started." : "."}</EmptyState>}
+          <Pagination
+            page={productsPage.page}
+            totalPages={productsPage.totalPages}
+            totalItems={productsPage.totalItems}
+            pageSize={PAGE_SIZE}
+            onPageChange={productsPage.setPage}
+          />
         </div>
 
         <div className="card">
@@ -210,7 +234,7 @@ export default function InventoryManager({
             <EmptyState>No stock movements {range.from || range.to ? "in this range" : "yet"}.</EmptyState>
           ) : (
             <ul className="max-h-96 divide-y divide-border overflow-y-auto">
-              {visibleMovements.map((m) => (
+              {movementsPage.pageItems.map((m) => (
                 <li key={m.id} className="flex items-start justify-between gap-3 px-5 py-2.5 text-sm">
                   <div className="flex min-w-0 items-start gap-2">
                     {m.direction === "IN" ? (
@@ -239,6 +263,13 @@ export default function InventoryManager({
               ))}
             </ul>
           )}
+          <Pagination
+            page={movementsPage.page}
+            totalPages={movementsPage.totalPages}
+            totalItems={movementsPage.totalItems}
+            pageSize={PAGE_SIZE}
+            onPageChange={movementsPage.setPage}
+          />
         </div>
       </div>
 
@@ -246,7 +277,7 @@ export default function InventoryManager({
         open={!!dialog}
         title={dialogTitle(dialog)}
         onClose={closeDialog}
-        wide={dialog?.kind === "bulk" || dialog?.kind === "bulk-rate"}
+        wide={dialog?.kind === "bulk" || dialog?.kind === "bulk-rate" || dialog?.kind === "bulk-adjust"}
       >
         {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "restock" && <RestockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
@@ -254,6 +285,7 @@ export default function InventoryManager({
         {dialog?.kind === "edit" && <EditProductForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "bulk" && <BulkReceiveModal onDone={done} />}
         {dialog?.kind === "bulk-rate" && <BulkRateModal products={products} onDone={done} />}
+        {dialog?.kind === "bulk-adjust" && <BulkAdjustModal products={products} onDone={done} />}
       </Modal>
 
       <Modal open={!!deletingProduct} title="Delete this product?" onClose={() => setDeletingProduct(null)}>
@@ -297,7 +329,104 @@ function dialogTitle(dialog: Dialog): string {
   if (!dialog) return "";
   if (dialog.kind === "bulk") return "Bulk receive stock";
   if (dialog.kind === "bulk-rate") return "Bulk update rates";
+  if (dialog.kind === "bulk-adjust") return "Bulk adjust stock";
   return `${DIALOG_TITLE[dialog.kind]} — ${dialog.product.name}`;
+}
+
+/**
+ * A toggle switch for whether a product currently has scheme pricing — same "null blocks
+ * the toggle" convention as the order-level scheme toggle it's named after (lib/money.ts /
+ * Product.schemePrice doc). Turning it off clears the price (instant, no confirmation, same
+ * as the billing toggle); turning it on needs a price first, so it opens a one-line inline
+ * input instead of flipping immediately.
+ */
+function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: () => Promise<void> }) {
+  const hasScheme = product.schemePrice != null;
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(newPrice: number | null) {
+    setBusy(true);
+    try {
+      await api.updateProduct(product.id, { schemePrice: newPrice });
+      setEditing(false);
+      await onSaved();
+    } catch {
+      // The toolbar-level Alert isn't reachable from here; the price staying in the input
+      // (edit mode stays open) is signal enough that the save didn't go through.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    const n = Number.parseFloat(price);
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <input
+          autoFocus
+          type="number"
+          min={0.01}
+          step="0.01"
+          className="input h-8 w-24 py-1 text-right"
+          placeholder="Price"
+          value={price}
+          disabled={busy}
+          onChange={(e) => setPrice(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && n > 0) void save(n);
+            else if (e.key === "Escape") setEditing(false);
+          }}
+        />
+        <button
+          type="button"
+          className="rounded p-1 text-success-foreground hover:bg-success disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={busy || !(n > 0)}
+          onClick={() => void save(n)}
+          aria-label={`Set scheme price for ${product.name}`}
+        >
+          <Check className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className="rounded p-1 text-muted-foreground hover:bg-secondary"
+          disabled={busy}
+          onClick={() => setEditing(false)}
+          aria-label="Cancel"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {hasScheme && <span className="tabular-nums">{formatMoney(product.schemePrice!)}</span>}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={hasScheme}
+        disabled={busy}
+        onClick={() => {
+          if (hasScheme) void save(null);
+          else {
+            setPrice("");
+            setEditing(true);
+          }
+        }}
+        title={hasScheme ? "Turn off scheme pricing" : "Turn on scheme pricing"}
+        className="disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${hasScheme ? "bg-success" : "bg-border"}`}>
+          <span
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${hasScheme ? "translate-x-[18px]" : "translate-x-0.5"}`}
+          />
+        </span>
+      </button>
+    </div>
+  );
 }
 
 function StockBadge({ qty }: { qty: number }) {

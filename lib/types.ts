@@ -416,6 +416,30 @@ export interface BulkRateResponse {
   results: BulkRateResultRow[];
 }
 
+export interface BulkAdjustRow {
+  productCode: number;
+  /** Signed change: positive adds stock, negative removes it. */
+  change: number;
+  reason: string;
+}
+
+export interface BulkAdjustInput {
+  rows: BulkAdjustRow[];
+}
+
+export interface BulkAdjustResultRow {
+  row: number;
+  productId: string;
+  productCode: number;
+  productName: string;
+  change: number;
+  newStockQty: number;
+}
+
+export interface BulkAdjustResponse {
+  results: BulkAdjustResultRow[];
+}
+
 export interface RestockInput {
   quantity: number;
   reason?: string;

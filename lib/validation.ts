@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AdjustStockInput,
   BillOrderInput,
+  BulkAdjustInput,
   BulkOutletInput,
   BulkRateInput,
   BulkReceiveInput,
@@ -157,6 +158,19 @@ const bulkRateRowSchema = z.object({
 export const bulkRateSchema = z.object({
   rows: z.array(bulkRateRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
 }) satisfies z.ZodType<BulkRateInput, z.ZodTypeDef, unknown>;
+
+const bulkAdjustRowSchema = z.object({
+  productCode,
+  change: z.coerce
+    .number()
+    .int("Change must be a whole number")
+    .refine((n) => n !== 0, "Change cannot be zero"),
+  reason: z.string().trim().min(3, "Give a reason for the adjustment").max(200),
+});
+
+export const bulkAdjustSchema = z.object({
+  rows: z.array(bulkAdjustRowSchema).min(1, "Add at least one row").max(500, "At most 500 rows per upload"),
+}) satisfies z.ZodType<BulkAdjustInput, z.ZodTypeDef, unknown>;
 
 export const changeProductCodeSchema = z.object({ newCode: productCode }) satisfies z.ZodType<
   ChangeProductCodeInput,
