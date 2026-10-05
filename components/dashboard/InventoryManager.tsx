@@ -113,16 +113,19 @@ export default function InventoryManager({
         {message && <Alert kind={message.kind}>{message.text}</Alert>}
 
         {canManage && (
-          <div className="flex justify-end gap-2">
-            <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
-              <Upload className="h-4 w-4" /> Bulk update rates
-            </button>
-            <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
-              <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
-            </button>
-            <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk" })}>
-              <Upload className="h-4 w-4" /> Bulk receive stock
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SchemeMasterToggle products={products} onSaved={onSaved} />
+            <div className="flex gap-2">
+              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
+                <Upload className="h-4 w-4" /> Bulk update rates
+              </button>
+              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
+                <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
+              </button>
+              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk" })}>
+                <Upload className="h-4 w-4" /> Bulk receive stock
+              </button>
+            </div>
           </div>
         )}
 
@@ -334,22 +337,71 @@ function dialogTitle(dialog: Dialog): string {
 }
 
 /**
- * A toggle switch for whether a product currently has scheme pricing — same "null blocks
- * the toggle" convention as the order-level scheme toggle it's named after (lib/money.ts /
- * Product.schemePrice doc). Turning it off clears the price (instant, no confirmation, same
- * as the billing toggle); turning it on needs a price first, so it opens a one-line inline
- * input instead of flipping immediately.
+ * One switch for every product at once — flips schemeActive in bulk without touching any
+ * stored schemePrice, so turning scheme pricing back on restores exactly what was active
+ * before. Reads "on" only once every product is active; none, or a mix left over from
+ * per-row toggling, both read as "off" and clicking turns everything on.
+ */
+function SchemeMasterToggle({ products, onSaved }: { products: ProductDTO[]; onSaved: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const total = products.length;
+  const activeCount = products.filter((p) => p.schemeActive).length;
+  const allActive = total > 0 && activeCount === total;
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      await api.toggleAllSchemes(!allActive);
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={allActive}
+        disabled={busy || total === 0}
+        onClick={() => void toggle()}
+        title={allActive ? "Turn off scheme pricing for every product" : "Turn on scheme pricing for every product"}
+        className="disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${allActive ? "bg-success" : "bg-border"}`}>
+          <span
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${allActive ? "translate-x-[18px]" : "translate-x-0.5"}`}
+          />
+        </span>
+      </button>
+      <span className="text-muted-foreground">
+        Scheme pricing{" "}
+        {activeCount > 0 && activeCount < total ? `(${activeCount}/${total} active)` : allActive ? "on for all" : "off for all"}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A per-product toggle for whether scheme pricing currently applies — same "null/inactive
+ * blocks the toggle" convention as the order-level scheme toggle it's named after
+ * (lib/money.ts / Product.schemePrice doc). Turning it off keeps the stored price (just
+ * struck through) so turning it back on reactivates instantly; a price is only asked for
+ * the first time this product ever gets one.
  */
 function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: () => Promise<void> }) {
-  const hasScheme = product.schemePrice != null;
+  const active = product.schemeActive ?? false;
+  const storedPrice = product.schemeStoredPrice ?? null;
+  const hasStoredPrice = storedPrice != null;
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function save(newPrice: number | null) {
+  async function save(input: { schemePrice?: number; schemeActive?: boolean }) {
     setBusy(true);
     try {
-      await api.updateProduct(product.id, { schemePrice: newPrice });
+      await api.updateProduct(product.id, input);
       setEditing(false);
       await onSaved();
     } catch {
@@ -357,6 +409,15 @@ function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: 
       // (edit mode stays open) is signal enough that the save didn't go through.
     } finally {
       setBusy(false);
+    }
+  }
+
+  function handleToggleClick() {
+    if (active) void save({ schemeActive: false });
+    else if (hasStoredPrice) void save({ schemeActive: true });
+    else {
+      setPrice("");
+      setEditing(true);
     }
   }
 
@@ -375,7 +436,7 @@ function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: 
           disabled={busy}
           onChange={(e) => setPrice(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && n > 0) void save(n);
+            if (e.key === "Enter" && n > 0) void save({ schemePrice: n });
             else if (e.key === "Escape") setEditing(false);
           }}
         />
@@ -383,7 +444,7 @@ function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: 
           type="button"
           className="rounded p-1 text-success-foreground hover:bg-success disabled:cursor-not-allowed disabled:opacity-40"
           disabled={busy || !(n > 0)}
-          onClick={() => void save(n)}
+          onClick={() => void save({ schemePrice: n })}
           aria-label={`Set scheme price for ${product.name}`}
         >
           <Check className="h-4 w-4" />
@@ -403,25 +464,21 @@ function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: 
 
   return (
     <div className="flex items-center justify-end gap-2">
-      {hasScheme && <span className="tabular-nums">{formatMoney(product.schemePrice!)}</span>}
+      {hasStoredPrice && (
+        <span className={`tabular-nums ${active ? "" : "text-muted-foreground line-through"}`}>{formatMoney(storedPrice!)}</span>
+      )}
       <button
         type="button"
         role="switch"
-        aria-checked={hasScheme}
+        aria-checked={active}
         disabled={busy}
-        onClick={() => {
-          if (hasScheme) void save(null);
-          else {
-            setPrice("");
-            setEditing(true);
-          }
-        }}
-        title={hasScheme ? "Turn off scheme pricing" : "Turn on scheme pricing"}
+        onClick={handleToggleClick}
+        title={active ? "Turn off scheme pricing" : "Turn on scheme pricing"}
         className="disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${hasScheme ? "bg-success" : "bg-border"}`}>
+        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${active ? "bg-success" : "bg-border"}`}>
           <span
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${hasScheme ? "translate-x-[18px]" : "translate-x-0.5"}`}
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${active ? "translate-x-[18px]" : "translate-x-0.5"}`}
           />
         </span>
       </button>

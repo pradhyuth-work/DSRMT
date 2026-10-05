@@ -1,6 +1,13 @@
 import type { Product, StockMovement, StockMovementType } from "@prisma/client";
 import type { ProductDTO, Role, StockMovementDTO, StockMovementDirection } from "./types";
 
+/** The price actually usable for "with scheme" orders — null unless a price is both set
+ * and switched on. Everything outside Stock management (order pricing, availability
+ * checks) should go through this rather than the raw schemePrice column. */
+export function effectiveSchemePrice(p: { schemePrice: number | null; schemeActive: boolean }): number | null {
+  return p.schemeActive ? p.schemePrice : null;
+}
+
 /** Field agents see only whether an item is in stock, never the exact count. */
 export function toProductDTO(p: Product, role: Role): ProductDTO {
   const dto: ProductDTO = {
@@ -8,11 +15,15 @@ export function toProductDTO(p: Product, role: Role): ProductDTO {
     productCode: p.productCode,
     name: p.name,
     unitPrice: p.unitPrice,
-    schemePrice: p.schemePrice,
+    schemePrice: effectiveSchemePrice(p),
     inStock: p.stockQty > 0,
     createdAt: p.createdAt.toISOString(),
   };
   if (role !== "agent") dto.stockQty = p.stockQty;
+  if (role === "admin") {
+    dto.schemeActive = p.schemeActive;
+    dto.schemeStoredPrice = p.schemePrice;
+  }
   return dto;
 }
 

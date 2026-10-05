@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { HttpError } from "./api";
 import { round2 } from "./money";
+import { effectiveSchemePrice } from "./products";
 import type { OrderDTO, Role, SaleItemInput } from "./types";
 
 export interface PricedLine {
@@ -54,7 +55,7 @@ export async function priceLines(
   if (hasScheme) {
     const missing = [...quantities.keys()]
       .map((productId) => productById.get(productId)!)
-      .filter((p) => p.schemePrice == null)
+      .filter((p) => effectiveSchemePrice(p) == null)
       .map((p) => p.name);
     if (missing.length > 0) {
       throw new HttpError(400, `No scheme price set for: ${missing.join(", ")} — set one from Stock first`);
@@ -63,7 +64,7 @@ export async function priceLines(
 
   const lines = [...quantities].map(([productId, quantity]) => {
     const product = productById.get(productId)!;
-    const unitPrice = hasScheme ? product.schemePrice! : product.unitPrice;
+    const unitPrice = hasScheme ? effectiveSchemePrice(product)! : product.unitPrice;
     return {
       productId,
       productName: product.name,

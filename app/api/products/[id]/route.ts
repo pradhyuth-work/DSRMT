@@ -16,12 +16,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const exists = await prisma.product.findUnique({ where: { id }, select: { id: true } });
     if (!exists) throw new HttpError(404, "Product not found");
 
+    // Setting a scheme price (or clearing it) implies the matching active state, unless the
+    // caller passes schemeActive explicitly — e.g. the Stock toggle reactivating an existing
+    // stored price with no schemePrice in the request at all.
+    const schemeActive =
+      input.schemeActive !== undefined ? input.schemeActive : input.schemePrice !== undefined ? input.schemePrice != null : undefined;
+
     const product = await prisma.product.update({
       where: { id },
       data: {
         name: input.name,
         unitPrice: input.unitPrice === undefined ? undefined : round2(input.unitPrice),
         schemePrice: input.schemePrice === undefined ? undefined : input.schemePrice === null ? null : round2(input.schemePrice),
+        schemeActive,
       },
     });
     return NextResponse.json(toProductDTO(product, user.role));

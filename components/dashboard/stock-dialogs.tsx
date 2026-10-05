@@ -77,7 +77,8 @@ export function AdjustStockForm({ product, onDone }: { product: ProductDTO; onDo
 export function EditProductForm({ product, onDone }: { product: ProductDTO; onDone: (message: string) => Promise<void> }) {
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(String(product.unitPrice));
-  const [schemePrice, setSchemePrice] = useState(product.schemePrice != null ? String(product.schemePrice) : "");
+  const storedSchemePrice = product.schemeStoredPrice ?? product.schemePrice;
+  const [schemePrice, setSchemePrice] = useState(storedSchemePrice != null ? String(storedSchemePrice) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const priceNum = Number.parseFloat(price);
@@ -90,7 +91,15 @@ export function EditProductForm({ product, onDone }: { product: ProductDTO; onDo
     setBusy(true);
     setError(null);
     try {
-      const updated = await api.updateProduct(product.id, { name: name.trim(), unitPrice: priceNum, schemePrice: schemePriceNum });
+      // Only send schemePrice when it actually changed — resending the unchanged stored
+      // value would flip schemeActive back on (see the PATCH route) even when this edit
+      // was just a name/price fix made while scheme pricing was deliberately switched off.
+      const schemePriceChanged = schemePriceNum !== (storedSchemePrice ?? null);
+      const updated = await api.updateProduct(product.id, {
+        name: name.trim(),
+        unitPrice: priceNum,
+        ...(schemePriceChanged ? { schemePrice: schemePriceNum } : {}),
+      });
       await onDone(`Updated ${updated.name}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed");

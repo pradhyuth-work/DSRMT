@@ -53,9 +53,13 @@ model Product {
   name        String   @unique
   unitPrice   Float
   /// Optional promotional per-unit price. When an order is toggled "with scheme", every
-  /// line reprices off this instead of unitPrice — null blocks the toggle for orders that
-  /// include this product until a scheme price is set.
+  /// line reprices off this instead of unitPrice — null, or schemeActive false, blocks the
+  /// toggle for orders that include this product until a scheme price is set and active.
   schemePrice Float?
+  /// Whether schemePrice currently applies. Separate from the price itself so turning scheme
+  /// pricing off (per-product or for every product at once) doesn't discard the number —
+  /// it can be reactivated later without retyping it.
+  schemeActive Boolean @default(true)
   /// Never negative: enforced by a CHECK constraint in the migration.
   stockQty    Int      @default(0)
   createdAt   DateTime @default(now())

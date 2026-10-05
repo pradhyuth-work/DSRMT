@@ -18,6 +18,7 @@ import type {
   LoginInput,
   ResetPinInput,
   RestockInput,
+  ToggleAllSchemesInput,
   ToggleSchemeInput,
   UpdateOrderInput,
   UpdateOutletInput,
@@ -189,11 +190,16 @@ export const updateProductSchema = z
     name: z.string().trim().min(1, "Name is required").max(120).optional(),
     unitPrice: money.positive("Price must be greater than zero").optional(),
     schemePrice,
+    schemeActive: z.boolean().optional(),
   })
   .refine(
-    (v) => v.name !== undefined || v.unitPrice !== undefined || v.schemePrice !== undefined,
+    (v) => v.name !== undefined || v.unitPrice !== undefined || v.schemePrice !== undefined || v.schemeActive !== undefined,
     "Nothing to update",
   ) satisfies z.ZodType<UpdateProductInput, z.ZodTypeDef, unknown>;
+
+export const toggleAllSchemesSchema = z.object({
+  active: z.boolean(),
+}) satisfies z.ZodType<ToggleAllSchemesInput, z.ZodTypeDef, unknown>;
 
 export const restockSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),

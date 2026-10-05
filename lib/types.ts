@@ -32,8 +32,15 @@ export interface ProductDTO {
   productCode: number;
   name: string;
   unitPrice: number;
-  /** Promotional per-unit price for "with scheme" orders. Null until an admin sets one. */
+  /** Promotional per-unit price for "with scheme" orders — null if never set, or if scheme
+   * pricing is currently switched off for this product (see schemeActive). */
   schemePrice: number | null;
+  /** Whether schemePrice is currently active. Admin-only (schemePrice already reflects it
+   * for every other purpose — pricing, availability checks — so other roles don't need it). */
+  schemeActive?: boolean;
+  /** The scheme price kept in storage even while schemeActive is false, so the Stock UI can
+   * reactivate it without asking for the number again. Admin-only. */
+  schemeStoredPrice?: number | null;
   /** Omitted for field agents, who only see whether an item is in stock. */
   stockQty?: number;
   inStock: boolean;
@@ -265,8 +272,20 @@ export interface DispatchBulkResponse {
 export interface UpdateProductInput {
   name?: string;
   unitPrice?: number;
-  /** Pass null to clear it. */
+  /** Pass null to clear it — also switches schemeActive off. Setting a value switches it
+   * back on, unless schemeActive is passed explicitly alongside it. */
   schemePrice?: number | null;
+  /** Flips scheme pricing on/off without touching the stored price. */
+  schemeActive?: boolean;
+}
+
+export interface ToggleAllSchemesInput {
+  active: boolean;
+}
+
+export interface ToggleAllSchemesResponse {
+  count: number;
+  active: boolean;
 }
 
 export interface ChangeProductCodeInput {

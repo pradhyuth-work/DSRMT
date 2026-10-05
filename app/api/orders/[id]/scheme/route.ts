@@ -4,6 +4,7 @@ import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/l
 import { authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { round2, statusFor } from "@/lib/money";
+import { effectiveSchemePrice } from "@/lib/products";
 import { toggleSchemeSchema } from "@/lib/validation";
 import type { OrderDTO } from "@/lib/types";
 
@@ -38,7 +39,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       if (hasScheme) {
         const missing = invoice.items
-          .filter((i) => productById.get(i.productId)?.schemePrice == null)
+          .filter((i) => {
+            const product = productById.get(i.productId);
+            return !product || effectiveSchemePrice(product) == null;
+          })
           .map((i) => productById.get(i.productId)?.name ?? i.productId);
         if (missing.length > 0) {
           throw new HttpError(400, `No scheme price set for: ${missing.join(", ")} — set one from Stock first`);
@@ -48,7 +52,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       let totalAmount = 0;
       for (const item of invoice.items) {
         const product = productById.get(item.productId)!;
-        const unitPrice = hasScheme ? product.schemePrice! : product.unitPrice;
+        const unitPrice = hasScheme ? effectiveSchemePrice(product)! : product.unitPrice;
         const subtotal = round2(unitPrice * item.quantity);
         totalAmount = round2(totalAmount + subtotal);
         await tx.invoiceItem.update({ where: { id: item.id }, data: { unitPrice, subtotal } });
