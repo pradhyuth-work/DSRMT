@@ -66,6 +66,14 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
   }, [load]);
 
   function exportCsv() {
+    if (view === "inventory") {
+      downloadCsv(
+        "live-inventory.csv",
+        ["#", "Product", "Unit Price", "In Stock", "Stock Value"],
+        products.map((p) => [p.productCode, p.name, p.unitPrice, p.stockQty ?? 0, (p.stockQty ?? 0) * p.unitPrice]),
+      );
+      return;
+    }
     if (!report) return;
     if (view === "product") {
       downloadCsv(
@@ -132,7 +140,7 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
             {backingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveDownload className="h-4 w-4" />}
             Full backup
           </button>
-          <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={!report}>
+          <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={view === "inventory" ? products.length === 0 : !report}>
             <Download className="h-4 w-4" /> Download CSV
           </button>
           <button
