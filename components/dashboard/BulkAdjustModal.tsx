@@ -10,14 +10,20 @@ import { Combobox } from "./Combobox";
 interface GridRow {
   key: number;
   productCode: string;
-  change: string;
+  physicalStock: string;
   reason: string;
 }
 
-let nextKey = 1;
-const emptyRow = (): GridRow => ({ key: nextKey++, productCode: "", change: "", reason: "" });
+const DEFAULT_REASON = "Physical stock count";
 
-const TEMPLATE = "productCode,change,reason\n3,-5,Damaged in transit\n";
+let nextKey = 1;
+const emptyRow = (): GridRow => ({ key: nextKey++, productCode: "", physicalStock: "", reason: DEFAULT_REASON });
+
+/** Quotes a CSV field only when it needs it — keeps plain numbers and names readable. */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 /** Minimal CSV parser: comma-separated, double-quote escaping (a "" inside a quoted field is a literal quote). */
 function parseCsv(text: string): string[][] {
@@ -50,21 +56,23 @@ function rowsFromCsv(text: string): GridRow[] {
   if (parsed.length === 0) return [];
   const header = parsed[0].map((h) => h.trim().toLowerCase());
   const iCode = header.indexOf("productcode");
-  const iChange = header.indexOf("change");
+  const iPhysical = header.indexOf("physicalstock");
   const iReason = header.indexOf("reason");
-  const dataRows = iCode >= 0 || iChange >= 0 || iReason >= 0 ? parsed.slice(1) : parsed;
+  const dataRows = iCode >= 0 || iPhysical >= 0 || iReason >= 0 ? parsed.slice(1) : parsed;
   return dataRows.map((r) => ({
     key: nextKey++,
     productCode: (iCode >= 0 ? r[iCode] : r[0])?.trim() ?? "",
-    change: (iChange >= 0 ? r[iChange] : r[1])?.trim() ?? "",
-    reason: (iReason >= 0 ? r[iReason] : r[2])?.trim() ?? "",
+    physicalStock: (iPhysical >= 0 ? r[iPhysical] : r[3])?.trim() ?? "",
+    reason: ((iReason >= 0 ? r[iReason] : r[4])?.trim() || DEFAULT_REASON),
   }));
 }
 
-/** Bulk stock correction — every product must already exist (this never creates one); pick
- * it by name in the grid, or upload/paste a productCode,change,reason CSV. change is
- * signed: positive adds stock, negative removes it — same convention as the single-item
- * "Adjust stock" action, and every row needs its own reason for the same audit-trail reason. */
+/** Bulk stock correction driven by a physical count, not a manually-computed delta — every
+ * product must already exist (this never creates one). Download the template to get every
+ * product's code, name and current system stock, fill in what was actually counted, and
+ * re-upload; the signed change sent to the API (same convention as the single-item "Adjust
+ * stock" action) is computed here against each product's *live* stock, not whatever the
+ * template said at download time, so a count taken a while ago still lands correctly. */
 export default function BulkAdjustModal({ products, onDone }: { products: ProductDTO[]; onDone: (message: string) => Promise<void> }) {
   const [rows, setRows] = useState<GridRow[]>([emptyRow()]);
   const [pasteText, setPasteText] = useState("");
@@ -74,6 +82,7 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
   const [summary, setSummary] = useState<BulkAdjustResultRow[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  const byCode = new Map(products.map((p) => [String(p.productCode), p]));
   const productOptions = products.map((p) => ({ value: String(p.productCode), label: p.name, description: `#${p.productCode}` }));
 
   function loadRows(text: string) {
@@ -93,7 +102,10 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
   }
 
   function downloadTemplate() {
-    const blob = new Blob([TEMPLATE], { type: "text/csv" });
+    const header = ["productCode", "product", "currentStock", "physicalStock", "reason"];
+    const body = products.map((p) => [p.productCode, p.name, p.stockQty ?? 0, "", ""]);
+    const csv = [header, ...body].map((r) => r.map(csvField).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -105,15 +117,22 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
   const update = (key: number, patch: Partial<GridRow>) =>
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
+  function toPayloadRow(r: GridRow): BulkAdjustRow | null {
+    const product = byCode.get(r.productCode.trim());
+    const physical = Number.parseInt(r.physicalStock, 10);
+    if (!product || !Number.isInteger(physical) || physical < 0 || !r.reason.trim()) return null;
+    const change = physical - (product.stockQty ?? 0);
+    if (change === 0) return null;
+    return { productCode: product.productCode, change, reason: r.reason.trim() };
+  }
+
   async function submit() {
     setSubmitting(true);
     setError(null);
     setRowErrors(new Map());
     setSummary(null);
     try {
-      const payloadRows: BulkAdjustRow[] = rows
-        .filter((r) => r.productCode.trim() && r.change.trim() && r.reason.trim())
-        .map((r) => ({ productCode: Number.parseInt(r.productCode, 10), change: Number.parseInt(r.change, 10), reason: r.reason.trim() }));
+      const payloadRows = rows.map(toPayloadRow).filter((r): r is BulkAdjustRow => r !== null);
       const { results } = await api.bulkAdjustStock({ rows: payloadRows });
       setSummary(results);
       await onDone(`${results.length} stock adjustment${results.length === 1 ? "" : "s"} recorded`);
@@ -128,9 +147,7 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
     }
   }
 
-  const validRowCount = rows.filter(
-    (r) => r.productCode.trim() && Number.isInteger(Number.parseInt(r.change, 10)) && Number.parseInt(r.change, 10) !== 0 && r.reason.trim().length >= 3,
-  ).length;
+  const validRowCount = rows.filter((r) => toPayloadRow(r) !== null).length;
 
   return (
     <div className="space-y-4">
@@ -159,7 +176,7 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
         <textarea
           id="paste-adjust-rows"
           className="input h-20 font-mono text-xs"
-          placeholder={"productCode,change,reason\n3,-5,Damaged in transit"}
+          placeholder={"productCode,physicalStock,reason\n3,113,Physical stock count"}
           value={pasteText}
           onChange={(e) => setPasteText(e.target.value)}
           onBlur={() => pasteText.trim() && loadRows(pasteText)}
@@ -171,13 +188,19 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
           <thead className="bg-secondary">
             <tr>
               <th className="th">Product</th>
-              <th className="th">Change</th>
+              <th className="th text-right">Current</th>
+              <th className="th">Physical Stock</th>
+              <th className="th text-right">Change</th>
               <th className="th">Reason</th>
               <th className="th w-8" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.map((r, i) => (
+            {rows.map((r, i) => {
+              const product = byCode.get(r.productCode.trim());
+              const physical = Number.parseInt(r.physicalStock, 10);
+              const change = product && Number.isInteger(physical) ? physical - (product.stockQty ?? 0) : null;
+              return (
               <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
                 <td className="p-1 min-w-48">
                   <Combobox
@@ -188,15 +211,24 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
                     ariaLabel={`Product for row ${i + 1}`}
                   />
                 </td>
+                <td className="p-1 w-20 text-right tabular-nums text-muted-foreground">{product ? product.stockQty ?? 0 : "—"}</td>
                 <td className="p-1 w-28">
                   <input
                     className="input py-1"
                     type="number"
                     step={1}
-                    value={r.change}
-                    onChange={(e) => update(r.key, { change: e.target.value })}
-                    placeholder="-5 or +10"
+                    min={0}
+                    value={r.physicalStock}
+                    onChange={(e) => update(r.key, { physicalStock: e.target.value })}
+                    placeholder="Counted qty"
                   />
+                </td>
+                <td
+                  className={`p-1 w-20 text-right tabular-nums font-medium ${
+                    change === null || change === 0 ? "text-muted-foreground" : change > 0 ? "text-success-foreground" : "text-warning-foreground"
+                  }`}
+                >
+                  {change === null ? "—" : change > 0 ? `+${change}` : change}
                 </td>
                 <td className="p-1 min-w-48">
                   <input
@@ -219,10 +251,11 @@ export default function BulkAdjustModal({ products, onDone }: { products: Produc
                   </button>
                 </td>
                 {rowErrors.has(i + 1) && (
-                  <td colSpan={4} className="px-2 pb-1 text-xs text-danger-foreground">{rowErrors.get(i + 1)}</td>
+                  <td colSpan={6} className="px-2 pb-1 text-xs text-danger-foreground">{rowErrors.get(i + 1)}</td>
                 )}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
