@@ -27,10 +27,10 @@ export function toProductDTO(p: Product, role: Role): ProductDTO {
   return dto;
 }
 
-/** RECEIVE/CANCEL_RETURN always add stock back; DISPATCH always takes it out; ADJUST goes
+/** RECEIVE/CANCEL_RETURN always add stock back; DISPATCH/BILL always take it out; ADJUST goes
  * either way depending on the sign of the (already-signed) change it recorded. */
 export function directionFor(type: StockMovementType, change: number): StockMovementDirection {
-  if (type === "DISPATCH") return "OUT";
+  if (type === "DISPATCH" || type === "BILL") return "OUT";
   if (type === "RECEIVE" || type === "CANCEL_RETURN") return "IN";
   return change >= 0 ? "IN" : "OUT";
 }

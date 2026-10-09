@@ -40,7 +40,10 @@ enum FulfilmentStatus {
 enum StockMovementType {
   RECEIVE
   ADJUST
+  /// Legacy: stock used to be deducted at dispatch. Kept for historical rows.
   DISPATCH
+  /// Stock deducted when an order is billed.
+  BILL
   CANCEL_RETURN
 }
 

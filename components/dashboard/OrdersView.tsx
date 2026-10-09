@@ -102,7 +102,7 @@ export default function OrdersView({
     setMessage(null);
     try {
       const { orders: dispatched } = await api.dispatchBulk({ orderIds: g.orders.map((o) => o.id) });
-      setMessage({ kind: "success", text: `${dispatched.length} orders dispatched for ${g.agentName} — stock deducted` });
+      setMessage({ kind: "success", text: `${dispatched.length} orders dispatched for ${g.agentName}` });
       setDispatchPreview(null);
       await onSaved();
     } catch (err) {
@@ -355,7 +355,7 @@ export default function OrdersView({
                     <button
                       className="btn btn-primary h-11 flex-1 text-sm"
                       disabled={busy}
-                      onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${orderLabel(o)} dispatched — stock deducted`)}
+                      onClick={() => void run(o.id, () => api.dispatchOrder(o.id), `${orderLabel(o)} dispatched`)}
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                       Dispatch
@@ -431,7 +431,7 @@ export default function OrdersView({
                 <p className="font-semibold">{orderLabel(confirmingCancel)} — {confirmingCancel.outletName}</p>
                 <p className="mt-1 text-foreground">
                   {formatMoney(confirmingCancel.totalAmount)}
-                  {confirmingCancel.fulfilmentStatus === "DISPATCHED" && " · its stock will be returned"}
+                  {(confirmingCancel.fulfilmentStatus === "BILLED" || confirmingCancel.fulfilmentStatus === "DISPATCHED") && " · its stock will be returned"}
                 </p>
               </div>
             </div>
@@ -460,7 +460,7 @@ export default function OrdersView({
         {dispatchPreview && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {dispatchPreview.orders.length} orders · stock will be deducted for the totals below
+              {dispatchPreview.orders.length} orders · stock was already deducted when these were billed; totals below
             </p>
             <ul className="max-h-80 space-y-1.5 overflow-y-auto border-y border-border py-2 text-sm">
               {dispatchPreviewTotals.map((s) => (
