@@ -35,8 +35,23 @@ interface LedgerData {
 
 const UNASSIGNED = "__unassigned__";
 
-export default function OutletLedgers({ data, user, onSaved }: { data: LedgerData; user: AuthUser; onSaved: () => Promise<void> }) {
-  const ledgers = data.reports.outletLedgers;
+export default function OutletLedgers({
+  data,
+  user,
+  onSaved,
+  onlyInCredit = false,
+}: {
+  data: LedgerData;
+  user: AuthUser;
+  onSaved: () => Promise<void>;
+  /** Pre-filters to outlets with an outstanding balance — the "Outlets in Credit" menu
+   * entry is this same ledger view, just scoped down, rather than a separate page. */
+  onlyInCredit?: boolean;
+}) {
+  const ledgers = useMemo(
+    () => (onlyInCredit ? data.reports.outletLedgers.filter((l) => l.balance > 0) : data.reports.outletLedgers),
+    [data.reports.outletLedgers, onlyInCredit],
+  );
   const agents = useMemo(() => data.staff.filter((s) => s.role === "agent"), [data.staff]);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("");
@@ -295,7 +310,13 @@ export default function OutletLedgers({ data, user, onSaved }: { data: LedgerDat
           </table>
         </div>
         {filtered.length === 0 && (
-          <EmptyState>{ledgers.length === 0 ? "No outlets yet." : "No outlets match your search."}</EmptyState>
+          <EmptyState>
+            {ledgers.length > 0
+              ? "No outlets match your search."
+              : onlyInCredit
+                ? "No outlets currently have an outstanding balance."
+                : "No outlets yet."}
+          </EmptyState>
         )}
         <Pagination
           page={ledgersPage.page}

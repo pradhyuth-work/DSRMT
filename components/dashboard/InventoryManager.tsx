@@ -8,7 +8,6 @@ import { api } from "./api-client";
 import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
 import { AdjustStockForm, ChangeCodeForm, EditProductForm, RestockForm } from "./stock-dialogs";
-import BulkReceiveModal from "./BulkReceiveModal";
 import BulkRateModal from "./BulkRateModal";
 import BulkAdjustModal from "./BulkAdjustModal";
 
@@ -23,7 +22,6 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
 
 type Dialog =
   | { kind: "adjust" | "edit" | "restock" | "code"; product: ProductDTO }
-  | { kind: "bulk" }
   | { kind: "bulk-rate" }
   | { kind: "bulk-adjust" }
   | null;
@@ -121,9 +119,6 @@ export default function InventoryManager({
               </button>
               <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
                 <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
-              </button>
-              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk" })}>
-                <Upload className="h-4 w-4" /> Bulk receive stock
               </button>
             </div>
           </div>
@@ -280,13 +275,12 @@ export default function InventoryManager({
         open={!!dialog}
         title={dialogTitle(dialog)}
         onClose={closeDialog}
-        wide={dialog?.kind === "bulk" || dialog?.kind === "bulk-rate" || dialog?.kind === "bulk-adjust"}
+        wide={dialog?.kind === "bulk-rate" || dialog?.kind === "bulk-adjust"}
       >
         {dialog?.kind === "adjust" && <AdjustStockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "restock" && <RestockForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "code" && <ChangeCodeForm key={dialog.product.id} product={dialog.product} onDone={done} />}
         {dialog?.kind === "edit" && <EditProductForm key={dialog.product.id} product={dialog.product} onDone={done} />}
-        {dialog?.kind === "bulk" && <BulkReceiveModal onDone={done} />}
         {dialog?.kind === "bulk-rate" && <BulkRateModal products={products} onDone={done} />}
         {dialog?.kind === "bulk-adjust" && <BulkAdjustModal products={products} onDone={done} />}
       </Modal>
@@ -330,7 +324,6 @@ const DIALOG_TITLE: Record<"adjust" | "edit" | "restock" | "code", string> = {
 
 function dialogTitle(dialog: Dialog): string {
   if (!dialog) return "";
-  if (dialog.kind === "bulk") return "Bulk receive stock";
   if (dialog.kind === "bulk-rate") return "Bulk update rates";
   if (dialog.kind === "bulk-adjust") return "Bulk adjust stock";
   return `${DIALOG_TITLE[dialog.kind]} — ${dialog.product.name}`;

@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   Package,
+  PackagePlus,
   ReceiptText,
   RefreshCw,
   BarChart3,
@@ -45,10 +46,11 @@ import OutletLedgers from "./OutletLedgers";
 import PaymentsView from "./PaymentsView";
 import StaffPerformanceView from "./StaffPerformance";
 import InventoryManager from "./InventoryManager";
+import InventoryInwarding from "./InventoryInwarding";
 import UsersManager from "./UsersManager";
 import SalesReports from "./SalesReports";
 
-type TabId = "sale" | "orders" | "ledgers" | "payments" | "staff" | "inventory" | "users" | "reports";
+type TabId = "sale" | "orders" | "ledgers" | "credit" | "payments" | "staff" | "inventory" | "inwarding" | "users" | "reports";
 
 interface TabDef {
   id: TabId;
@@ -63,10 +65,12 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "sale", label: "New Sale", helper: "Record a sale", icon: ShoppingCart },
     { id: "orders", label: "Orders", helper: "Dispatch queue", icon: ClipboardList },
     { id: "ledgers", label: "Outlet Ledgers", helper: "Collect dues", icon: Store },
+    { id: "credit", label: "Outlets in Credit", helper: "Pending dues only", icon: ReceiptText },
     { id: "payments", label: "Payments", helper: "Collections", icon: Wallet2 },
     { id: "staff", label: "Staff Performance", helper: "Track the crew", icon: Users },
     { id: "reports", label: "Reports", helper: "Sales breakdowns", icon: BarChart3 },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
+    { id: "inwarding", label: "Inwarding", helper: "Record purchases", icon: PackagePlus },
     { id: "users", label: "Users", helper: "Accounts & roles", icon: UserCog },
   ],
   stock: [
@@ -428,12 +432,21 @@ export default function Dashboard() {
                     onSaved={refresh}
                   />
                 )}
+                {tab === "credit" && data.reports && (
+                  <OutletLedgers
+                    data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
+                    user={user}
+                    onSaved={refresh}
+                    onlyInCredit
+                  />
+                )}
                 {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
                 {tab === "staff" && <StaffPerformanceView />}
                 {tab === "reports" && <SalesReports outlets={data.outlets} products={data.products} />}
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}
+                {tab === "inwarding" && <InventoryInwarding movements={data.movements} onSaved={refresh} />}
                 {tab === "users" && (
                   <UsersManager
                     staff={data.staff}
