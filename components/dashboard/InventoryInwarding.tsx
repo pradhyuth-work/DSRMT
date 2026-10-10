@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDownCircle, History, PackagePlus } from "lucide-react";
-import type { StockMovementDTO } from "@/lib/types";
+import type { ProductDTO, StockMovementDTO } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert, EmptyState, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
@@ -15,7 +15,15 @@ import BulkReceiveModal from "./BulkReceiveModal";
  * is the unfiltered recent log loaded with the rest of the dashboard; picking a date range
  * fetches a scoped list instead, same self-fetch pattern used in Stock.
  */
-export default function InventoryInwarding({ movements, onSaved }: { movements: StockMovementDTO[]; onSaved: () => Promise<void> }) {
+export default function InventoryInwarding({
+  products,
+  movements,
+  onSaved,
+}: {
+  products: ProductDTO[];
+  movements: StockMovementDTO[];
+  onSaved: () => Promise<void>;
+}) {
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [range, setRange] = useState<DateRange>({});
   const [rangedMovements, setRangedMovements] = useState<StockMovementDTO[] | null>(null);
@@ -58,7 +66,7 @@ export default function InventoryInwarding({ movements, onSaved }: { movements: 
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">Post an incoming bill and increase warehouse stock immediately.</p>
         </div>
-        <BulkReceiveModal onDone={done} />
+        <BulkReceiveModal products={products} onDone={done} />
       </div>
 
       <div className="card">

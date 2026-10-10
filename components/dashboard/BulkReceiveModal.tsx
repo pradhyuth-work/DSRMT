@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Download, Loader2, Plus, Trash2, Upload } from "lucide-react";
-import type { BulkReceiveRow, BulkReceiveResultRow } from "@/lib/types";
+import type { BulkReceiveRow, BulkReceiveResultRow, ProductDTO } from "@/lib/types";
 import { ApiRequestError, api } from "./api-client";
 import { Alert } from "./ui";
 
@@ -61,7 +61,14 @@ function rowsFromCsv(text: string): GridRow[] {
   }));
 }
 
-export default function BulkReceiveModal({ onDone }: { onDone: (message: string) => Promise<void> }) {
+/** Sentinel <select> value meaning "type a brand-new product name instead of picking one". */
+const NEW_PRODUCT = "__new__";
+
+export default function BulkReceiveModal({ products, onDone }: { products: ProductDTO[]; onDone: (message: string) => Promise<void> }) {
+  const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  /** Case-insensitive lookup so CSV/pasted names still map onto the dropdown's exact product names. */
+  const productByName = useMemo(() => new Map(products.map((p) => [p.name.trim().toLowerCase(), p])), [products]);
+  const [newProductKeys, setNewProductKeys] = useState<Set<number>>(new Set());
   const [rows, setRows] = useState<GridRow[]>([emptyRow()]);
   const [supplierRef, setSupplierRef] = useState("");
   const [pasteText, setPasteText] = useState("");
@@ -74,7 +81,16 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
   function loadRows(text: string) {
     const parsed = rowsFromCsv(text);
     if (parsed.length > 0) {
-      setRows(parsed);
+      // Snap names that match an existing product onto its exact name; anything else becomes a "new product" row.
+      const newKeys = new Set<number>();
+      const snapped = parsed.map((r) => {
+        const match = productByName.get(r.name.trim().toLowerCase());
+        if (match) return { ...r, name: match.name };
+        if (r.name.trim()) newKeys.add(r.key);
+        return r;
+      });
+      setNewProductKeys(newKeys);
+      setRows(snapped);
       setSummary(null);
       setError(null);
       setRowErrors(new Map());
@@ -127,6 +143,8 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
     }
   }
 
+  const isNewRow = (r: GridRow) => newProductKeys.has(r.key);
+
   const validRowCount = rows.filter((r) => r.name.trim() && r.quantity.trim() && Number.parseInt(r.quantity, 10) > 0).length;
 
   return (
@@ -164,8 +182,8 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Enter the product <b>name</b> exactly as it appears in Inventory to add <b>quantity</b> to it (leave price blank).
-        Use a name that doesn't exist yet to create a new product — then a unit price is required.
+        Pick the product from the list and enter the <b>quantity</b> to add to its stock.
+        Choose <b>+ New product…</b> only for a product that isn't in Inventory yet — then a unit price is required.
       </p>
 
       <div>
@@ -194,10 +212,48 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
             {rows.map((r, i) => (
               <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
                 <td className="p-1 min-w-48">
-                  <input className="input py-1" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Product name" />
+                  <select
+                    className="input py-1"
+                    aria-label="Product"
+                    value={isNewRow(r) ? NEW_PRODUCT : productByName.has(r.name.trim().toLowerCase()) ? r.name : ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === NEW_PRODUCT) {
+                        setNewProductKeys((prev) => new Set(prev).add(r.key));
+                        update(r.key, { name: "" });
+                      } else {
+                        setNewProductKeys((prev) => {
+                          const next = new Set(prev);
+                          next.delete(r.key);
+                          return next;
+                        });
+                        update(r.key, { name: v, unitPrice: "" });
+                      }
+                    }}
+                  >
+                    <option value="">Select product…</option>
+                    {sortedProducts.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                    <option value={NEW_PRODUCT}>+ New product…</option>
+                  </select>
+                  {isNewRow(r) && (
+                    <input
+                      className="input mt-1 py-1"
+                      value={r.name}
+                      onChange={(e) => update(r.key, { name: e.target.value })}
+                      placeholder="New product name"
+                    />
+                  )}
                 </td>
                 <td className="p-1">
-                  <input className="input py-1" value={r.unitPrice} onChange={(e) => update(r.key, { unitPrice: e.target.value })} />
+                  <input
+                    className="input py-1"
+                    value={r.unitPrice}
+                    disabled={!isNewRow(r)}
+                    placeholder={isNewRow(r) ? "Required" : "—"}
+                    onChange={(e) => update(r.key, { unitPrice: e.target.value })}
+                  />
                 </td>
                 <td className="p-1">
                   <input className="input py-1" value={r.quantity} onChange={(e) => update(r.key, { quantity: e.target.value })} />

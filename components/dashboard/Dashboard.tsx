@@ -446,7 +446,7 @@ export default function Dashboard() {
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}
-                {tab === "inwarding" && <InventoryInwarding movements={data.movements} onSaved={refresh} />}
+                {tab === "inwarding" && <InventoryInwarding products={data.products} movements={data.movements} onSaved={refresh} />}
                 {tab === "users" && (
                   <UsersManager
                     staff={data.staff}
