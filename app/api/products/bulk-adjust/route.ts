@@ -7,7 +7,7 @@ import type { BulkAdjustResponse, BulkAdjustResultRow } from "@/lib/types";
 
 /**
  * Bulk stock correction (up or down), each row with its own required reason — the same
- * one-row-per-product-code shape as bulk-rate, but writing a StockMovement instead of just
+ * one-row-per-product-name shape as bulk-rate, but writing a StockMovement instead of just
  * a price. Every product must already exist (this never creates one). Every row is
  * validated first — including "would this take stock below zero", tallied cumulatively so
  * two rows touching the same product in one upload are checked against each other, not just
@@ -18,17 +18,17 @@ export async function POST(req: Request) {
     const user = await authorize(req, ["admin"]);
     const { rows } = await parseBody(req, bulkAdjustSchema);
 
-    const products = await prisma.product.findMany({ where: { productCode: { in: rows.map((r) => r.productCode) } } });
-    const byCode = new Map(products.map((p) => [p.productCode, p]));
+    const products = await prisma.product.findMany();
+    const byName = new Map(products.map((p) => [p.name.trim().toLowerCase(), p]));
     const runningStock = new Map(products.map((p) => [p.id, p.stockQty]));
 
     const errors: { row: number; error: string }[] = [];
     const plan: { row: number; productId: string; productCode: number; productName: string; change: number; reason: string }[] = [];
     rows.forEach((r, i) => {
       const rowNum = i + 1;
-      const product = byCode.get(r.productCode);
+      const product = byName.get(r.name.trim().toLowerCase());
       if (!product) {
-        errors.push({ row: rowNum, error: `No product #${r.productCode}` });
+        errors.push({ row: rowNum, error: `No product named "${r.name}"` });
         return;
       }
       const before = runningStock.get(product.id)!;

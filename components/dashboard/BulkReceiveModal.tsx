@@ -8,16 +8,15 @@ import { Alert } from "./ui";
 
 interface GridRow {
   key: number;
-  productCode: string;
   name: string;
   unitPrice: string;
   quantity: string;
 }
 
 let nextKey = 1;
-const emptyRow = (): GridRow => ({ key: nextKey++, productCode: "", name: "", unitPrice: "", quantity: "" });
+const emptyRow = (): GridRow => ({ key: nextKey++, name: "", unitPrice: "", quantity: "" });
 
-const TEMPLATE = "productCode,name,unitPrice,quantity\n3,,,50\n,New Product Name,199.00,25\n";
+const TEMPLATE = "name,unitPrice,quantity\nExisting Product Name,,50\nNew Product Name,199.00,25\n";
 
 /** Minimal CSV parser: comma-separated, double-quote escaping (a "" inside a quoted field is a literal quote). */
 function parseCsv(text: string): string[][] {
@@ -50,17 +49,15 @@ function rowsFromCsv(text: string): GridRow[] {
   if (parsed.length === 0) return [];
   const header = parsed[0].map((h) => h.trim().toLowerCase());
   const col = (name: string) => header.indexOf(name);
-  const iCode = col("productcode");
   const iName = col("name");
   const iPrice = col("unitprice");
   const iQty = col("quantity");
-  const dataRows = iCode >= 0 || iName >= 0 || iPrice >= 0 || iQty >= 0 ? parsed.slice(1) : parsed;
+  const dataRows = iName >= 0 || iPrice >= 0 || iQty >= 0 ? parsed.slice(1) : parsed;
   return dataRows.map((r) => ({
     key: nextKey++,
-    productCode: (iCode >= 0 ? r[iCode] : r[0])?.trim() ?? "",
-    name: (iName >= 0 ? r[iName] : r[1])?.trim() ?? "",
-    unitPrice: (iPrice >= 0 ? r[iPrice] : r[2])?.trim() ?? "",
-    quantity: (iQty >= 0 ? r[iQty] : r[3])?.trim() ?? "",
+    name: (iName >= 0 ? r[iName] : r[0])?.trim() ?? "",
+    unitPrice: (iPrice >= 0 ? r[iPrice] : r[1])?.trim() ?? "",
+    quantity: (iQty >= 0 ? r[iQty] : r[2])?.trim() ?? "",
   }));
 }
 
@@ -109,9 +106,8 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
     setRowErrors(new Map());
     setSummary(null);
     try {
-      const payloadRows: BulkReceiveRow[] = rows.map((r) => ({
-        productCode: r.productCode.trim() ? Number.parseInt(r.productCode, 10) : undefined,
-        name: r.name.trim() || undefined,
+      const payloadRows: BulkReceiveRow[] = rows.filter((r) => r.name.trim() || r.quantity.trim()).map((r) => ({
+        name: r.name.trim(),
         unitPrice: r.unitPrice.trim() ? Number.parseFloat(r.unitPrice) : undefined,
         quantity: Number.parseInt(r.quantity, 10),
       }));
@@ -131,7 +127,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
     }
   }
 
-  const validRowCount = rows.filter((r) => r.quantity.trim() && Number.parseInt(r.quantity, 10) > 0).length;
+  const validRowCount = rows.filter((r) => r.name.trim() && r.quantity.trim() && Number.parseInt(r.quantity, 10) > 0).length;
 
   return (
     <div className="space-y-4">
@@ -160,7 +156,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         <textarea
           id="paste-rows"
           className="input h-20 font-mono text-xs"
-          placeholder={"productCode,name,unitPrice,quantity\n3,,,50"}
+          placeholder={"name,unitPrice,quantity\nExisting Product Name,,50"}
           value={pasteText}
           onChange={(e) => setPasteText(e.target.value)}
           onBlur={() => pasteText.trim() && loadRows(pasteText)}
@@ -168,8 +164,8 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Give a <b>productCode</b> that already exists to add <b>quantity</b> to that product (leave name/price blank).
-        Leave productCode blank, or use a new one, to create a product — then name and unitPrice are required.
+        Enter the product <b>name</b> exactly as it appears in Inventory to add <b>quantity</b> to it (leave price blank).
+        Use a name that doesn't exist yet to create a new product — then a unit price is required.
       </p>
 
       <div>
@@ -188,8 +184,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         <table className="min-w-full divide-y divide-border text-sm">
           <thead className="bg-secondary">
             <tr>
-              <th className="th">Code</th>
-              <th className="th">Name (new only)</th>
+              <th className="th">Product name</th>
               <th className="th">Price (new only)</th>
               <th className="th">Qty</th>
               <th className="th w-8" />
@@ -198,11 +193,8 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
           <tbody className="divide-y divide-border">
             {rows.map((r, i) => (
               <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
-                <td className="p-1">
-                  <input className="input py-1" value={r.productCode} onChange={(e) => update(r.key, { productCode: e.target.value })} placeholder="#" />
-                </td>
-                <td className="p-1">
-                  <input className="input py-1" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} />
+                <td className="p-1 min-w-48">
+                  <input className="input py-1" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} placeholder="Product name" />
                 </td>
                 <td className="p-1">
                   <input className="input py-1" value={r.unitPrice} onChange={(e) => update(r.key, { unitPrice: e.target.value })} />
@@ -222,7 +214,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
                   </button>
                 </td>
                 {rowErrors.has(i + 1) && (
-                  <td colSpan={5} className="px-2 pb-1 text-xs text-danger-foreground">{rowErrors.get(i + 1)}</td>
+                  <td colSpan={4} className="px-2 pb-1 text-xs text-danger-foreground">{rowErrors.get(i + 1)}</td>
                 )}
               </tr>
             ))}
@@ -238,7 +230,7 @@ export default function BulkReceiveModal({ onDone }: { onDone: (message: string)
         <Alert kind="success">
           {summary.map((r) => (
             <div key={r.row}>
-              Row {r.row}: {r.action === "RESTOCK" ? "restocked" : "created"} #{r.productCode} {r.productName} — now {r.newStockQty} in stock
+              Row {r.row}: {r.action === "RESTOCK" ? "restocked" : "created"} {r.productName} — now {r.newStockQty} in stock
             </div>
           ))}
         </Alert>

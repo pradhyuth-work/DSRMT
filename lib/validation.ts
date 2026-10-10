@@ -139,9 +139,10 @@ export const createProductSchema = z.object({
   productCode: productCode.optional(),
 }) satisfies z.ZodType<CreateProductInput, z.ZodTypeDef, unknown>;
 
+const productName = z.string().trim().min(1, "Product name is required").max(120);
+
 const bulkReceiveRowSchema = z.object({
-  productCode: productCode.optional(),
-  name: z.string().trim().max(120).optional(),
+  name: productName,
   unitPrice: money.positive("Price must be greater than zero").optional(),
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
 });
@@ -152,7 +153,7 @@ export const bulkReceiveSchema = z.object({
 }) satisfies z.ZodType<BulkReceiveInput, z.ZodTypeDef, unknown>;
 
 const bulkRateRowSchema = z.object({
-  productCode,
+  name: productName,
   unitPrice: money.positive("Price must be greater than zero"),
 });
 
@@ -161,7 +162,7 @@ export const bulkRateSchema = z.object({
 }) satisfies z.ZodType<BulkRateInput, z.ZodTypeDef, unknown>;
 
 const bulkAdjustRowSchema = z.object({
-  productCode,
+  name: productName,
   change: z.coerce
     .number()
     .int("Change must be a whole number")
