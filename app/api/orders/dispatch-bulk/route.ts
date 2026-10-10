@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
+import { HttpError, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { orderInclude, toOrderDTO } from "@/lib/orders";
 import { dispatchBulkSchema } from "@/lib/validation";
@@ -60,29 +60,32 @@ export async function POST(req: Request) {
         throw new HttpError(400, `Cannot dispatch this batch: insufficient stock for ${shortages.join(", ")}`);
       }
 
+      // Every query inside the transaction is a network round trip over the pooler, so keep the
+      // count small: one decrement per product (already summed), then single batched writes for
+      // the stock movements and invoice status instead of one query per item / per order.
       for (const productId of productIds) {
         await tx.product.update({ where: { id: productId }, data: { stockQty: { decrement: needed.get(productId)! } } });
       }
-      for (const invoice of invoices) {
-        for (const item of invoice.items) {
-          await tx.stockMovement.create({
-            data: { productId: item.productId, change: -item.quantity, type: "DISPATCH", invoiceId: invoice.id, staffId: user.id },
-          });
-        }
-      }
+      await tx.stockMovement.createMany({
+        data: invoices.flatMap((invoice) =>
+          invoice.items.map((item) => ({
+            productId: item.productId,
+            change: -item.quantity,
+            type: "DISPATCH" as const,
+            invoiceId: invoice.id,
+            staffId: user.id,
+          })),
+        ),
+      });
+      await tx.invoice.updateMany({
+        where: { id: { in: orderIds } },
+        data: { fulfilmentStatus: "DISPATCHED", dispatchedAt: new Date(), dispatchedById: user.id },
+      });
 
-      const updated = [];
-      for (const invoice of invoices) {
-        updated.push(
-          await tx.invoice.update({
-            where: { id: invoice.id },
-            data: { fulfilmentStatus: "DISPATCHED", dispatchedAt: new Date(), dispatchedById: user.id },
-            include: orderInclude,
-          }),
-        );
-      }
-      return updated;
-    }, { timeout: TRANSACTION_TIMEOUT_MS });
+      return tx.invoice.findMany({ where: { id: { in: orderIds } }, include: orderInclude });
+      // Bulk dispatch can touch many orders/products, so use the same generous limits as the
+      // other bulk routes (the default 2s maxWait for a pooled connection is also too tight).
+    }, { timeout: 60_000, maxWait: 10_000 });
 
     const body: DispatchBulkResponse = { orders: orders.map(toOrderDTO) };
     return NextResponse.json(body);
