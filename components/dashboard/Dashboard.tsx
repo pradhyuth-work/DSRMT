@@ -371,7 +371,7 @@ export default function Dashboard() {
               <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} tone="lime" />
               <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="gold" />
               <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
-              <StatCard label="Stock Units" value={metrics ? metrics.totalStockUnits.toLocaleString("en-IN") : "—"} icon={Boxes} tone="teal" />
+              <StatCard label="Stock Value in Hand" value={metrics ? formatMoney(metrics.totalStockValue) : "—"} icon={Boxes} tone="teal" />
               <StatCard
                 label="Outlets 30+ Days"
                 value={metrics ? String(metrics.outletsOver30Days) : "—"}

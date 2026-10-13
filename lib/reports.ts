@@ -33,7 +33,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
     await Promise.all([
       prisma.invoice.aggregate({ where: notCancelled, _sum: { totalAmount: true, balanceDue: true }, _count: true }),
       prisma.paymentCollection.aggregate({ _sum: { amount: true } }),
-      prisma.product.aggregate({ _sum: { stockQty: true } }),
+      prisma.product.findMany({ select: { stockQty: true, unitPrice: true } }),
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
         include: {
@@ -180,7 +180,8 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       totalBilled: round2(invoiceTotals._sum.totalAmount ?? 0),
       totalCollected: round2(paymentTotals._sum.amount ?? 0),
       totalOutstanding: round2(invoiceTotals._sum.balanceDue ?? 0),
-      totalStockUnits: stockTotals._sum.stockQty ?? 0,
+      // Stock value in hand = on-hand quantity × standard unit price, summed over all products.
+      totalStockValue: round2(stockTotals.reduce((s, p) => s + p.stockQty * p.unitPrice, 0)),
       invoiceCount: invoiceTotals._count,
       outletsOver30Days,
     },

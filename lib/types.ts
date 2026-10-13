@@ -472,7 +472,7 @@ export interface DashboardMetrics {
   totalBilled: number;
   totalCollected: number;
   totalOutstanding: number;
-  totalStockUnits: number;
+  totalStockValue: number;
   invoiceCount: number;
   /** Outlets whose single oldest unpaid invoice is past DAYS_CRITICAL_THRESHOLD (lib/money.ts). */
   outletsOver30Days: number;
