@@ -396,9 +396,9 @@ export interface CreateProductInput {
 }
 
 export interface BulkReceiveRow {
-  /** Blank/omitted = create a new product at the next free code. */
-  productCode?: number;
-  name?: string;
+  /** Matched case-insensitively against existing product names: a match restocks it, no match creates a new product. */
+  name: string;
+  /** Required only when the name doesn't match an existing product (i.e. a new product is created). */
   unitPrice?: number;
   quantity: number;
 }
@@ -423,7 +423,8 @@ export interface BulkReceiveResponse {
 }
 
 export interface BulkRateRow {
-  productCode: number;
+  /** Existing product name (matched case-insensitively). */
+  name: string;
   unitPrice: number;
 }
 
@@ -444,7 +445,8 @@ export interface BulkRateResponse {
 }
 
 export interface BulkAdjustRow {
-  productCode: number;
+  /** Existing product name (matched case-insensitively). */
+  name: string;
   /** Signed change: positive adds stock, negative removes it. */
   change: number;
   reason: string;
@@ -478,7 +480,7 @@ export interface DashboardMetrics {
   totalBilled: number;
   totalCollected: number;
   totalOutstanding: number;
-  totalStockUnits: number;
+  totalStockValue: number;
   invoiceCount: number;
   /** Outlets whose single oldest unpaid invoice is past DAYS_CRITICAL_THRESHOLD (lib/money.ts). */
   outletsOver30Days: number;

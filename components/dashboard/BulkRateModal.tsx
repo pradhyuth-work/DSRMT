@@ -9,14 +9,14 @@ import { Combobox } from "./Combobox";
 
 interface GridRow {
   key: number;
-  productCode: string;
+  name: string;
   unitPrice: string;
 }
 
 let nextKey = 1;
-const emptyRow = (): GridRow => ({ key: nextKey++, productCode: "", unitPrice: "" });
+const emptyRow = (): GridRow => ({ key: nextKey++, name: "", unitPrice: "" });
 
-const TEMPLATE = "productCode,unitPrice\n3,199.00\n";
+const TEMPLATE = "name,unitPrice\nProduct Name,199.00\n";
 
 /** Minimal CSV parser: comma-separated, double-quote escaping (a "" inside a quoted field is a literal quote). */
 function parseCsv(text: string): string[][] {
@@ -48,18 +48,18 @@ function rowsFromCsv(text: string): GridRow[] {
   const parsed = parseCsv(text);
   if (parsed.length === 0) return [];
   const header = parsed[0].map((h) => h.trim().toLowerCase());
-  const iCode = header.indexOf("productcode");
+  const iName = header.indexOf("name");
   const iPrice = header.indexOf("unitprice");
-  const dataRows = iCode >= 0 || iPrice >= 0 ? parsed.slice(1) : parsed;
+  const dataRows = iName >= 0 || iPrice >= 0 ? parsed.slice(1) : parsed;
   return dataRows.map((r) => ({
     key: nextKey++,
-    productCode: (iCode >= 0 ? r[iCode] : r[0])?.trim() ?? "",
+    name: (iName >= 0 ? r[iName] : r[0])?.trim() ?? "",
     unitPrice: (iPrice >= 0 ? r[iPrice] : r[1])?.trim() ?? "",
   }));
 }
 
 /** Bulk price update — every product must already exist (this never creates one); pick it
- * by name in the grid, or upload/paste a productCode,unitPrice CSV. */
+ * by name in the grid, or upload/paste a name,unitPrice CSV. */
 export default function BulkRateModal({ products, onDone }: { products: ProductDTO[]; onDone: (message: string) => Promise<void> }) {
   const [rows, setRows] = useState<GridRow[]>([emptyRow()]);
   const [pasteText, setPasteText] = useState("");
@@ -69,7 +69,7 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
   const [summary, setSummary] = useState<BulkRateResultRow[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const productOptions = products.map((p) => ({ value: String(p.productCode), label: p.name, description: `#${p.productCode}` }));
+  const productOptions = products.map((p) => ({ value: p.name, label: p.name }));
 
   function loadRows(text: string) {
     const parsed = rowsFromCsv(text);
@@ -107,8 +107,8 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
     setSummary(null);
     try {
       const payloadRows: BulkRateRow[] = rows
-        .filter((r) => r.productCode.trim() && r.unitPrice.trim())
-        .map((r) => ({ productCode: Number.parseInt(r.productCode, 10), unitPrice: Number.parseFloat(r.unitPrice) }));
+        .filter((r) => r.name.trim() && r.unitPrice.trim())
+        .map((r) => ({ name: r.name.trim(), unitPrice: Number.parseFloat(r.unitPrice) }));
       const { results } = await api.bulkUpdateRates({ rows: payloadRows });
       setSummary(results);
       await onDone(`${results.length} product rate${results.length === 1 ? "" : "s"} updated`);
@@ -123,7 +123,7 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
     }
   }
 
-  const validRowCount = rows.filter((r) => r.productCode.trim() && Number.parseFloat(r.unitPrice) > 0).length;
+  const validRowCount = rows.filter((r) => r.name.trim() && Number.parseFloat(r.unitPrice) > 0).length;
 
   return (
     <div className="space-y-4">
@@ -152,7 +152,7 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
         <textarea
           id="paste-rate-rows"
           className="input h-20 font-mono text-xs"
-          placeholder={"productCode,unitPrice\n3,199.00"}
+          placeholder={"name,unitPrice\nProduct Name,199.00"}
           value={pasteText}
           onChange={(e) => setPasteText(e.target.value)}
           onBlur={() => pasteText.trim() && loadRows(pasteText)}
@@ -173,8 +173,8 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
               <tr key={r.key} className={rowErrors.has(i + 1) ? "bg-danger" : ""}>
                 <td className="p-1 min-w-48">
                   <Combobox
-                    value={r.productCode}
-                    onChange={(v) => update(r.key, { productCode: v })}
+                    value={r.name}
+                    onChange={(v) => update(r.key, { name: v })}
                     options={productOptions}
                     placeholder="Select product…"
                     ariaLabel={`Product for row ${i + 1}`}
@@ -219,7 +219,7 @@ export default function BulkRateModal({ products, onDone }: { products: ProductD
         <Alert kind="success">
           {summary.map((r) => (
             <div key={r.row}>
-              Row {r.row}: #{r.productCode} {r.productName} → {r.unitPrice}
+              Row {r.row}: {r.productName} → {r.unitPrice}
             </div>
           ))}
         </Alert>

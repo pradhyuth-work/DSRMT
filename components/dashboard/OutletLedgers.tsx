@@ -49,7 +49,18 @@ export default function OutletLedgers({
   onlyInCredit?: boolean;
 }) {
   const ledgers = useMemo(
-    () => (onlyInCredit ? data.reports.outletLedgers.filter((l) => l.balance > 0) : data.reports.outletLedgers),
+    () =>
+      onlyInCredit
+        ? // Longest-overdue first; ties fall back to the larger balance, then name.
+          data.reports.outletLedgers
+            .filter((l) => l.balance > 0)
+            .sort(
+              (a, b) =>
+                (b.oldestInvoiceDays ?? -1) - (a.oldestInvoiceDays ?? -1) ||
+                b.balance - a.balance ||
+                a.outletName.localeCompare(b.outletName),
+            )
+        : data.reports.outletLedgers,
     [data.reports.outletLedgers, onlyInCredit],
   );
   const agents = useMemo(() => data.staff.filter((s) => s.role === "agent"), [data.staff]);

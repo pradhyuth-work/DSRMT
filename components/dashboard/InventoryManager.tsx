@@ -291,7 +291,7 @@ export default function InventoryManager({
             <div className="flex items-start gap-3 rounded-xl bg-warning p-4">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
               <div className="text-sm">
-                <p className="font-semibold">#{deletingProduct.productCode} {deletingProduct.name}</p>
+                <p className="font-semibold">{deletingProduct.name}</p>
                 <p className="mt-1 text-foreground">Refused if it's ever been on an order.</p>
               </div>
             </div>
@@ -509,7 +509,7 @@ function AddProductForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
       setPrice("");
       setStock("0");
       setProductCode("");
-      await onSaved(`Added #${created.productCode} ${created.name} with ${created.stockQty} units`);
+      await onSaved(`Added ${created.name} with ${created.stockQty} units`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add product");
     } finally {
