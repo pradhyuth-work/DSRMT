@@ -130,7 +130,7 @@ export default function OrdersView({
     user.role === "admin"
       ? o.fulfilmentStatus !== "CANCELLED" && o.paidAmount === 0
       : user.role === "agent" && o.fulfilmentStatus === "PENDING" && o.paidAmount === 0;
-  const canEdit = (o: OrderDTO) => user.role === "admin" && o.fulfilmentStatus === "PENDING";
+  const canEdit = (o: OrderDTO) => (user.role === "admin" || user.role === "agent") && o.fulfilmentStatus === "PENDING";
 
   const ordersPage = usePagination(orders);
 

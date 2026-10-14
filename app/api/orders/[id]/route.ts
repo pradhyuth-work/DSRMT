@@ -7,15 +7,21 @@ import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, priceLines, toOrderDTO } from "@/lib/orders";
 import type { OrderDTO } from "@/lib/types";
 
-/** Admin edit of a PENDING order's outlet and/or items. Totals and payment status are recalculated. */
+/**
+ * Edit of a PENDING order's outlet and/or items. Totals and payment status are recalculated.
+ * Admin can edit any order; agents only their own (same scoping as cancel) and, like every
+ * role, only while it's still PENDING — once billed the bill number is tied to that total.
+ */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await authorize(req, ["admin"]);
+    const user = await authorize(req, ["admin", "agent"]);
     const { id } = await params;
     const input = await parseBody(req, updateOrderSchema);
 
     const order = await prisma.$transaction(async (tx) => {
       const invoice = await lockInvoice(tx, id);
+      // Agents get a 404 for orders they don't own, so they can't probe other people's ids.
+      if (user.role === "agent" && invoice.staffId !== user.id) throw new HttpError(404, "Order not found");
       if (invoice.fulfilmentStatus !== "PENDING") {
         throw new HttpError(409, `Only pending orders can be edited; ${id} is ${invoice.fulfilmentStatus.toLowerCase()}`);
       }
