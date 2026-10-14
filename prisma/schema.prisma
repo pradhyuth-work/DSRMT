@@ -22,6 +22,7 @@ enum PaymentMethod {
   UPI
   CHEQUE
   NET_BANKING
+  VOUCHER
 }
 
 enum Role {

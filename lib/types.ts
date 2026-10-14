@@ -2,9 +2,9 @@
 
 export type InvoiceStatus = "PAID" | "PARTIAL" | "UNPAID";
 /** UPI is read-only history — kept so old payments still display correctly, but never offered when recording a new one. */
-export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "UPI";
+export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI";
 /** Selectable when recording a new payment. */
-export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING"] as const satisfies readonly PaymentMethod[];
+export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"] as const satisfies readonly PaymentMethod[];
 export type Role = "admin" | "stock" | "agent";
 export type FulfilmentStatus = "PENDING" | "BILLED" | "DISPATCHED" | "CANCELLED";
 export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "CANCEL_RETURN";
@@ -524,6 +524,7 @@ export interface StaffPerformance {
   cashCollected: number;
   chequeCollected: number;
   netBankingCollected: number;
+  voucherCollected: number;
   uncollectedBalance: number;
 }
 

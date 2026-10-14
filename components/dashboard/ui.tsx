@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, Ticket, X, type LucideIcon } from "lucide-react";
 import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
 import { DAYS_CRITICAL_THRESHOLD, DAYS_WARNING_THRESHOLD } from "@/lib/money";
 
 type SelectableMethod = (typeof PAYMENT_METHODS)[number];
 
-const METHOD_ICON: Record<SelectableMethod, LucideIcon> = { CASH: Banknote, CHEQUE: FileText, NET_BANKING: Landmark };
-const METHOD_LABEL: Record<SelectableMethod, string> = { CASH: "Cash", CHEQUE: "Cheque", NET_BANKING: "Net Banking" };
+const METHOD_ICON: Record<SelectableMethod, LucideIcon> = { CASH: Banknote, CHEQUE: FileText, NET_BANKING: Landmark, VOUCHER: Ticket };
+const METHOD_LABEL: Record<SelectableMethod, string> = { CASH: "Cash", CHEQUE: "Cheque", NET_BANKING: "Net Banking", VOUCHER: "Voucher" };
 
-/** The CASH/CHEQUE/NET_BANKING picker used everywhere a payment method is recorded. UPI is
- * deliberately never offered here — it only ever appears read-only on historical payments. */
+/** The CASH/CHEQUE/NET_BANKING/VOUCHER picker used everywhere a payment method is recorded.
+ * UPI is deliberately never offered here — it only ever appears read-only on historical payments. */
 export function PaymentMethodPicker({
   value,
   onChange,
@@ -24,7 +24,7 @@ export function PaymentMethodPicker({
   size?: "sm" | "lg";
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {PAYMENT_METHODS.map((m) => {
         const Icon = METHOD_ICON[m];
         return (

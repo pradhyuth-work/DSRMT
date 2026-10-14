@@ -30,7 +30,7 @@ import type {
 const money = z.coerce.number().finite().nonnegative();
 const id = z.string().trim().min(1);
 // UPI is deliberately excluded — it's kept in the DB enum for historical rows only.
-const paymentMethod = z.enum(["CASH", "CHEQUE", "NET_BANKING"]);
+const paymentMethod = z.enum(["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"]);
 const role = z.enum(["admin", "stock", "agent"]);
 const saleItems = z
   .array(z.object({ productId: id, quantity: z.coerce.number().int().positive() }))
