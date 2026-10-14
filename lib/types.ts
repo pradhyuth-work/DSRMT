@@ -148,6 +148,14 @@ export interface OutletBalanceDTO {
   openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string; daysOutstanding: number }[];
 }
 
+/** One row of the admin+stock "who owes money" list — OutletBalanceDTO plus just enough to
+ * display and find the outlet, without the full reports view's company-wide and
+ * staff-performance figures (admin only). */
+export interface OutletCreditDTO extends OutletBalanceDTO {
+  phone: string;
+  routeName: string | null;
+}
+
 export interface StaffDTO {
   id: string;
   name: string;

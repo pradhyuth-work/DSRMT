@@ -28,6 +28,7 @@ import type {
   LoginResponse,
   OrderDTO,
   OutletBalanceDTO,
+  OutletCreditDTO,
   OutletDTO,
   PaymentDTO,
   PaymentsQuery,
@@ -143,6 +144,7 @@ export const api = {
   hideOutlet: (id: string, input: HideOutletInput) => patch<OutletDTO>(`/api/outlets/${enc(id)}/hidden`, input),
   deleteOutlet: (id: string) => request<{ ok: true }>(`/api/outlets/${enc(id)}`, { method: "DELETE" }),
   outletLedger: (id: string) => request<OutletBalanceDTO>(`/api/outlets/${enc(id)}/ledger`),
+  outletsInCredit: () => request<OutletCreditDTO[]>("/api/outlets/credit"),
   correctBalance: (id: string, input: CorrectBalanceInput) => patch<BalanceAdjustmentDTO>(`/api/outlets/${enc(id)}/balance`, input),
   balanceAdjustments: () => request<BalanceAdjustmentDTO[]>("/api/outlets/balance-adjustments"),
 

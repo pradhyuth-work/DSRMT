@@ -47,6 +47,7 @@ import PaymentsView from "./PaymentsView";
 import StaffPerformanceView from "./StaffPerformance";
 import InventoryManager from "./InventoryManager";
 import InventoryInwarding from "./InventoryInwarding";
+import OutletsInCreditView from "./OutletsInCreditView";
 import UsersManager from "./UsersManager";
 import SalesReports from "./SalesReports";
 
@@ -75,6 +76,7 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   ],
   stock: [
     { id: "orders", label: "Orders to dispatch", helper: "Dispatch queue", icon: ClipboardList },
+    { id: "credit", label: "Outlets in Credit", helper: "Pending dues only", icon: ReceiptText },
     { id: "payments", label: "Collect Payment", helper: "Collections", icon: Wallet2 },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
   ],
@@ -432,7 +434,7 @@ export default function Dashboard() {
                     onSaved={refresh}
                   />
                 )}
-                {tab === "credit" && data.reports && (
+                {tab === "credit" && user.role === "admin" && data.reports && (
                   <OutletLedgers
                     data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}
                     user={user}
@@ -440,6 +442,7 @@ export default function Dashboard() {
                     onlyInCredit
                   />
                 )}
+                {tab === "credit" && user.role !== "admin" && <OutletsInCreditView user={user} />}
                 {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
                 {tab === "staff" && <StaffPerformanceView />}
                 {tab === "reports" && <SalesReports outlets={data.outlets} products={data.products} />}
