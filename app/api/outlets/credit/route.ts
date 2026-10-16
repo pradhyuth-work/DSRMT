@@ -7,23 +7,27 @@ import type { OutletCreditDTO } from "@/lib/types";
 
 /**
  * Every outlet currently carrying an outstanding balance — available to admin and stock
- * (both can collect payments), unlike /api/reports which is admin-only because it also
- * carries company-wide totals and staff performance. Mirrors /api/outlets/:id/ledger's
- * balance convention: invoice-only, no manual corrections folded in, since collecting a
- * payment settles real open invoices rather than a correction.
+ * (both can collect payments) and, view-only, agents (scoped to their own route), unlike
+ * /api/reports which is admin-only because it also carries company-wide totals and staff
+ * performance. Mirrors /api/outlets/:id/ledger's balance convention: invoice-only, no
+ * manual corrections folded in, since collecting a payment settles real open invoices
+ * rather than a correction.
  */
 export async function GET(req: Request) {
   try {
-    await authorize(req, ["admin", "stock"]);
+    const user = await authorize(req, ["admin", "stock", "agent"]);
 
     const outlets = await prisma.outlet.findMany({
-      where: { invoices: { some: { balanceDue: { gt: 0 }, fulfilmentStatus: { not: "CANCELLED" } } } },
+      where: {
+        invoices: { some: { balanceDue: { gt: 0 }, fulfilmentStatus: { not: "CANCELLED" } } },
+        route: user.role === "agent" ? { agentId: user.id } : undefined,
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,
         name: true,
         phone: true,
-        route: { select: { name: true } },
+        route: { select: { name: true, agentId: true, agent: { select: { name: true } } } },
         invoices: {
           where: { balanceDue: { gt: 0 }, fulfilmentStatus: { not: "CANCELLED" } },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -37,6 +41,8 @@ export async function GET(req: Request) {
       outletName: o.name,
       phone: o.phone,
       routeName: o.route?.name ?? null,
+      agentId: o.route?.agentId ?? null,
+      agentName: o.route?.agent?.name ?? null,
       balance: round2(o.invoices.reduce((s, i) => s + i.balanceDue, 0)),
       oldestInvoiceDays: o.invoices.length > 0 ? daysOutstanding(o.invoices[0].createdAt) : null,
       openInvoices: o.invoices.map((i) => ({

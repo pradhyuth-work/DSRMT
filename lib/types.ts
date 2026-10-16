@@ -154,6 +154,9 @@ export interface OutletBalanceDTO {
 export interface OutletCreditDTO extends OutletBalanceDTO {
   phone: string;
   routeName: string | null;
+  /** Derived from the outlet's route, if any — lets stock filter this list by field agent. */
+  agentId: string | null;
+  agentName: string | null;
 }
 
 export interface StaffDTO {

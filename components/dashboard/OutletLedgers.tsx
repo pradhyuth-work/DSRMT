@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { AuthUser, BalanceAdjustmentDTO, BalanceAdjustmentMode, OutletDTO, OutletLedger, ReportsResponse, RouteDTO, StaffDTO } from "@/lib/types";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, DaysOutstandingBadge, EmptyState, Modal, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { CollectPaymentForm } from "./payment-form";
@@ -80,6 +80,22 @@ export default function OutletLedgers({
   const [history, setHistory] = useState<BalanceAdjustmentDTO[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Per-agent outstanding totals for the "Outlets in Credit" view — doubles as a one-click
+  // shortcut for the field-agent filter below. Not shown on the full ledger (every outlet,
+  // most with nothing owed, makes the totals meaningless).
+  const agentTotals = useMemo(() => {
+    if (!onlyInCredit) return [];
+    const byAgent = new Map<string, { id: string; name: string; balance: number; outlets: number }>();
+    for (const l of ledgers) {
+      const key = l.agentId ?? UNASSIGNED;
+      const row = byAgent.get(key) ?? { id: key, name: l.agentId ? (l.agentName ?? l.agentId) : "Unassigned", balance: 0, outlets: 0 };
+      row.balance = round2(row.balance + l.balance);
+      row.outlets += 1;
+      byAgent.set(key, row);
+    }
+    return [...byAgent.values()].sort((a, b) => b.balance - a.balance);
+  }, [ledgers, onlyInCredit]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -188,6 +204,35 @@ export default function OutletLedgers({
           <Plus className="h-4 w-4" /> Add outlet
         </button>
       </div>
+
+      {agentTotals.length > 0 && (
+        <div className="space-y-2">
+          <p className="label mb-0">Outstanding by field agent</p>
+          <div className="flex flex-wrap gap-2">
+            {agentTotals.map((a) => {
+              const active = agentFilter === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAgentFilter(active ? "" : a.id)}
+                  className={`card flex items-center gap-3 px-4 py-2.5 text-left transition hover:-translate-y-0.5 ${
+                    active ? "border-primary ring-2 ring-primary/30" : ""
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{a.name}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {a.outlets} outlet{a.outlets === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <span className="font-semibold tabular-nums text-warning-foreground">{formatMoney(a.balance)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">

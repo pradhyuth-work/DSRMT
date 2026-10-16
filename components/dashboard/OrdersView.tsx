@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, Download, FileCheck, Loader2, Minus, Pencil, Plus, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
@@ -36,6 +36,7 @@ export default function OrdersView({
   // Only meaningful for admin/stock, who see every agent's orders — agents only ever see
   // their own regardless, so the filter is never shown to them.
   const [agentFilter, setAgentFilter] = useState("");
+  const [billSearch, setBillSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
@@ -58,11 +59,18 @@ export default function OrdersView({
     [agentFilter, outletById],
   );
 
+  const billQuery = billSearch.trim().toLowerCase();
+
   const orders = useMemo(() => {
+    // A bill-number search looks across every status — bill numbers only exist on
+    // billed+ orders, so honouring the status tab too would hide results on Pending/All.
+    if (billQuery) {
+      return data.orders.filter((o) => o.invoiceNumber?.toLowerCase().includes(billQuery)).filter(byAgent);
+    }
     const list = (filter === "ALL" ? data.orders : data.orders.filter((o) => o.fulfilmentStatus === filter)).filter(byAgent);
     // Oldest first for the pending/billed queues so the longest-waiting order is on top.
     return filter === "PENDING" || filter === "BILLED" ? [...list].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : list;
-  }, [data.orders, filter, byAgent]);
+  }, [data.orders, filter, byAgent, billQuery]);
 
   const counts = useMemo(() => {
     const c: Record<Filter, number> = { ALL: 0, PENDING: 0, BILLED: 0, DISPATCHED: 0, CANCELLED: 0 };
@@ -164,13 +172,18 @@ export default function OrdersView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className={`flex gap-2 overflow-x-auto pb-1 transition ${billQuery ? "opacity-50" : ""}`}>
           {FILTERS.map((f) => (
             <button
               key={f.id}
-              onClick={() => setFilter(f.id)}
+              onClick={() => {
+                setFilter(f.id);
+                setBillSearch("");
+              }}
               className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                filter === f.id ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground hover:bg-secondary"
+                filter === f.id && !billQuery
+                  ? "border-primary bg-primary text-white"
+                  : "border-input bg-card text-muted-foreground hover:bg-secondary"
               }`}
             >
               {f.label} <span className="opacity-70">({counts[f.id]})</span>
@@ -178,6 +191,16 @@ export default function OrdersView({
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="input h-10 w-44 pl-9"
+              placeholder="Search bill number…"
+              aria-label="Search by bill number"
+              value={billSearch}
+              onChange={(e) => setBillSearch(e.target.value)}
+            />
+          </div>
           {user.role !== "agent" && agentOptions.length > 0 && (
             <Combobox
               className="w-44"
@@ -218,7 +241,7 @@ export default function OrdersView({
 
       {orders.length === 0 ? (
         <div className="card">
-          <EmptyState>No orders here.</EmptyState>
+          <EmptyState>{billQuery ? `No bill matches “${billSearch.trim()}”.` : "No orders here."}</EmptyState>
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

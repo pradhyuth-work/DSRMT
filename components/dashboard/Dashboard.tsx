@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlarmClockCheck,
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   IndianRupee,
   Loader2,
@@ -83,6 +85,7 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   agent: [
     { id: "sale", label: "New order", helper: "Record a sale", icon: ShoppingCart },
     { id: "orders", label: "My orders", helper: "Track your orders", icon: ClipboardList },
+    { id: "credit", label: "Outlets in Credit", helper: "Who owes what", icon: ReceiptText },
   ],
 };
 
@@ -140,6 +143,29 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
+  // Persisted per browser so the choice sticks across reloads; defaults to expanded (and
+  // during SSR) to avoid a hydration mismatch, then syncs from storage right after mount.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("dsrmt:sidebarCollapsed") === "1") setSidebarCollapsed(true);
+    } catch {
+      // Storage unavailable (private browsing etc.) — just stay expanded.
+    }
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("dsrmt:sidebarCollapsed", next ? "1" : "0");
+      } catch {
+        // Nothing to persist to — the toggle still works for this session.
+      }
+      return next;
+    });
+  }, []);
 
   const signOut = useCallback((message?: string) => {
     clearToken();
@@ -226,10 +252,32 @@ export default function Dashboard() {
     <div className="ops-app flex min-h-screen">
       {/* Desktop sidebar — admin/stock only. Agents are phone-first, so they never see it. */}
       {!isAgent && (
-        <aside className="hidden md:flex w-[248px] shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground">
-          <Brand />
-          <div className="mt-10 flex-1">
-            <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
+        <aside
+          className={`relative hidden shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
+            sidebarCollapsed ? "w-[76px] items-center px-3" : "w-[248px]"
+          }`}
+        >
+          <button
+            onClick={toggleSidebar}
+            className="focus-ring absolute -right-3 top-6 flex h-6 w-6 items-center justify-center rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/60 shadow-sm hover:text-sidebar-foreground"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+
+          {sidebarCollapsed ? (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
+              <BrandMark size={18} tone="dark" />
+            </div>
+          ) : (
+            <Brand />
+          )}
+
+          <div className="mt-10 w-full flex-1">
+            {!sidebarCollapsed && (
+              <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
+            )}
             <nav className="space-y-1">
               {tabs.map(({ id, label, helper, icon: Icon }) => {
                 const active = tab === id;
@@ -237,36 +285,54 @@ export default function Dashboard() {
                   <button
                     key={id}
                     onClick={() => setTab(id)}
-                    className={`focus-ring group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                    title={sidebarCollapsed ? label : undefined}
+                    className={`focus-ring group flex w-full items-center gap-3 rounded-xl py-3 text-left transition-all ${
+                      sidebarCollapsed ? "justify-center px-0" : "px-3"
+                    } ${
                       active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     }`}
                   >
                     <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">{label}</span>
-                      <span className={`block text-[10px] ${active ? "opacity-60" : "opacity-45"}`}>{helper}</span>
-                    </span>
-                    {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{label}</span>
+                          <span className={`block text-[10px] ${active ? "opacity-60" : "opacity-45"}`}>{helper}</span>
+                        </span>
+                        {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}
+                      </>
+                    )}
                   </button>
                 );
               })}
             </nav>
           </div>
-          <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/70 p-4">
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-sidebar-foreground/70">
-              <span className="h-2 w-2 rounded-full bg-sidebar-primary" />
-              Connected
+
+          {sidebarCollapsed ? (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" title="Connected" />
+          ) : (
+            <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/70 p-4">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-sidebar-foreground/70">
+                <span className="h-2 w-2 rounded-full bg-sidebar-primary" />
+                Connected
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/50">Changes save straight to the live database.</p>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/50">Changes save straight to the live database.</p>
-          </div>
-          <div className="mt-5 flex items-center gap-3 px-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">
+          )}
+
+          <div className={`mt-5 flex items-center gap-3 ${sidebarCollapsed ? "flex-col" : "px-2"}`}>
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground"
+              title={sidebarCollapsed ? `${user.name} · ${ROLE_LABEL[user.role]}` : undefined}
+            >
               {initials}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{user.name}</p>
-              <p className="text-[11px] text-sidebar-foreground/45">{ROLE_LABEL[user.role]}</p>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{user.name}</p>
+                <p className="text-[11px] text-sidebar-foreground/45">{ROLE_LABEL[user.role]}</p>
+              </div>
+            )}
             <button
               onClick={() => signOut()}
               className="focus-ring shrink-0 rounded-lg p-1.5 text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground"
