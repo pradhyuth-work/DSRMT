@@ -177,6 +177,15 @@ model InvoiceItem {
   quantity  Int
   unitPrice Float
   subtotal  Float
+  /// The product's scheme price at the moment this order was billed (effectiveSchemePrice,
+  /// i.e. respecting schemeActive) — NULL if no scheme price was set/active then. Captured
+  /// once, at billing, regardless of whether this order itself was priced "with scheme";
+  /// it's what Scheme Savings compares the actual unitPrice against, not a live lookup.
+  schemeUnitPrice Float?
+  /// True when schemeUnitPrice was back-filled from the product's *current* scheme price by
+  /// the 0012 migration rather than captured live at billing time — the historical price at
+  /// billing may have differed, so Scheme Savings flags these as estimates.
+  schemeEstimated Boolean @default(false)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
