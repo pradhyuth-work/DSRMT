@@ -10,10 +10,8 @@ import type { DispatchBulkResponse } from "@/lib/types";
 /**
  * Dispatches several billed orders in one shot — for handing a field agent all their stock
  * at once instead of one dispatch click per order. Same rules as POST /api/orders/:id/dispatch,
- * just combined: every order must be BILLED, and stock is checked against the *combined*
- * quantity needed across all of them (an item split across two of the agent's orders only
- * needs to be available once, summed). All-or-nothing — if any order isn't billed or any
- * product falls short, nothing is dispatched.
+ * just combined: every order must be BILLED. Stock was already deducted at billing, so this only
+ * flips the status. All-or-nothing — if any order isn't billed, nothing is dispatched.
  */
 export async function POST(req: Request) {
   try {
@@ -22,7 +20,7 @@ export async function POST(req: Request) {
     const orderIds = [...new Set(rawIds)].sort();
 
     const orders = await prisma.$transaction(async (tx) => {
-      // Lock in a consistent order so a bulk dispatch sharing orders/products with another
+      // Lock in a consistent order so a bulk dispatch sharing orders with another
       // dispatch (bulk or single) can't deadlock.
       await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" IN (${Prisma.join(orderIds)}) ORDER BY "id" FOR UPDATE`;
 
@@ -39,44 +37,6 @@ export async function POST(req: Request) {
         throw new HttpError(409, `All selected orders must be billed first: ${summary}`);
       }
 
-      const needed = new Map<string, number>();
-      for (const invoice of invoices) {
-        for (const item of invoice.items) {
-          needed.set(item.productId, (needed.get(item.productId) ?? 0) + item.quantity);
-        }
-      }
-      const productIds = [...needed.keys()].sort();
-
-      const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number }[]>`
-        SELECT "id", "name", "stockQty" FROM "Product"
-        WHERE "id" IN (${Prisma.join(productIds)})
-        ORDER BY "id"
-        FOR UPDATE`;
-
-      const shortages = stock
-        .filter((p) => p.stockQty < needed.get(p.id)!)
-        .map((p) => `${p.name} (need ${needed.get(p.id)}, have ${p.stockQty})`);
-      if (shortages.length > 0) {
-        throw new HttpError(400, `Cannot dispatch this batch: insufficient stock for ${shortages.join(", ")}`);
-      }
-
-      // Every query inside the transaction is a network round trip over the pooler, so keep the
-      // count small: one decrement per product (already summed), then single batched writes for
-      // the stock movements and invoice status instead of one query per item / per order.
-      for (const productId of productIds) {
-        await tx.product.update({ where: { id: productId }, data: { stockQty: { decrement: needed.get(productId)! } } });
-      }
-      await tx.stockMovement.createMany({
-        data: invoices.flatMap((invoice) =>
-          invoice.items.map((item) => ({
-            productId: item.productId,
-            change: -item.quantity,
-            type: "DISPATCH" as const,
-            invoiceId: invoice.id,
-            staffId: user.id,
-          })),
-        ),
-      });
       await tx.invoice.updateMany({
         where: { id: { in: orderIds } },
         data: { fulfilmentStatus: "DISPATCHED", dispatchedAt: new Date(), dispatchedById: user.id },

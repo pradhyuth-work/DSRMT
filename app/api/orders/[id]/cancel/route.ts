@@ -8,8 +8,8 @@ import type { OrderDTO } from "@/lib/types";
 /**
  * Cancels an order.
  * - Agents: only their own PENDING (not yet billed) orders.
- * - Admins: any PENDING, BILLED or DISPATCHED order. Cancelling a dispatched order returns
- *   its stock and records CANCEL_RETURN movements. A bill number already assigned stays on
+ * - Admins: any PENDING, BILLED or DISPATCHED order. Cancelling a billed or dispatched order
+ *   returns its stock (stock is deducted at billing) and records CANCEL_RETURN movements. A bill number already assigned stays on
  *   the cancelled order rather than being freed for reuse.
  * Orders with payments recorded against them cannot be cancelled (reverse the payment first).
  */
@@ -33,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         throw new HttpError(409, `Order ${id} has payments recorded against it and can't be cancelled`);
       }
 
-      if (invoice.fulfilmentStatus === "DISPATCHED") {
+      if (invoice.fulfilmentStatus === "BILLED" || invoice.fulfilmentStatus === "DISPATCHED") {
         for (const item of invoice.items) {
           await tx.product.update({ where: { id: item.productId }, data: { stockQty: { increment: item.quantity } } });
           await tx.stockMovement.create({

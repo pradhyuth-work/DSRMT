@@ -7,7 +7,7 @@ export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI
 export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"] as const satisfies readonly PaymentMethod[];
 export type Role = "admin" | "stock" | "agent";
 export type FulfilmentStatus = "PENDING" | "BILLED" | "DISPATCHED" | "CANCELLED";
-export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "CANCEL_RETURN";
+export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "BILL" | "CANCEL_RETURN";
 
 export interface AuthUser {
   id: string;

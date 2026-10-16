@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
 import { authorize } from "@/lib/auth";
@@ -18,6 +19,10 @@ import type { OrderDTO } from "@/lib/types";
  * Also snapshots each line's scheme price (Scheme Savings compares this against the actual
  * unitPrice later) — captured now, once, because Product.schemePrice can change after
  * billing and the live value at that later date wouldn't reflect what applied here.
+ *
+ * This is also where stock leaves the inventory: lock the order's products, refuse if any is
+ * short, deduct stock and record BILL movements — all in the same transaction, so nothing
+ * changes if any step fails.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,17 +42,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const clash = await tx.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } });
       if (clash) throw new HttpError(409, `Bill number "${invoiceNumber}" is already used by another order`);
 
-      const products = await tx.product.findMany({
-        where: { id: { in: invoice.items.map((i) => i.productId) } },
-        select: { id: true, schemePrice: true, schemeActive: true },
-      });
-      const productById = new Map(products.map((p) => [p.id, p]));
+      const needed = new Map<string, number>();
       for (const item of invoice.items) {
-        const product = productById.get(item.productId);
-        await tx.invoiceItem.update({
-          where: { id: item.id },
-          data: { schemeUnitPrice: product ? effectiveSchemePrice(product) : null },
-        });
+        needed.set(item.productId, (needed.get(item.productId) ?? 0) + item.quantity);
+      }
+      const productIds = [...needed.keys()].sort();
+
+      if (productIds.length > 0) {
+        // Lock in a consistent order so two bills sharing products can't deadlock.
+        const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number; schemePrice: number | null; schemeActive: boolean }[]>`
+          SELECT "id", "name", "stockQty", "schemePrice", "schemeActive" FROM "Product"
+          WHERE "id" IN (${Prisma.join(productIds)})
+          ORDER BY "id"
+          FOR UPDATE`;
+
+        const shortages = stock
+          .filter((p) => p.stockQty < needed.get(p.id)!)
+          .map((p) => `${p.name} (need ${needed.get(p.id)}, have ${p.stockQty})`);
+        if (shortages.length > 0) {
+          throw new HttpError(400, `Cannot bill ${id}: insufficient stock for ${shortages.join(", ")}`);
+        }
+
+        const productById = new Map(stock.map((p) => [p.id, p]));
+        for (const item of invoice.items) {
+          const product = productById.get(item.productId);
+          await tx.invoiceItem.update({
+            where: { id: item.id },
+            data: { schemeUnitPrice: product ? effectiveSchemePrice(product) : null },
+          });
+        }
+
+        for (const productId of productIds) {
+          const quantity = needed.get(productId)!;
+          await tx.product.update({ where: { id: productId }, data: { stockQty: { decrement: quantity } } });
+          await tx.stockMovement.create({
+            data: { productId, change: -quantity, type: "BILL", invoiceId: id, staffId: user.id },
+          });
+        }
       }
 
       return tx.invoice.update({
