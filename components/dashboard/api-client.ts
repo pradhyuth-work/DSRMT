@@ -42,6 +42,9 @@ import type {
   UpdateRouteInput,
   SalesReportQuery,
   SalesReportResponse,
+  SchemeSavingsBillRow,
+  SchemeSavingsQuery,
+  SchemeSavingsResponse,
   StaffDTO,
   StockMovementDTO,
   StockMovementsQuery,
@@ -94,7 +97,7 @@ const patch = <T>(url: string, body: unknown) => send<T>("PATCH", url, body);
 const enc = encodeURIComponent;
 
 /** Builds a query string from a plain object, dropping undefined/empty values. */
-function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery | StockMovementsQuery): string {
+function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery | SchemeSavingsQuery | StockMovementsQuery): string {
   if (!params) return "";
   const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
@@ -160,6 +163,10 @@ export const api = {
   deletePayment: (id: string) => request<{ ok: true }>(`/api/payments/${enc(id)}`, { method: "DELETE" }),
   downloadPaymentsCsv: (query?: PaymentsQuery) => downloadFile(`/api/payments/csv${qs(query)}`, "payments.csv"),
   downloadSalesReportCsv: (query?: SalesReportQuery) => downloadFile(`/api/reports/sales/csv${qs(query)}`, "sales-report.csv"),
+
+  schemeSavings: (query?: SchemeSavingsQuery) => request<SchemeSavingsResponse>(`/api/scheme-savings${qs(query)}`),
+  schemeSavingsBills: (query?: SchemeSavingsQuery) => request<SchemeSavingsBillRow[]>(`/api/scheme-savings/bills${qs(query)}`),
+  downloadSchemeSavingsCsv: (query?: SchemeSavingsQuery) => downloadFile(`/api/scheme-savings/csv${qs(query)}`, "scheme-savings.csv"),
 
   createSale: (input: CreateSaleInput) => post<CreateSaleResponse>("/api/sales", input),
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
