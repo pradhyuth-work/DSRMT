@@ -16,12 +16,4 @@
 --
 -- Runs in one transaction.
 
-BEGIN;
 
-UPDATE "InvoiceItem"
-SET "schemeUnitPrice" = NULL,
-    "schemeEstimated" = false
-WHERE "schemeEstimated" = true
-  AND "schemeUnitPrice" > "unitPrice";
-
-COMMIT;
