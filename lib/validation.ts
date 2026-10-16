@@ -318,6 +318,14 @@ export const salesReportQuerySchema = z.object({
   outletId: id.optional(),
 });
 
+export const schemeSavingsQuerySchema = z.object({
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+  outletId: id.optional(),
+  productId: id.optional(),
+  staffId: id.optional(),
+});
+
 export const stockMovementsQuerySchema = z.object({
   productId: id.optional(),
   from: dateStr.optional(),

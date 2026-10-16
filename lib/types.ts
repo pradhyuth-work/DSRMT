@@ -591,6 +591,76 @@ export interface SalesReportResponse {
   skuMatrix: SkuMatrixResponse;
 }
 
+export interface SchemeSavingsQuery {
+  from?: string;
+  to?: string;
+  outletId?: string;
+  productId?: string;
+  staffId?: string;
+}
+
+/** One row of a Scheme Savings breakdown table — by outlet, product, agent or month.
+ * `id`/`name` are the group's key and label (for byMonth: "2026-01" and "Jan 2026"). */
+export interface SchemeSavingsBreakdownRow {
+  id: string;
+  name: string;
+  billed: number;
+  atScheme: number;
+  saved: number;
+  pctSaved: number;
+}
+
+/** One line of a bill, for the Bills-tab drill-down modal. `saved` is 0 (not meaningfully
+ * computable) when schemeUnitPrice is null. */
+export interface SchemeSavingsBillLine {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  schemeUnitPrice: number | null;
+  schemeEstimated: boolean;
+  saved: number;
+}
+
+export interface SchemeSavingsBillRow {
+  invoiceId: string;
+  invoiceNumber: string | null;
+  outletName: string;
+  agentName: string;
+  billedAt: string;
+  billedAmount: number;
+  atScheme: number;
+  saved: number;
+  items: SchemeSavingsBillLine[];
+}
+
+/**
+ * Scheme Savings: what billing at the normal price instead of scheme saved, on bills where
+ * `hasScheme` is false. `given` (the same figure on `hasScheme = true` bills) is shown for
+ * context only — it's not folded into `billed`/`atScheme`/`saved`/the breakdowns/`bills`,
+ * all of which are scoped to the no-scheme population. `net = saved - given`.
+ */
+export interface SchemeSavingsResponse {
+  billed: number;
+  atScheme: number;
+  saved: number;
+  given: number;
+  net: number;
+  /** `saved` as a percentage of `billed` — 0 when `billed` is 0. */
+  pctSaved: number;
+  /** Number of no-scheme bills counted (i.e. `bills.length`). */
+  billCount: number;
+  /** Lines with no scheme price captured at all — skipped from saved/given entirely. */
+  noSchemeLines: number;
+  /** Lines whose scheme price was back-filled (migration 0012) rather than captured live at billing. */
+  estimatedLines: number;
+  byOutlet: SchemeSavingsBreakdownRow[];
+  byProduct: SchemeSavingsBreakdownRow[];
+  byAgent: SchemeSavingsBreakdownRow[];
+  byMonth: SchemeSavingsBreakdownRow[];
+  bills: SchemeSavingsBillRow[];
+}
+
 export interface ApiError {
   error: string;
   details?: unknown;
