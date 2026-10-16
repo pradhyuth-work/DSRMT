@@ -78,6 +78,11 @@ const COUNTED_STATUSES: readonly FulfilmentStatus[] = ["BILLED", "DISPATCHED"];
  * add to saved when the invoice is hasScheme=false, to given when true). Everything else —
  * billed, atScheme, the breakdowns, the bills list — is scoped to the hasScheme=false bills
  * only; `given` is informational context, not part of that population.
+ *
+ * Also discards an *estimated* scheme price that's higher than the line's own unitPrice —
+ * a stale guess (the product's scheme has since changed), not a real negative saving. See
+ * the comment inline. This runs regardless of whether migration 0013 (which does the same
+ * cleanup directly in the database) has been applied.
  */
 export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filters: { productId?: string } = {}): SchemeSavingsResponse {
   let billed = 0;
@@ -105,13 +110,23 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
 
     for (const item of items) {
       invBilled = round2(invBilled + item.subtotal);
-      if (item.schemeEstimated) estimatedLines++;
+
+      // An *estimated* scheme price (back-filled from the product's current price, not
+      // captured live at billing) that's higher than what this line actually billed at is
+      // provably wrong — a scheme price is a discount, so it can't exceed the real price,
+      // and this can only mean the product's scheme has changed since. Treat it exactly
+      // like no scheme price was captured at all, rather than showing a nonsensical
+      // negative "saved". A live-captured snapshot is never second-guessed this way — it's
+      // what genuinely applied at billing time, whatever the numbers look like now.
+      const unreliable = item.schemeEstimated && item.schemeUnitPrice != null && item.schemeUnitPrice > item.unitPrice;
+      const schemeUnitPrice = unreliable ? null : item.schemeUnitPrice;
 
       let lineSaved = 0;
-      if (item.schemeUnitPrice == null) {
+      if (schemeUnitPrice == null) {
         noSchemeLines++;
       } else {
-        lineSaved = round2((item.unitPrice - item.schemeUnitPrice) * item.quantity);
+        if (item.schemeEstimated) estimatedLines++;
+        lineSaved = round2((item.unitPrice - schemeUnitPrice) * item.quantity);
         if (inv.hasScheme) given = round2(given + lineSaved);
         else {
           saved = round2(saved + lineSaved);
@@ -124,8 +139,8 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
         productName: item.productName,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        schemeUnitPrice: item.schemeUnitPrice,
-        schemeEstimated: item.schemeEstimated,
+        schemeUnitPrice,
+        schemeEstimated: schemeUnitPrice != null && item.schemeEstimated,
         saved: lineSaved,
       });
 

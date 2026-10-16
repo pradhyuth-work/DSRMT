@@ -54,7 +54,13 @@ const pending = bill("bill-pending", { fulfilmentStatus: "PENDING", unitPrice: 5
 // hasScheme = true: goes to `given`, not `saved`/`billed`/the bills list.
 const givenBill = bill("bill-given", { hasScheme: true, unitPrice: 8_000, schemeUnitPrice: 7_000 });
 
-const result = computeSchemeSavings([bill1, bill2, bill3, billNoScheme, cancelled, pending, givenBill]);
+// An *estimated* scheme price higher than what was actually billed — e.g. a product that
+// had an active scheme last month but not this one, so the back-fill guessed from today's
+// (different) scheme price. This must NOT produce a negative "saved": it's discarded
+// exactly like no scheme price was captured, contributing to billed/noSchemeLines only.
+const billBadEstimate = bill("bill-bad-estimate", { unitPrice: 2_000, schemeUnitPrice: 2_500, schemeEstimated: true });
+
+const result = computeSchemeSavings([bill1, bill2, bill3, billNoScheme, cancelled, pending, givenBill, billBadEstimate]);
 
 let failures = 0;
 let total = 0;
@@ -65,20 +71,28 @@ function check(label: string, actual: unknown, expected: unknown) {
   if (!ok) failures++;
 }
 
+const BILLED = 10_000 + 6_500 + 4_000 + 1_000 + 2_000; // bill1 + bill2 + bill3 + billNoScheme + billBadEstimate
+
 check("saved (the headline worked example: 800 + 500 + 250)", result.saved, 1550);
-check("billed (10000 + 6500 + 4000 + 1000 no-scheme bill)", result.billed, 21_500);
-check("atScheme (billed - saved)", result.atScheme, 21_500 - 1550);
+check("billed", result.billed, BILLED);
+check("atScheme (billed - saved)", result.atScheme, BILLED - 1550);
 check("given (from the hasScheme=true bill only)", result.given, 1000);
 check("net (saved - given)", result.net, 1550 - 1000);
-check("pctSaved (saved / billed * 100, rounded)", result.pctSaved, Math.round((1550 / 21_500) * 100 * 100) / 100);
-check("billCount (cancelled/pending/given excluded)", result.billCount, 4);
-check("noSchemeLines", result.noSchemeLines, 1);
-check("estimatedLines", result.estimatedLines, 1);
+check("pctSaved (saved / billed * 100, rounded)", result.pctSaved, Math.round((1550 / BILLED) * 100 * 100) / 100);
+check("billCount (cancelled/pending/given excluded)", result.billCount, 5);
+check("noSchemeLines (the null one + the discarded bad estimate)", result.noSchemeLines, 2);
+check("estimatedLines (only the genuinely-used estimate)", result.estimatedLines, 1);
 check(
   "bills list contains exactly the no-scheme bills, not cancelled/pending/given",
   result.bills.map((b) => b.invoiceId).sort(),
-  ["bill-1", "bill-2", "bill-3", "bill-no-scheme"].sort(),
+  ["bill-1", "bill-2", "bill-3", "bill-no-scheme", "bill-bad-estimate"].sort(),
 );
+
+const badEstimateBill = result.bills.find((b) => b.invoiceId === "bill-bad-estimate");
+check("bad-estimate bill: saved is 0, not negative", badEstimateBill?.saved, 0);
+check("bad-estimate bill: atScheme falls back to billedAmount", badEstimateBill?.atScheme, badEstimateBill?.billedAmount);
+check("bad-estimate bill: line's schemeUnitPrice is discarded to null", badEstimateBill?.items[0]?.schemeUnitPrice, null);
+check("bad-estimate bill: line's schemeEstimated flag is cleared", badEstimateBill?.items[0]?.schemeEstimated, false);
 
 if (failures > 0) {
   console.error(`\n${failures} of ${total} check(s) failed.`);
