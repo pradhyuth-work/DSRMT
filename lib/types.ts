@@ -261,6 +261,9 @@ export interface OrderDTO {
 
 export interface BillOrderInput {
   invoiceNumber: string;
+  /** The bill-book amount, copied in by hand alongside the number — becomes the order's
+   * totalAmount/balanceDue from here on, the figure payments are collected against. */
+  amount: number;
 }
 
 export interface UpdateOrderInput {

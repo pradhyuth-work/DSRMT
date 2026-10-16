@@ -645,20 +645,31 @@ function EditOrderForm({
   );
 }
 
-/** Copies in the physical bill-book number by hand — never auto-generated. */
+/**
+ * Copies in the physical bill-book number and amount by hand — neither is auto-generated.
+ * The amount pre-fills with the system-computed total (the common case — nothing to
+ * change) but is editable: whatever's entered here becomes the order's totalAmount and the
+ * figure payments are collected against from now on, since the bill book is the paperwork
+ * of record, not the line-item sum.
+ */
 function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
   const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [amount, setAmount] = useState(String(order.totalAmount));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const amountNum = Number.parseFloat(amount);
+  const tooLow = Number.isFinite(amountNum) && amountNum < order.paidAmount;
+  const valid = invoiceNumber.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0 && !tooLow;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!invoiceNumber.trim()) return;
+    if (!valid) return;
     setBusy(true);
     setError(null);
     try {
-      await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim() });
-      await onDone(`Bill #${invoiceNumber.trim()} recorded — ready to dispatch`);
+      await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
+      await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} — ready to dispatch`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to bill order");
       setBusy(false);
@@ -683,10 +694,27 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
         />
         <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
       </div>
+      <div>
+        <label className="label" htmlFor="bill-amount">Bill amount</label>
+        <input
+          id="bill-amount"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          className="input"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Copy this from the physical bill book too — it becomes the order total payments are collected against.
+        </p>
+      </div>
+      {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
       {error && <Alert kind="error">{error}</Alert>}
-      <button type="submit" className="btn btn-primary w-full" disabled={busy || !invoiceNumber.trim()}>
+      <button type="submit" className="btn btn-primary w-full" disabled={busy || !valid}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
-        Save bill number
+        Save bill
       </button>
     </form>
   );

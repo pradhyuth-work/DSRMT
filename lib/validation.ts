@@ -91,9 +91,11 @@ export const updateOrderSchema = z
 >;
 
 // The physical bill-book number, copied in by hand — free text (not every book uses plain
-// digits), but bounded so it can't be pasted-in garbage.
+// digits), but bounded so it can't be pasted-in garbage. `amount` is the bill-book total,
+// also copied in by hand — becomes the order's totalAmount from here on (see the route).
 export const billOrderSchema = z.object({
   invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40),
+  amount: money.positive("Enter the bill amount"),
 }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
 
 export const dispatchBulkSchema = z.object({
