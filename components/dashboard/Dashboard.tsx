@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlarmClockCheck,
+  BadgePercent,
   Boxes,
   ChevronLeft,
   ChevronRight,
@@ -52,8 +53,20 @@ import InventoryInwarding from "./InventoryInwarding";
 import OutletsInCreditView from "./OutletsInCreditView";
 import UsersManager from "./UsersManager";
 import SalesReports from "./SalesReports";
+import SchemeSavings from "./SchemeSavings";
 
-type TabId = "sale" | "orders" | "ledgers" | "credit" | "payments" | "staff" | "inventory" | "inwarding" | "users" | "reports";
+type TabId =
+  | "sale"
+  | "orders"
+  | "ledgers"
+  | "credit"
+  | "payments"
+  | "staff"
+  | "inventory"
+  | "inwarding"
+  | "users"
+  | "reports"
+  | "schemeSavings";
 
 interface TabDef {
   id: TabId;
@@ -72,6 +85,7 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "payments", label: "Payments", helper: "Collections", icon: Wallet2 },
     { id: "staff", label: "Staff Performance", helper: "Track the crew", icon: Users },
     { id: "reports", label: "Reports", helper: "Sales breakdowns", icon: BarChart3 },
+    { id: "schemeSavings", label: "Scheme Savings", helper: "Saved without schemes", icon: BadgePercent },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
     { id: "inwarding", label: "Inwarding", helper: "Record purchases", icon: PackagePlus },
     { id: "users", label: "Users", helper: "Accounts & roles", icon: UserCog },
@@ -512,6 +526,7 @@ export default function Dashboard() {
                 {tab === "payments" && <PaymentsView user={user} outlets={data.outlets} staff={data.staff} />}
                 {tab === "staff" && <StaffPerformanceView />}
                 {tab === "reports" && <SalesReports outlets={data.outlets} products={data.products} />}
+                {tab === "schemeSavings" && <SchemeSavings outlets={data.outlets} products={data.products} staff={data.staff} />}
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}
