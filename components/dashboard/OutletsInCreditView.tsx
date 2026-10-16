@@ -1,20 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { HandCoins, Loader2, Search } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, HandCoins, Loader2, Search } from "lucide-react";
 import type { AuthUser, OutletCreditDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, DaysOutstandingBadge, EmptyState, Modal, PAGE_SIZE, Pagination, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
 import { CollectPaymentForm } from "./payment-form";
+import { OpenInvoicesBreakdown, LedgerTable } from "./OutletLedgers";
 
 const UNASSIGNED = "__unassigned__";
 
 /**
  * "Who owes money", built on /api/outlets/credit instead of the admin-only /api/reports, so
  * it never carries company-wide totals or staff performance. No edit/hide/delete/manage-routes
- * here either — those stay admin-only in Outlet Ledgers.
+ * here either — those stay admin-only in Outlet Ledgers; this view otherwise mirrors that
+ * one's table (Total Billed/Paid columns, expandable invoice + ledger breakdown).
  * - Stock incharge: every outlet in credit, can filter by field agent, and can collect a
  *   payment (which they can already do from the Payments tab too).
  * - Field agent: view-only, scoped server-side to their own outlets — no collect action,
@@ -25,6 +27,7 @@ export default function OutletsInCreditView({ user }: { user: AuthUser }) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [collecting, setCollecting] = useState<OutletCreditDTO | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const canCollect = user.role !== "agent";
@@ -140,43 +143,70 @@ export default function OutletsInCreditView({ user }: { user: AuthUser }) {
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-secondary">
                 <tr>
+                  <th className="th w-8" />
                   <th className="th">Outlet</th>
                   <th className="th">Route</th>
+                  <th className="th text-right">Total Billed</th>
+                  <th className="th text-right">Total Paid</th>
                   <th className="th text-right">Balance</th>
                   <th className="th text-right">Days of Credit</th>
                   {canCollect && <th className="th text-right">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {page.pageItems.map((r) => (
-                  <tr key={r.outletId} className="hover:bg-secondary">
-                    <td className="td">
-                      <p className="font-medium">{r.outletName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.phone} · {r.openInvoices.length} open invoice{r.openInvoices.length === 1 ? "" : "s"}
-                      </p>
-                    </td>
-                    <td className="td text-muted-foreground">{r.routeName ?? "—"}</td>
-                    <td className="td text-right font-semibold tabular-nums text-warning-foreground">{formatMoney(r.balance)}</td>
-                    <td className="td text-right">
-                      {r.oldestInvoiceDays !== null ? <DaysOutstandingBadge days={r.oldestInvoiceDays} /> : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    {canCollect && (
-                      <td className="td text-right">
-                        <button
-                          className="btn btn-primary px-3 py-1.5"
-                          onClick={() => {
-                            setFlash(null);
-                            setCollecting(r);
-                          }}
-                        >
-                          <HandCoins className="h-4 w-4" />
-                          <span className="hidden md:inline">Collect Payment</span>
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
+                {page.pageItems.map((r) => {
+                  const isOpen = expanded === r.outletId;
+                  return (
+                    <Fragment key={r.outletId}>
+                      <tr className="hover:bg-secondary">
+                        <td className="td">
+                          <button
+                            onClick={() => setExpanded(isOpen ? null : r.outletId)}
+                            className="rounded p-1 text-muted-foreground hover:bg-secondary"
+                            aria-label={isOpen ? "Hide ledger" : "Show ledger"}
+                          >
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                        </td>
+                        <td className="td">
+                          <p className="font-medium">{r.outletName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.phone} · {r.openInvoices.length} open invoice{r.openInvoices.length === 1 ? "" : "s"}
+                          </p>
+                        </td>
+                        <td className="td text-muted-foreground">{r.routeName ?? "—"}</td>
+                        <td className="td text-right tabular-nums">{formatMoney(r.totalBilled)}</td>
+                        <td className="td text-right tabular-nums text-success-foreground">{formatMoney(r.totalPaid)}</td>
+                        <td className="td text-right font-semibold tabular-nums text-warning-foreground">{formatMoney(r.balance)}</td>
+                        <td className="td text-right">
+                          {r.oldestInvoiceDays !== null ? <DaysOutstandingBadge days={r.oldestInvoiceDays} /> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        {canCollect && (
+                          <td className="td text-right">
+                            <button
+                              className="btn btn-primary px-3 py-1.5"
+                              onClick={() => {
+                                setFlash(null);
+                                setCollecting(r);
+                              }}
+                            >
+                              <HandCoins className="h-4 w-4" />
+                              <span className="hidden md:inline">Collect Payment</span>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={canCollect ? 8 : 7} className="space-y-3 bg-secondary px-4 py-3">
+                            <OpenInvoicesBreakdown ledger={r} />
+                            <LedgerTable ledger={r} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

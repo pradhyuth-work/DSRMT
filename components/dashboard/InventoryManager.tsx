@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Check, Hash, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDownCircle, ArrowUpCircle, Check, Download, Hash, History, Loader2, PackagePlus, Pencil, PlusCircle, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import type { ProductDTO, Role, StockMovementDTO, StockMovementType } from "@/lib/types";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
@@ -19,6 +19,62 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   DISPATCH: "Dispatched",
   CANCEL_RETURN: "Returned (cancelled)",
 };
+
+/** Quotes a CSV field only when it needs it — keeps plain numbers and names readable. */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
+  const csv = [header, ...rows].map((r) => r.map(csvField).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Every product's current stock position — code, pricing, scheme state, quantity on hand
+ * and its value at standard price. Available to both admin and stock incharge, same as the
+ * table it mirrors. */
+function exportStockCsv(products: ProductDTO[]) {
+  downloadCsv(
+    "stock.csv",
+    ["#", "Product", "Unit Price", "Scheme Price", "Scheme Active", "In Stock", "Stock Value"],
+    products.map((p) => [
+      p.productCode,
+      p.name,
+      p.unitPrice,
+      p.schemePrice ?? "",
+      p.schemeActive === undefined ? "" : p.schemeActive ? "Yes" : "No",
+      p.stockQty ?? 0,
+      round2((p.stockQty ?? 0) * p.unitPrice),
+    ]),
+  );
+}
+
+/** The full movement log currently on screen (respects the date-range filter already applied
+ * above), one row per IN/OUT event with everything recorded against it. */
+function exportMovementsCsv(movements: StockMovementDTO[]) {
+  downloadCsv(
+    "stock-movements.csv",
+    ["Date", "Product", "Type", "Direction", "Change", "Invoice", "Reason", "Supplier Ref", "Recorded By"],
+    movements.map((m) => [
+      formatDate(m.createdAt),
+      m.productName,
+      MOVEMENT_LABEL[m.type],
+      m.direction,
+      m.change,
+      m.invoiceId ?? "",
+      m.reason ?? "",
+      m.supplierRef ?? "",
+      m.staffName,
+    ]),
+  );
+}
 
 type Dialog =
   | { kind: "adjust" | "edit" | "restock" | "code"; product: ProductDTO }
@@ -110,19 +166,24 @@ export default function InventoryManager({
       <div className={`space-y-4 ${canManage ? "lg:col-span-2" : "lg:col-span-3"}`}>
         {message && <Alert kind={message.kind}>{message.text}</Alert>}
 
-        {canManage && (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <SchemeMasterToggle products={products} onSaved={onSaved} />
-            <div className="flex gap-2">
-              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
-                <Upload className="h-4 w-4" /> Bulk update rates
-              </button>
-              <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
-                <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
-              </button>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {canManage ? <SchemeMasterToggle products={products} onSaved={onSaved} /> : <span />}
+          <div className="flex gap-2">
+            {canManage && (
+              <>
+                <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-rate" })}>
+                  <Upload className="h-4 w-4" /> Bulk update rates
+                </button>
+                <button className="btn btn-secondary" onClick={() => setDialog({ kind: "bulk-adjust" })}>
+                  <SlidersHorizontal className="h-4 w-4" /> Bulk adjust stock
+                </button>
+              </>
+            )}
+            <button className="btn btn-secondary" disabled={products.length === 0} onClick={() => exportStockCsv(products)}>
+              <Download className="h-4 w-4" /> Download CSV
+            </button>
           </div>
-        )}
+        </div>
 
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -221,7 +282,17 @@ export default function InventoryManager({
             <h2 className="flex items-center gap-2 font-semibold">
               <History className="h-4 w-4 text-primary" /> Stock movements
             </h2>
-            <DateRangeFilter value={range} onChange={setRange} />
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRangeFilter value={range} onChange={setRange} />
+              <button
+                className="btn btn-secondary"
+                disabled={visibleMovements.length === 0}
+                onClick={() => exportMovementsCsv(visibleMovements)}
+                title="The movement log currently shown, including the date range above"
+              >
+                <Download className="h-4 w-4" /> Download CSV
+              </button>
+            </div>
           </div>
           {movementsError && (
             <div className="px-5 py-3">

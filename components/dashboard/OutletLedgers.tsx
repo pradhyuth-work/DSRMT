@@ -6,6 +6,7 @@ import {
   Calculator,
   ChevronDown,
   ChevronRight,
+  Download,
   Eye,
   EyeOff,
   HandCoins,
@@ -34,6 +35,72 @@ interface LedgerData {
 }
 
 const UNASSIGNED = "__unassigned__";
+
+/** Quotes a CSV field only when it needs it — keeps plain numbers and names readable. */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
+  const csv = [header, ...rows].map((r) => r.map(csvField).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Every transaction, for every outlet currently on screen (same search/agent filter as the
+ * table) — the full detail behind each outlet's summary row and its expandable ledger table,
+ * flattened into one sheet. An outlet with no transactions yet still gets a summary-only row. */
+function exportLedgerCsv(ledgers: OutletLedger[], onlyInCredit: boolean) {
+  const header = [
+    "Outlet",
+    "Phone",
+    "Route",
+    "Field Agent",
+    "Hidden",
+    "Total Billed",
+    "Total Paid",
+    "Outlet Balance",
+    "Days of Credit",
+    "Entry Date",
+    "Entry Type",
+    "Reference",
+    "Description",
+    "Debit",
+    "Credit",
+    "Running Balance",
+  ];
+  const rows: (string | number)[][] = ledgers.flatMap((l) => {
+    const prefix: (string | number)[] = [
+      l.outletName,
+      l.phone,
+      l.routeName ?? "",
+      l.agentName ?? "",
+      l.hidden ? "Yes" : "No",
+      l.totalBilled,
+      l.totalPaid,
+      l.balance,
+      l.oldestInvoiceDays ?? "",
+    ];
+    if (l.entries.length === 0) return [[...prefix, "", "", "", "", "", ""]];
+    return l.entries.map((e) => [
+      ...prefix,
+      formatDate(e.date),
+      e.type,
+      e.reference,
+      e.description,
+      e.debit || "",
+      e.credit || "",
+      e.runningBalance,
+    ]);
+  });
+  downloadCsv(onlyInCredit ? "outlets-in-credit-ledger.csv" : "outlet-ledgers.csv", header, rows);
+}
 
 export default function OutletLedgers({
   data,
@@ -202,6 +269,14 @@ export default function OutletLedgers({
         </button>
         <button className="btn btn-secondary sm:w-auto" onClick={() => setAddingOutlet(true)}>
           <Plus className="h-4 w-4" /> Add outlet
+        </button>
+        <button
+          className="btn btn-secondary sm:w-auto"
+          disabled={filtered.length === 0}
+          onClick={() => exportLedgerCsv(filtered, onlyInCredit)}
+          title="Every transaction for every outlet currently shown, in one CSV"
+        >
+          <Download className="h-4 w-4" /> Download CSV
         </button>
       </div>
 
@@ -525,7 +600,7 @@ export default function OutletLedgers({
 
 /** Each open invoice's own age, alongside the outstanding total — the running balance
  * alone doesn't tell you which invoice has actually been sitting the longest. */
-function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
+export function OpenInvoicesBreakdown({ ledger }: { ledger: { openInvoices: OutletLedger["openInvoices"] } }) {
   const invoicesPage = usePagination(ledger.openInvoices);
   if (ledger.openInvoices.length === 0) return null;
   return (
@@ -559,7 +634,7 @@ function OpenInvoicesBreakdown({ ledger }: { ledger: OutletLedger }) {
   );
 }
 
-function LedgerTable({ ledger }: { ledger: OutletLedger }) {
+export function LedgerTable({ ledger }: { ledger: { entries: OutletLedger["entries"] } }) {
   const entriesPage = usePagination(ledger.entries);
   if (ledger.entries.length === 0) return <EmptyState>No transactions for this outlet yet.</EmptyState>;
   return (

@@ -157,6 +157,10 @@ export interface OutletCreditDTO extends OutletBalanceDTO {
   /** Derived from the outlet's route, if any — lets stock filter this list by field agent. */
   agentId: string | null;
   agentName: string | null;
+  totalBilled: number;
+  totalPaid: number;
+  /** Invoice and payment history only — no manual corrections, matching `balance` staying invoice-only. */
+  entries: LedgerEntry[];
 }
 
 export interface StaffDTO {
