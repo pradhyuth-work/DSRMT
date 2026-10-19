@@ -32,7 +32,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
   const [invoiceTotals, paymentTotals, stockTotals, outlets, staff, staffInvoices, staffPayments] =
     await Promise.all([
       prisma.invoice.aggregate({ where: notCancelled, _sum: { totalAmount: true, balanceDue: true }, _count: true }),
-      prisma.paymentCollection.aggregate({ _sum: { amount: true } }),
+      prisma.paymentCollection.aggregate({ where: { chequeStatus: "ACTIVE" }, _sum: { amount: true } }),
       prisma.product.findMany({ select: { stockQty: true, unitPrice: true } }),
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
@@ -47,6 +47,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
               id: true,
               amount: true,
               paymentMethod: true,
+              chequeStatus: true,
               invoiceId: true,
               invoice: { select: { invoiceNumber: true } },
               notes: true,
@@ -68,7 +69,8 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       }),
       prisma.paymentCollection.groupBy({
         by: ["staffId", "paymentMethod"],
-        where: { createdAt: dateFilter },
+        // A bounced cheque is not money collected.
+        where: { createdAt: dateFilter, chequeStatus: "ACTIVE" },
         _sum: { amount: true },
       }),
     ]);
@@ -88,9 +90,11 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
         date: p.createdAt.toISOString(),
         type: "PAYMENT" as const,
         reference: p.invoice?.invoiceNumber ?? "Unbilled",
-        description: `${p.paymentMethod} payment${p.notes ? ` — ${p.notes}` : ""}`,
+        // A bounced cheque stays on the ledger for the record but is worth nothing: the
+        // invoices it settled are open again, so it must not be credited a second time.
+        description: `${p.paymentMethod} payment${p.chequeStatus === "BOUNCED" ? " (bounced)" : ""}${p.notes ? ` — ${p.notes}` : ""}`,
         debit: 0,
-        credit: p.amount,
+        credit: p.chequeStatus === "BOUNCED" ? 0 : p.amount,
       })),
       // A positive delta means the balance went up (a debit — they owe more); a negative
       // delta means it went down (a credit). Folding corrections in here, rather than only
@@ -115,7 +119,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
     });
 
     const totalBilled = round2(outlet.invoices.reduce((s, i) => s + i.totalAmount, 0));
-    const totalPaid = round2(outlet.payments.reduce((s, p) => s + p.amount, 0));
+    const totalPaid = round2(outlet.payments.filter((p) => p.chequeStatus === "ACTIVE").reduce((s, p) => s + p.amount, 0));
     const adjustmentSum = round2(outlet.balanceAdjustments.reduce((s, a) => s + a.delta, 0));
     const openInvoices = outlet.invoices
       .filter((i) => i.balanceDue > 0)
@@ -206,7 +210,7 @@ export interface SalesReportFilters {
 export async function buildSalesReport(filters: SalesReportFilters = {}): Promise<SalesReportResponse> {
   const dateFilter = filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined;
   const invoiceWhere = { ...notCancelled, createdAt: dateFilter, outletId: filters.outletId };
-  const paymentWhere = { createdAt: dateFilter, outletId: filters.outletId };
+  const paymentWhere = { createdAt: dateFilter, outletId: filters.outletId, chequeStatus: "ACTIVE" as const };
 
   const [invoices, payments] = await Promise.all([
     prisma.invoice.findMany({

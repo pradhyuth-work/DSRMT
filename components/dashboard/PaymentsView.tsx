@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, HandCoins, Loader2, Trash2, Wallet2 } from "lucide-react";
-import type { AuthUser, OutletDTO, PaymentDTO, StaffDTO } from "@/lib/types";
-import { formatMoney, round2 } from "@/lib/money";
+import { AlertTriangle, Download, HandCoins, History, Loader2, RotateCcw, Trash2, Wallet2 } from "lucide-react";
+import type { AuthUser, BounceChequeResponse, ChequeEventDTO, OutletDTO, PaymentDTO, ReflectChequeResponse, StaffDTO } from "@/lib/types";
+import { CHEQUE_BOUNCE_FEE, formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, StatCard, formatDate, usePagination } from "./ui";
 import { DateRangeFilter, type DateRange } from "./date-range";
@@ -11,24 +11,68 @@ import { CollectPaymentForm, type CollectPaymentTarget } from "./payment-form";
 import { Combobox } from "./Combobox";
 
 /**
+ * One line in the list. A cheque that settled several invoices is stored as several payment
+ * rows (one per invoice), so rows sharing a chequeGroupId are shown as a single cheque line;
+ * every other payment is a line of its own.
+ */
+interface PaymentLine {
+  key: string;
+  rows: PaymentDTO[];
+  /** Set for cheque lines — what Flag bounce / Reflect again act on. */
+  groupId: string | null;
+  amount: number;
+  invoiceLabel: string;
+  bounced: boolean;
+}
+
+function buildLines(payments: PaymentDTO[]): PaymentLine[] {
+  const lines: PaymentLine[] = [];
+  const byGroup = new Map<string, PaymentLine>();
+  for (const p of payments) {
+    const groupId = p.paymentMethod === "CHEQUE" ? p.chequeGroupId : null;
+    const existing = groupId ? byGroup.get(groupId) : undefined;
+    if (existing) {
+      existing.rows.push(p);
+      continue;
+    }
+    const line: PaymentLine = { key: groupId ?? p.id, rows: [p], groupId, amount: 0, invoiceLabel: "", bounced: false };
+    if (groupId) byGroup.set(groupId, line);
+    lines.push(line);
+  }
+  for (const l of lines) {
+    l.amount = round2(l.rows.reduce((s, r) => s + r.amount, 0));
+    l.invoiceLabel = [...new Set(l.rows.map((r) => r.invoiceNumber ?? "Unbilled"))].join(", ");
+    l.bounced = l.rows[0].chequeStatus === "BOUNCED";
+  }
+  return lines;
+}
+
+type StatusFilter = "all" | "active-cheques" | "bounced-cheques";
+
+/**
  * The payments ledger. Admin sees every collection, filterable by outlet, collector and
- * date. Stock incharge only ever sees payments they personally collected (the server
- * enforces this — any filter they try to send for another staff member is ignored), so
- * their view has no "collected by" filter to begin with.
+ * date. Stock incharge sees the payments they personally collected plus every cheque (the
+ * server enforces this), so their view has no "collected by" filter to begin with.
+ *
+ * Admin and stock incharge can both flag any cheque as bounced (it stops counting as received
+ * and the invoices it settled reopen) and reflect it again once it clears.
  */
 export default function PaymentsView({ user, outlets, staff }: { user: AuthUser; outlets: OutletDTO[]; staff: StaffDTO[] }) {
   const isAdmin = user.role === "admin";
   const [outletId, setOutletId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [range, setRange] = useState<DateRange>({});
   const [payments, setPayments] = useState<PaymentDTO[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [collecting, setCollecting] = useState(false);
-  const [deletingPayment, setDeletingPayment] = useState<PaymentDTO | null>(null);
+  const [deletingLine, setDeletingLine] = useState<PaymentLine | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [chequeAction, setChequeAction] = useState<{ line: PaymentLine; mode: "bounce" | "reflect" } | null>(null);
+  const [historyLine, setHistoryLine] = useState<PaymentLine | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,8 +90,22 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
     void load();
   }, [load]);
 
-  const total = round2((payments ?? []).reduce((s, p) => s + p.amount, 0));
-  const paymentsPage = usePagination(payments ?? []);
+  const lines = useMemo(() => buildLines(payments ?? []), [payments]);
+  const visible = useMemo(
+    () =>
+      lines.filter((l) => {
+        if (status === "all") return true;
+        if (!l.groupId) return false;
+        return status === "bounced-cheques" ? l.bounced : !l.bounced;
+      }),
+    [lines, status],
+  );
+  // A bounced cheque is not money received, so it is left out of the total.
+  const received = lines.filter((l) => !l.bounced);
+  const bouncedLines = lines.filter((l) => l.bounced);
+  const total = round2(received.reduce((s, l) => s + l.amount, 0));
+  const bouncedTotal = round2(bouncedLines.reduce((s, l) => s + l.amount, 0));
+  const linesPage = usePagination(visible);
 
   async function downloadCsv() {
     setDownloading(true);
@@ -61,16 +119,17 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
     }
   }
 
-  async function confirmDeletePayment() {
-    if (!deletingPayment) return;
+  async function confirmDelete() {
+    if (!deletingLine) return;
     setDeleting(true);
     try {
-      await api.deletePayment(deletingPayment.id);
-      setFlash(`Payment of ${formatMoney(deletingPayment.amount)} from ${deletingPayment.outletName} reversed`);
-      setDeletingPayment(null);
+      for (const row of deletingLine.rows) await api.deletePayment(row.id);
+      setFlash(`Payment of ${formatMoney(deletingLine.amount)} from ${deletingLine.rows[0].outletName} reversed`);
+      setDeletingLine(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete payment");
+      await load();
     } finally {
       setDeleting(false);
     }
@@ -100,6 +159,18 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
               options={[{ value: "", label: "Collected by anyone" }, ...staff.map((s) => ({ value: s.id, label: s.name }))]}
             />
           )}
+          <Combobox
+            className="w-44"
+            value={status}
+            onChange={(v) => setStatus(v as StatusFilter)}
+            ariaLabel="Filter by cheque status"
+            placeholder="All payments"
+            options={[
+              { value: "all", label: "All payments" },
+              { value: "active-cheques", label: "Cheques: active" },
+              { value: "bounced-cheques", label: "Cheques: bounced" },
+            ]}
+          />
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
         <div className="flex gap-2">
@@ -113,7 +184,15 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
         </div>
       </div>
 
-      <StatCard label={`Total ${payments ? `(${payments.length})` : ""}`} value={formatMoney(total)} icon={Wallet2} tone="lime" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatCard label={`Total ${payments ? `(${received.length})` : ""}`} value={formatMoney(total)} icon={Wallet2} tone="lime" />
+        <StatCard
+          label={`Bounced, awaiting re-presentation ${payments ? `(${bouncedLines.length} cheque${bouncedLines.length === 1 ? "" : "s"})` : ""}`}
+          value={formatMoney(bouncedTotal)}
+          icon={AlertTriangle}
+          tone="rose"
+        />
+      </div>
 
       {error && <Alert kind="error">{error}</Alert>}
 
@@ -133,69 +212,133 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                   <th className="th">Method</th>
                   <th className="th">Cheque</th>
                   <th className="th">Invoice</th>
+                  <th className="th">Status</th>
                   <th className="th">Notes</th>
                   <th className="th text-right">Amount</th>
-                  {isAdmin && <th className="th w-8" />}
+                  <th className="th" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {paymentsPage.pageItems.map((p) => (
-                  <tr key={p.id} className="hover:bg-secondary">
-                    <td className="td whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
-                    <td className="td font-medium">{p.outletName}</td>
-                    {isAdmin && <td className="td">{p.staffName}</td>}
-                    <td className="td">{p.paymentMethod}</td>
-                    <td className="td whitespace-nowrap text-xs text-muted-foreground">
-                      {p.chequeNumber ? `#${p.chequeNumber}${p.chequeDate ? ` · ${formatDate(p.chequeDate)}` : ""}` : ""}
-                    </td>
-                    <td className="td font-mono text-xs">{p.invoiceNumber ?? "Unbilled"}</td>
-                    <td className="td max-w-48 truncate text-muted-foreground">{p.notes ?? ""}</td>
-                    <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(p.amount)}</td>
-                    {isAdmin && (
-                      <td className="td">
-                        <button
-                          className="rounded p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground"
-                          onClick={() => setDeletingPayment(p)}
-                          aria-label={`Delete payment of ${formatMoney(p.amount)} from ${p.outletName}`}
-                          title="Delete payment"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                {linesPage.pageItems.map((l) => {
+                  const p = l.rows[0];
+                  return (
+                    <tr key={l.key} className="hover:bg-secondary">
+                      <td className="td whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
+                      <td className="td font-medium">{p.outletName}</td>
+                      {isAdmin && <td className="td">{p.staffName}</td>}
+                      <td className="td">{p.paymentMethod}</td>
+                      <td className="td whitespace-nowrap text-xs text-muted-foreground">
+                        {p.chequeNumber ? `#${p.chequeNumber}${p.chequeDate ? ` · ${formatDate(p.chequeDate)}` : ""}` : ""}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="td font-mono text-xs">{l.invoiceLabel}</td>
+                      <td className="td">
+                        {l.groupId ? (
+                          <div className="space-y-0.5">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${
+                                l.bounced ? "bg-danger text-danger-foreground" : "bg-success text-success-foreground"
+                              }`}
+                            >
+                              {l.bounced ? "Bounced" : "Active"}
+                            </span>
+                            {l.bounced && p.chequeBouncedAt && (
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(p.chequeBouncedAt)}
+                                {p.chequeBounceReason ? ` · ${p.chequeBounceReason}` : ""}
+                              </p>
+                            )}
+                            {!l.bounced && p.chequeReflectedAt && (
+                              <p className="text-xs text-muted-foreground">Reflected again {formatDate(p.chequeReflectedAt)}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="td max-w-48 truncate text-muted-foreground">{p.notes ?? ""}</td>
+                      <td
+                        className={`td text-right font-semibold tabular-nums ${
+                          l.bounced ? "text-danger-foreground line-through" : "text-success-foreground"
+                        }`}
+                      >
+                        {formatMoney(l.amount)}
+                      </td>
+                      <td className="td">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          {l.groupId && !l.bounced && (
+                            <button
+                              className="btn btn-secondary px-2.5 py-1 text-xs text-danger-foreground"
+                              onClick={() => setChequeAction({ line: l, mode: "bounce" })}
+                            >
+                              Flag bounce
+                            </button>
+                          )}
+                          {l.groupId && l.bounced && (
+                            <button
+                              className="btn btn-secondary px-2.5 py-1 text-xs text-info-foreground"
+                              onClick={() => setChequeAction({ line: l, mode: "reflect" })}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" /> Reflect again
+                            </button>
+                          )}
+                          {l.groupId && (
+                            <button
+                              className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                              onClick={() => setHistoryLine(l)}
+                              aria-label="Cheque history"
+                              title="Cheque history"
+                            >
+                              <History className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              className="rounded p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground"
+                              onClick={() => setDeletingLine(l)}
+                              aria-label={`Delete payment of ${formatMoney(l.amount)} from ${p.outletName}`}
+                              title="Delete payment"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-        {payments && payments.length === 0 && <EmptyState>No payments match these filters.</EmptyState>}
+        {payments && visible.length === 0 && <EmptyState>No payments match these filters.</EmptyState>}
         <Pagination
-          page={paymentsPage.page}
-          totalPages={paymentsPage.totalPages}
-          totalItems={paymentsPage.totalItems}
+          page={linesPage.page}
+          totalPages={linesPage.totalPages}
+          totalItems={linesPage.totalItems}
           pageSize={PAGE_SIZE}
-          onPageChange={paymentsPage.setPage}
+          onPageChange={linesPage.setPage}
         />
       </div>
 
-      <Modal open={!!deletingPayment} title="Delete this payment?" onClose={() => setDeletingPayment(null)}>
-        {deletingPayment && (
+      <Modal open={!!deletingLine} title="Delete this payment?" onClose={() => setDeletingLine(null)}>
+        {deletingLine && (
           <div className="space-y-5">
             <div className="rounded-xl bg-warning p-4 text-sm">
-              <p className="font-semibold">{formatMoney(deletingPayment.amount)} from {deletingPayment.outletName}</p>
+              <p className="font-semibold">{formatMoney(deletingLine.amount)} from {deletingLine.rows[0].outletName}</p>
               <p className="mt-1 text-foreground">
-                This reverses the payment — the amount is added back to the outlet's outstanding balance.
+                {deletingLine.bounced
+                  ? "This cheque is already flagged as bounced, so its record is removed and the outlet's balance does not change."
+                  : "This reverses the payment — the amount is added back to the outlet's outstanding balance."}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button className="btn btn-secondary h-12 text-base" onClick={() => setDeletingPayment(null)}>
+              <button className="btn btn-secondary h-12 text-base" onClick={() => setDeletingLine(null)}>
                 Keep payment
               </button>
               <button
                 className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
                 disabled={deleting}
-                onClick={() => void confirmDeletePayment()}
+                onClick={() => void confirmDelete()}
               >
                 {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Yes, delete
@@ -203,6 +346,30 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={!!chequeAction}
+        title={chequeAction?.mode === "bounce" ? "Flag this cheque as bounced?" : "Reflect this cheque again?"}
+        onClose={() => setChequeAction(null)}
+      >
+        {chequeAction && (
+          <ChequeActionDialog
+            key={`${chequeAction.mode}-${chequeAction.line.key}`}
+            line={chequeAction.line}
+            mode={chequeAction.mode}
+            onCancel={() => setChequeAction(null)}
+            onDone={async (message) => {
+              setChequeAction(null);
+              setFlash(message);
+              await load();
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal open={!!historyLine} title="Cheque history" onClose={() => setHistoryLine(null)}>
+        {historyLine && <ChequeHistory line={historyLine} />}
       </Modal>
 
       <Modal open={collecting} title="Collect payment" onClose={() => setCollecting(false)}>
@@ -217,6 +384,214 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
           }}
         />
       </Modal>
+    </div>
+  );
+}
+
+/**
+ * Confirmation for Flag bounce / Reflect again, showing what will happen before anything does:
+ * which invoices get the money back (or lose it) and the outlet's balance before and after. The
+ * outlet balance here is the open-invoice balance the server settles against (the bounce
+ * charge is added to the ledger on top of it, and is mentioned separately).
+ */
+function ChequeActionDialog({
+  line,
+  mode,
+  onCancel,
+  onDone,
+}: {
+  line: PaymentLine;
+  mode: "bounce" | "reflect";
+  onCancel: () => void;
+  onDone: (message: string) => Promise<void>;
+}) {
+  const first = line.rows[0];
+  const [reason, setReason] = useState("");
+  const [balance, setBalance] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bounce = mode === "bounce";
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .outletLedger(first.outletId)
+      .then((b) => !cancelled && setBalance(b.balance))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [first.outletId]);
+
+  const after = balance === null ? null : round2(bounce ? balance + line.amount : balance - line.amount);
+  const wouldOverpay = !bounce && balance !== null && balance < line.amount;
+
+  async function confirm() {
+    if (!line.groupId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (bounce) {
+        const r: BounceChequeResponse = await api.bounceCheque(line.groupId, { reason: reason.trim() || undefined });
+        await onDone(
+          `Cheque #${first.chequeNumber ?? ""} from ${first.outletName} flagged as bounced — ${formatMoney(r.amount)} added back to the balance, plus a ${formatMoney(r.fee)} bounce charge`,
+        );
+      } else {
+        const r: ReflectChequeResponse = await api.reflectCheque(line.groupId);
+        await onDone(`Cheque #${first.chequeNumber ?? ""} from ${first.outletName} reflected again — ${formatMoney(r.amount)} applied`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-xl p-4 text-sm ${bounce ? "bg-warning" : "bg-info"}`}>
+        <p className="font-semibold">
+          {formatMoney(line.amount)} · Cheque #{first.chequeNumber ?? "—"}
+        </p>
+        <p className="mt-0.5">
+          {first.outletName}
+          {first.chequeDate ? ` · dated ${formatDate(first.chequeDate)}` : ""}
+        </p>
+        <p className="mt-2">
+          {bounce
+            ? `The cheque stops counting as received and the amount is added back to the outlet's outstanding balance. A bounce charge of ${formatMoney(CHEQUE_BOUNCE_FEE)} is also added to the outlet's ledger. Nothing is deleted; you can reflect it again later.`
+            : "Use this once the cheque has been re-presented and cleared. The money is applied to the invoices again and the balance drops. The bounce charge is not refunded."}
+        </p>
+      </div>
+
+      <div>
+        <span className="label">{bounce ? "Effect on invoices" : "Where the money goes"}</span>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <thead className="bg-secondary">
+              <tr>
+                <th className="th">Invoice</th>
+                <th className="th text-right">{bounce ? "Added back" : "Applied"}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {line.rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="px-4 py-2 font-mono text-xs">{r.invoiceNumber ?? "Unbilled"}</td>
+                  <td className={`px-4 py-2 text-right font-semibold tabular-nums ${bounce ? "text-danger-foreground" : "text-success-foreground"}`}>
+                    {formatMoney(r.amount)}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td className="px-4 py-2 font-semibold">Outlet balance</td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {balance === null || after === null ? (
+                    <Loader2 className="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">{formatMoney(balance)}</span>
+                      {" → "}
+                      <span className="font-bold">{formatMoney(after)}</span>
+                    </>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {!bounce && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            If an original invoice was paid meanwhile, the remainder is applied oldest-first to the outlet&apos;s other open invoices.
+          </p>
+        )}
+      </div>
+
+      {bounce && (
+        <div>
+          <label className="label" htmlFor="bounce-reason">Reason (optional)</label>
+          <input
+            id="bounce-reason"
+            className="input"
+            value={reason}
+            maxLength={200}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Insufficient funds"
+          />
+        </div>
+      )}
+
+      {wouldOverpay && (
+        <Alert kind="warning">
+          This outlet now owes only {formatMoney(balance ?? 0)}, which is less than this cheque. Reflecting it would overpay, so it is blocked.
+        </Alert>
+      )}
+      {error && <Alert kind="error">{error}</Alert>}
+
+      <div className="grid grid-cols-2 gap-3">
+        <button className="btn btn-secondary h-12 text-base" onClick={onCancel} disabled={busy}>
+          {bounce ? "Keep as received" : "Cancel"}
+        </button>
+        <button
+          className={`btn h-12 text-base ${bounce ? "bg-danger-foreground text-white hover:bg-danger-foreground" : "btn-primary"}`}
+          disabled={busy || wouldOverpay}
+          onClick={() => void confirm()}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : bounce ? <AlertTriangle className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+          {bounce ? "Yes, flag bounced" : "Yes, reflect again"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Every bounce and reflect-again of one cheque — who did it, when, and why. */
+function ChequeHistory({ line }: { line: PaymentLine }) {
+  const [events, setEvents] = useState<ChequeEventDTO[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!line.groupId) return;
+    api.chequeHistory(line.groupId).then(setEvents).catch((err) => setError(err instanceof Error ? err.message : "Failed to load history"));
+  }, [line.groupId]);
+
+  const first = line.rows[0];
+  return (
+    <div className="space-y-3">
+      <p className="text-sm">
+        <span className="font-semibold">Cheque #{first.chequeNumber ?? "—"}</span> · {first.outletName} · {formatMoney(line.amount)}
+      </p>
+      {error && <Alert kind="error">{error}</Alert>}
+      {!events && !error && (
+        <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      )}
+      {events && events.length === 0 && <EmptyState>This cheque has never bounced.</EmptyState>}
+      {events && events.length > 0 && (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {events.map((e) => (
+            <li key={e.id} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+              <div>
+                <span
+                  className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${
+                    e.action === "BOUNCED" ? "bg-danger text-danger-foreground" : "bg-success text-success-foreground"
+                  }`}
+                >
+                  {e.action === "BOUNCED" ? "Bounced" : "Reflected again"}
+                </span>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatDate(e.createdAt)} · {e.staffName}
+                  {e.reason ? ` · ${e.reason}` : ""}
+                </p>
+              </div>
+              <div className="text-right tabular-nums">
+                <p className="font-semibold">{formatMoney(e.amount)}</p>
+                {e.fee > 0 && <p className="text-xs text-muted-foreground">+ {formatMoney(e.fee)} charge</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

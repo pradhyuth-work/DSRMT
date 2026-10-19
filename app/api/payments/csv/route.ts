@@ -11,7 +11,7 @@ const LIMIT = 300;
 /**
  * Downloads the currently-filtered payments list as CSV — same outletId/staffId/from/to
  * query params and the same staffId scoping as GET /api/payments (stock incharge is still
- * forced to their own collections). Admin and stock.
+ * limited to their own collections plus every cheque). Admin and stock.
  */
 export async function GET(req: Request) {
   try {
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const payments = await fetchPayments(user, q, LIMIT);
 
     const csv = toCsv(
-      ["Date", "Outlet", "Collected By", "Method", "Cheque #", "Cheque Date", "Amount", "Invoice #", "Notes"],
+      ["Date", "Outlet", "Collected By", "Method", "Cheque #", "Cheque Date", "Cheque Status", "Amount", "Invoice #", "Notes"],
       payments.map((p) => [
         new Date(p.createdAt).toLocaleString("en-IN"),
         p.outletName,
@@ -28,6 +28,7 @@ export async function GET(req: Request) {
         p.paymentMethod,
         p.chequeNumber ?? "",
         p.chequeDate ? new Date(p.chequeDate).toLocaleDateString("en-IN") : "",
+        p.paymentMethod === "CHEQUE" ? (p.chequeStatus === "BOUNCED" ? "Bounced" : "Active") : "",
         formatMoney(p.amount),
         p.invoiceNumber ?? "Unbilled",
         p.notes ?? "",

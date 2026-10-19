@@ -50,3 +50,10 @@ export function daysOutstanding(since: Date, now: Date = new Date()): number {
  */
 export const DAYS_WARNING_THRESHOLD = 15;
 export const DAYS_CRITICAL_THRESHOLD = 30;
+
+/**
+ * Charge added to an outlet's balance every time one of its cheques is flagged as bounced
+ * (recorded as a manual balance adjustment). A default, not a rule handed down by anyone —
+ * change it here. Reflecting the cheque again does not refund it.
+ */
+export const CHEQUE_BOUNCE_FEE = 500;

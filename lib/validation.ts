@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AdjustStockInput,
   BillOrderInput,
+  BounceChequeInput,
   BulkAdjustInput,
   BulkOutletInput,
   BulkRateInput,
@@ -298,6 +299,11 @@ export const updateRouteSchema = z
   z.ZodTypeDef,
   unknown
 >;
+
+/** Flag a cheque as bounced. The reason is optional. */
+export const bounceChequeSchema = z.object({
+  reason: z.string().trim().max(200, "Reason is too long").optional(),
+}) satisfies z.ZodType<BounceChequeInput, z.ZodTypeDef, unknown>;
 
 // Query-string schemas: every value arrives as a string (or is absent).
 export const paymentsQuerySchema = z.object({
