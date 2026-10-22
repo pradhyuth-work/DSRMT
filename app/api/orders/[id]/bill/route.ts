@@ -63,22 +63,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           throw new HttpError(400, `Cannot bill ${id}: insufficient stock for ${shortages.join(", ")}`);
         }
 
+        // Batched (one statement each, regardless of item/product count) rather than looped —
+        // a per-row loop here hit the transaction timeout on orders with many line items,
+        // since every iteration is its own round trip over the Supabase pooler.
         const productById = new Map(stock.map((p) => [p.id, p]));
-        for (const item of invoice.items) {
+        const schemePriceRows = invoice.items.map((item) => {
           const product = productById.get(item.productId);
-          await tx.invoiceItem.update({
-            where: { id: item.id },
-            data: { schemeUnitPrice: product ? effectiveSchemePrice(product) : null },
-          });
-        }
+          return Prisma.sql`(${item.id}::text, ${product ? effectiveSchemePrice(product) : null}::double precision)`;
+        });
+        await tx.$executeRaw`
+          UPDATE "InvoiceItem" AS ii
+          SET "schemeUnitPrice" = v.price
+          FROM (VALUES ${Prisma.join(schemePriceRows)}) AS v(id, price)
+          WHERE ii."id" = v.id`;
 
-        for (const productId of productIds) {
-          const quantity = needed.get(productId)!;
-          await tx.product.update({ where: { id: productId }, data: { stockQty: { decrement: quantity } } });
-          await tx.stockMovement.create({
-            data: { productId, change: -quantity, type: "BILL", invoiceId: id, staffId: user.id },
-          });
-        }
+        const stockRows = productIds.map((productId) => Prisma.sql`(${productId}::text, ${needed.get(productId)!}::int)`);
+        await tx.$executeRaw`
+          UPDATE "Product" AS p
+          SET "stockQty" = p."stockQty" - v.qty
+          FROM (VALUES ${Prisma.join(stockRows)}) AS v(id, qty)
+          WHERE p."id" = v.id`;
+
+        await tx.stockMovement.createMany({
+          data: productIds.map((productId) => ({
+            productId,
+            change: -needed.get(productId)!,
+            type: "BILL" as const,
+            invoiceId: id,
+            staffId: user.id,
+          })),
+        });
       }
 
       return tx.invoice.update({
