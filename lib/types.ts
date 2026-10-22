@@ -2,6 +2,9 @@
 
 export type InvoiceStatus = "PAID" | "PARTIAL" | "UNPAID";
 /** UPI is read-only history — kept so old payments still display correctly, but never offered when recording a new one. */
+/** ACTIVE counts as received; BOUNCED does not (the invoices it settled are open again). */
+export type ChequeStatus = "ACTIVE" | "BOUNCED";
+
 export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI";
 /** Selectable when recording a new payment. */
 export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"] as const satisfies readonly PaymentMethod[];
@@ -385,13 +388,47 @@ export interface PaymentDTO {
   paymentMethod: PaymentMethod;
   chequeNumber: string | null;
   chequeDate: string | null;
+  /** Ties the rows of one physical cheque together; null for non-cheque payments. */
+  chequeGroupId: string | null;
+  chequeStatus: ChequeStatus;
+  /** Latest bounce / reflect-again of this cheque, if it has ever bounced. */
+  chequeBouncedAt: string | null;
+  chequeBounceReason: string | null;
+  chequeReflectedAt: string | null;
   notes: string | null;
+  createdAt: string;
+}
+
+export interface BounceChequeInput {
+  reason?: string;
+}
+
+export interface BounceChequeResponse {
+  amount: number;
+  /** The bounce charge added to the outlet's balance. */
+  fee: number;
+  /** Each invoice the cheque had settled, and what was added back to it. */
+  restored: { invoiceId: string; invoiceNumber: string | null; amount: number; balanceDue: number }[];
+}
+
+export interface ReflectChequeResponse {
+  amount: number;
+  allocations: PaymentAllocation[];
+}
+
+export interface ChequeEventDTO {
+  id: string;
+  action: "BOUNCED" | "REFLECTED";
+  reason: string | null;
+  amount: number;
+  fee: number;
+  staffName: string;
   createdAt: string;
 }
 
 export interface PaymentsQuery {
   outletId?: string;
-  /** Ignored server-side for the stock role, which always sees only its own collections. */
+  /** Ignored server-side for the stock role, which always sees only its own collections (plus every cheque). */
   staffId?: string;
   from?: string;
   to?: string;

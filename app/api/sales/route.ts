@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
@@ -69,6 +70,8 @@ export async function POST(req: Request) {
             invoiceId: created.id,
             amount: paidAmount,
             paymentMethod: input.paymentMethod,
+            // A cheque taken at the time of sale is its own cheque, so it can be flagged as bounced later.
+            chequeGroupId: input.paymentMethod === "CHEQUE" ? randomUUID() : null,
             notes: input.notes || "Payment at time of sale",
           },
         });

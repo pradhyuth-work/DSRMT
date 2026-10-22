@@ -8,7 +8,8 @@ import { round2, statusFor } from "@/lib/money";
  * Deletes a payment and reverses its effect on the invoice it settled: the amount is added
  * back to balanceDue and removed from paidAmount, and the invoice's status is recomputed.
  * A payment with no linked invoice (shouldn't happen in practice, but the column is
- * nullable) is just removed. Admin only — this corrects a wrongly-entered collection.
+ * nullable) is just removed, and so is a bounced cheque's row (already reversed when it was
+ * flagged). Admin only — this corrects a wrongly-entered collection.
  */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,7 +20,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       const payment = await tx.paymentCollection.findUnique({ where: { id } });
       if (!payment) throw new HttpError(404, "Payment not found");
 
-      if (payment.invoiceId) {
+      // A bounced cheque's money was already taken back off its invoices when it was flagged,
+      // so deleting the row must not reverse it a second time.
+      if (payment.invoiceId && payment.chequeStatus !== "BOUNCED") {
         const rows = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Invoice" WHERE "id" = ${payment.invoiceId} FOR UPDATE`;
         if (rows.length > 0) {
           const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: payment.invoiceId } });

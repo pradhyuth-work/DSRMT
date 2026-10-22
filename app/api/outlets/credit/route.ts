@@ -35,7 +35,7 @@ export async function GET(req: Request) {
           select: { id: true, invoiceNumber: true, totalAmount: true, balanceDue: true, createdAt: true, _count: { select: { items: true } } },
         },
         payments: {
-          select: { id: true, amount: true, paymentMethod: true, invoice: { select: { invoiceNumber: true } }, notes: true, createdAt: true },
+          select: { id: true, amount: true, paymentMethod: true, chequeStatus: true, invoice: { select: { invoiceNumber: true } }, notes: true, createdAt: true },
         },
       },
     });
@@ -55,9 +55,10 @@ export async function GET(req: Request) {
           date: p.createdAt.toISOString(),
           type: "PAYMENT" as const,
           reference: p.invoice?.invoiceNumber ?? "Unbilled",
-          description: `${p.paymentMethod} payment${p.notes ? ` — ${p.notes}` : ""}`,
+          description: `${p.paymentMethod} payment${p.chequeStatus === "BOUNCED" ? " (bounced)" : ""}${p.notes ? ` — ${p.notes}` : ""}`,
           debit: 0,
-          credit: p.amount,
+          // A bounced cheque is on the ledger for the record only; its invoices are open again.
+          credit: p.chequeStatus === "BOUNCED" ? 0 : p.amount,
         })),
       ];
       rows.sort((a, b) => a.date.localeCompare(b.date) || (a.type === "INVOICE" ? -1 : 1) - (b.type === "INVOICE" ? -1 : 1));
@@ -75,7 +76,7 @@ export async function GET(req: Request) {
         agentId: o.route?.agentId ?? null,
         agentName: o.route?.agent?.name ?? null,
         totalBilled: round2(o.invoices.reduce((s, i) => s + i.totalAmount, 0)),
-        totalPaid: round2(o.payments.reduce((s, p) => s + p.amount, 0)),
+        totalPaid: round2(o.payments.filter((p) => p.chequeStatus === "ACTIVE").reduce((s, p) => s + p.amount, 0)),
         balance: round2(openInvoices.reduce((s, i) => s + i.balanceDue, 0)),
         oldestInvoiceDays: openInvoices.length > 0 ? daysOutstanding(openInvoices[0].createdAt) : null,
         openInvoices: openInvoices.map((i) => ({

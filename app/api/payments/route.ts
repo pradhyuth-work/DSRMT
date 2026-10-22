@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/lib/api";
@@ -13,8 +14,8 @@ const LIMIT = 300;
 
 /**
  * Lists payment collections, newest first. Admin sees everyone's and can filter by
- * outlet/staff/date. Stock incharge only ever sees payments they personally collected —
- * any staffId filter they send is ignored in favour of their own id.
+ * outlet/staff/date. Stock incharge sees the payments they personally collected plus every
+ * cheque (so they can flag a bounce on any of them) — any staffId filter they send is ignored.
  */
 export async function GET(req: Request) {
   try {
@@ -51,8 +52,11 @@ export async function POST(req: Request) {
             amount: round2(c.amount),
             chequeNumber: c.serialNumber,
             chequeDate: new Date(`${c.date}T00:00:00.000Z`),
+            // One id per physical cheque, shared by every row it is split into (one per invoice
+            // it settles) — bounce and reflect-again act on the whole cheque through it.
+            chequeGroupId: randomUUID(),
           }))
-        : [{ amount: round2(input.amount ?? 0), chequeNumber: null, chequeDate: null }];
+        : [{ amount: round2(input.amount ?? 0), chequeNumber: null, chequeDate: null, chequeGroupId: null }];
     const amount = round2(parts.reduce((sum, p) => sum + p.amount, 0));
 
     const allocations = await prisma.$transaction(async (tx) => {
@@ -103,6 +107,7 @@ export async function POST(req: Request) {
               paymentMethod: input.paymentMethod,
               chequeNumber: part.chequeNumber,
               chequeDate: part.chequeDate,
+              chequeGroupId: part.chequeGroupId,
               notes: input.notes || null,
             },
           });

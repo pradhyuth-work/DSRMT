@@ -25,6 +25,13 @@ enum PaymentMethod {
   VOUCHER
 }
 
+enum ChequeStatus {
+  /// Counts as money received (the default; every pre-existing payment is ACTIVE).
+  ACTIVE
+  /// Returned by the bank — the invoices it settled are open again. Never deleted.
+  BOUNCED
+}
+
 enum Role {
   admin
   stock
@@ -106,6 +113,7 @@ model Outlet {
   invoices           Invoice[]
   payments           PaymentCollection[]
   balanceAdjustments BalanceAdjustment[]
+  chequeEvents       ChequeEvent[]
 
   @@index([routeId])
 }
@@ -130,6 +138,7 @@ model Staff {
   payments           PaymentCollection[]
   stockMovements     StockMovement[]
   balanceAdjustments BalanceAdjustment[]
+  chequeEvents       ChequeEvent[]
   route              Route?
 }
 
@@ -207,6 +216,11 @@ model PaymentCollection {
   /// Only for CHEQUE payments: the cheque's serial number and the date written on it.
   chequeNumber  String?
   chequeDate    DateTime?
+  /// Ties together the rows of ONE physical cheque (one row is written per invoice a cheque
+  /// settles). Set for every CHEQUE row; bounce / reflect-again act on the whole group.
+  chequeGroupId String?
+  /// ACTIVE counts as received; BOUNCED does not (the invoices it settled are open again).
+  chequeStatus  ChequeStatus  @default(ACTIVE)
   createdAt     DateTime      @default(now())
 
   outlet  Outlet   @relation(fields: [outletId], references: [id])
@@ -215,6 +229,30 @@ model PaymentCollection {
 
   @@index([outletId])
   @@index([staffId])
+  @@index([chequeGroupId])
+}
+
+/// One row per time a cheque is flagged bounced or reflected again — a cheque can go
+/// ACTIVE > BOUNCED > ACTIVE > BOUNCED any number of times, and this is the full history.
+/// amount is the whole cheque; fee is the bounce charge added to the outlet's balance (0 for
+/// a reflect).
+model ChequeEvent {
+  id            String   @id @default(cuid())
+  chequeGroupId String
+  outletId      String
+  /// "BOUNCED" or "REFLECTED".
+  action        String
+  reason        String?
+  amount        Float
+  fee           Float    @default(0)
+  staffId       String
+  createdAt     DateTime @default(now())
+
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  staff  Staff  @relation(fields: [staffId], references: [id])
+
+  @@index([chequeGroupId, createdAt])
+  @@index([outletId])
 }
 
 /// Audit trail for every stock change. change is signed (+ in, - out).
