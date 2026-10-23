@@ -35,8 +35,11 @@ export async function GET(req: Request) {
  *
  * Received by defaults to the signed-in user. Admin may attribute it to another admin/stock
  * user; stock incharge can only ever attribute it to themselves. Field agents never can.
- * A CHEQUE payment carries one or more cheques (serial number + date); each settles invoices in turn.
+ * A CHEQUE, NET_BANKING or VOUCHER payment carries one or more entries (reference + date);
+ * each settles invoices in turn.
  */
+const MULTI_ENTRY_METHODS = new Set(["CHEQUE", "NET_BANKING", "VOUCHER"]);
+
 export async function POST(req: Request) {
   try {
     const user = await authorize(req, ["admin", "stock"]);
@@ -45,18 +48,18 @@ export async function POST(req: Request) {
     // payments, so an admin may name another of those — never a field agent.
     const staffId = user.role === "stock" ? user.id : input.staffId ?? user.id;
 
-    // One entry per cheque (each settles invoices in turn, FIFO); a single entry otherwise.
-    const parts =
-      input.paymentMethod === "CHEQUE"
-        ? (input.cheques ?? []).map((c) => ({
-            amount: round2(c.amount),
-            chequeNumber: c.serialNumber,
-            chequeDate: new Date(`${c.date}T00:00:00.000Z`),
-            // One id per physical cheque, shared by every row it is split into (one per invoice
-            // it settles) — bounce and reflect-again act on the whole cheque through it.
-            chequeGroupId: randomUUID(),
-          }))
-        : [{ amount: round2(input.amount ?? 0), chequeNumber: null, chequeDate: null, chequeGroupId: null }];
+    // One part per entry (each settles invoices in turn, FIFO); a single part otherwise. The
+    // reference/date/groupId are stored in the same columns regardless of method — bounce and
+    // reflect-again (lib/cheques.ts) only ever act on rows where paymentMethod is CHEQUE.
+    const parts = MULTI_ENTRY_METHODS.has(input.paymentMethod)
+      ? (input.entries ?? []).map((e) => ({
+          amount: round2(e.amount),
+          chequeNumber: e.reference,
+          chequeDate: new Date(`${e.date}T00:00:00.000Z`),
+          // One id per entry, shared by every row it is split into (one per invoice it settles).
+          chequeGroupId: randomUUID(),
+        }))
+      : [{ amount: round2(input.amount ?? 0), chequeNumber: null, chequeDate: null, chequeGroupId: null }];
     const amount = round2(parts.reduce((sum, p) => sum + p.amount, 0));
 
     const allocations = await prisma.$transaction(async (tx) => {

@@ -109,6 +109,11 @@ export const toggleSchemeSchema = z.object({ hasScheme: z.boolean() }) satisfies
   unknown
 >;
 
+// CHEQUE, NET_BANKING and VOUCHER all collect one or more entries (reference + date + amount)
+// instead of a single flat amount — a bank transfer or voucher can arrive in several slips
+// just like several cheques can settle one payment.
+const MULTI_ENTRY_METHODS = new Set(["CHEQUE", "NET_BANKING", "VOUCHER"]);
+
 export const createPaymentSchema = z.object({
   outletId: id,
   // Optional for admins (defaults to themselves); ignored for the stock role, which can
@@ -116,20 +121,20 @@ export const createPaymentSchema = z.object({
   staffId: id.optional(),
   amount: money.positive("Amount must be greater than zero").optional(),
   paymentMethod,
-  cheques: z
+  entries: z
     .array(
       z.object({
-        serialNumber: z.string().trim().min(1, "Cheque serial number is required").max(40),
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Cheque date is required"),
-        amount: money.positive("Cheque amount must be greater than zero"),
+        reference: z.string().trim().min(1, "Reference number is required").max(40),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date is required"),
+        amount: money.positive("Entry amount must be greater than zero"),
       }),
     )
     .max(50)
     .optional(),
   notes: z.string().trim().max(500).optional(),
 }).superRefine((v, ctx) => {
-  if (v.paymentMethod === "CHEQUE") {
-    if (!v.cheques?.length) ctx.addIssue({ code: "custom", path: ["cheques"], message: "Add at least one cheque" });
+  if (MULTI_ENTRY_METHODS.has(v.paymentMethod)) {
+    if (!v.entries?.length) ctx.addIssue({ code: "custom", path: ["entries"], message: "Add at least one entry" });
   } else if (v.amount === undefined) {
     ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount must be greater than zero" });
   }

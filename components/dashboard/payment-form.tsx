@@ -24,12 +24,20 @@ export interface CollectPaymentTarget {
  * offered. When `staffOptions` is omitted the payment is always attributed to the signed-in
  * user — the server enforces this regardless of what the client sends.
  */
-interface ChequeRow {
+interface EntryRow {
   key: number;
-  serialNumber: string;
+  reference: string;
   date: string;
   amount: string;
 }
+
+/** CHEQUE, NET_BANKING and VOUCHER all collect one or more entries instead of a single flat
+ * amount — labels differ per method so the form reads naturally for each. */
+const ENTRY_LABELS: Partial<Record<PaymentMethod, { section: string; ref: string; placeholder: string; add: string }>> = {
+  CHEQUE: { section: "Cheques", ref: "Serial no.", placeholder: "e.g. 004512", add: "Add cheque" },
+  NET_BANKING: { section: "Transfers", ref: "Reference / UTR no.", placeholder: "e.g. UTR2410231234", add: "Add transfer" },
+  VOUCHER: { section: "Vouchers", ref: "Voucher no.", placeholder: "e.g. V-1042", add: "Add voucher" },
+};
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -48,16 +56,17 @@ export function CollectPaymentForm({
   const receivers = useMemo(() => (staffOptions ?? []).filter((s) => s.role !== "agent"), [staffOptions]);
   const [staffId, setStaffId] = useState(user.id);
   const [method, setMethod] = useState<PaymentMethod>("CASH");
-  const [cheques, setCheques] = useState<ChequeRow[]>([{ key: 0, serialNumber: "", date: today(), amount: String(target.balance) }]);
+  const [entries, setEntries] = useState<EntryRow[]>([{ key: 0, reference: "", date: today(), amount: String(target.balance) }]);
   const [nextKey, setNextKey] = useState(1);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isCheque = method === "CHEQUE";
-  const chequesTotal = round2(cheques.reduce((s, c) => s + (Number.parseFloat(c.amount) || 0), 0));
-  const chequesValid = cheques.every((c) => c.serialNumber.trim() && c.date && (Number.parseFloat(c.amount) || 0) > 0);
-  const amountNum = isCheque ? chequesTotal : Number.parseFloat(amount) || 0;
+  const entryLabels = ENTRY_LABELS[method];
+  const isMultiEntry = !!entryLabels;
+  const entriesTotal = round2(entries.reduce((s, e) => s + (Number.parseFloat(e.amount) || 0), 0));
+  const entriesValid = entries.every((e) => e.reference.trim() && e.date && (Number.parseFloat(e.amount) || 0) > 0);
+  const amountNum = isMultiEntry ? entriesTotal : Number.parseFloat(amount) || 0;
   const tooMuch = amountNum > target.balance;
 
   // Preview how the payment will be applied, oldest invoice first (mirrors the server's FIFO logic).
@@ -70,14 +79,14 @@ export function CollectPaymentForm({
     });
   }, [amountNum, target.openInvoices]);
 
-  function updateCheque(key: number, patch: Partial<ChequeRow>) {
-    setCheques((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  function updateEntry(key: number, patch: Partial<EntryRow>) {
+    setEntries((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
-  function addCheque() {
-    const paid = chequesTotal;
+  function addEntry() {
+    const paid = entriesTotal;
     const left = Math.max(0, round2(target.balance - paid));
-    setCheques((rows) => [...rows, { key: nextKey, serialNumber: "", date: today(), amount: left > 0 ? String(left) : "" }]);
+    setEntries((rows) => [...rows, { key: nextKey, reference: "", date: today(), amount: left > 0 ? String(left) : "" }]);
     setNextKey((k) => k + 1);
   }
 
@@ -89,10 +98,10 @@ export function CollectPaymentForm({
       const res = await api.createPayment({
         outletId: target.outletId,
         staffId: staffOptions ? staffId : undefined,
-        amount: isCheque ? undefined : amountNum,
+        amount: isMultiEntry ? undefined : amountNum,
         paymentMethod: method,
-        cheques: isCheque
-          ? cheques.map((c) => ({ serialNumber: c.serialNumber.trim(), date: c.date, amount: Number.parseFloat(c.amount) }))
+        entries: isMultiEntry
+          ? entries.map((e) => ({ reference: e.reference.trim(), date: e.date, amount: Number.parseFloat(e.amount) }))
           : undefined,
         notes: notes.trim() || undefined,
       });
@@ -132,7 +141,7 @@ export function CollectPaymentForm({
           <span className="label">Method</span>
           <PaymentMethodPicker value={method} onChange={setMethod} />
         </div>
-        {!isCheque && (
+        {!isMultiEntry && (
           <div>
             <label className="label" htmlFor="pay-amount">Amount</label>
             <input
@@ -154,62 +163,62 @@ export function CollectPaymentForm({
         </div>
       </div>
 
-      {isCheque && (
+      {isMultiEntry && entryLabels && (
         <div className="space-y-2">
-          <p className="label">Cheques</p>
-          {cheques.map((c, idx) => (
-            <div key={c.key} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 rounded-lg border border-border p-2">
+          <p className="label">{entryLabels.section}</p>
+          {entries.map((e, idx) => (
+            <div key={e.key} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 rounded-lg border border-border p-2">
               <div>
-                <label className="label" htmlFor={`chq-no-${c.key}`}>Serial no.</label>
+                <label className="label" htmlFor={`entry-ref-${e.key}`}>{entryLabels.ref}</label>
                 <input
-                  id={`chq-no-${c.key}`}
+                  id={`entry-ref-${e.key}`}
                   className="input"
-                  value={c.serialNumber}
-                  onChange={(e) => updateCheque(c.key, { serialNumber: e.target.value })}
-                  placeholder="e.g. 004512"
+                  value={e.reference}
+                  onChange={(ev) => updateEntry(e.key, { reference: ev.target.value })}
+                  placeholder={entryLabels.placeholder}
                   autoFocus={idx === 0}
                 />
               </div>
               <div>
-                <label className="label" htmlFor={`chq-date-${c.key}`}>Date</label>
+                <label className="label" htmlFor={`entry-date-${e.key}`}>Date</label>
                 <input
-                  id={`chq-date-${c.key}`}
+                  id={`entry-date-${e.key}`}
                   type="date"
                   className="input"
-                  value={c.date}
-                  onChange={(e) => updateCheque(c.key, { date: e.target.value })}
+                  value={e.date}
+                  onChange={(ev) => updateEntry(e.key, { date: ev.target.value })}
                 />
               </div>
               <div>
-                <label className="label" htmlFor={`chq-amt-${c.key}`}>Amount</label>
+                <label className="label" htmlFor={`entry-amt-${e.key}`}>Amount</label>
                 <input
-                  id={`chq-amt-${c.key}`}
+                  id={`entry-amt-${e.key}`}
                   type="number"
                   min={0.01}
                   step="0.01"
                   className="input"
-                  value={c.amount}
-                  onChange={(e) => updateCheque(c.key, { amount: e.target.value })}
+                  value={e.amount}
+                  onChange={(ev) => updateEntry(e.key, { amount: ev.target.value })}
                 />
               </div>
               <button
                 type="button"
                 className="mb-1 rounded p-1.5 text-muted-foreground hover:bg-danger hover:text-danger-foreground disabled:opacity-40"
-                onClick={() => setCheques((rows) => rows.filter((r) => r.key !== c.key))}
-                disabled={cheques.length === 1}
-                aria-label="Remove cheque"
-                title="Remove cheque"
+                onClick={() => setEntries((rows) => rows.filter((r) => r.key !== e.key))}
+                disabled={entries.length === 1}
+                aria-label="Remove entry"
+                title="Remove entry"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
           ))}
           <div className="flex items-center justify-between">
-            <button type="button" className="btn btn-secondary sm:w-auto" onClick={addCheque}>
-              <Plus className="h-4 w-4" /> Add cheque
+            <button type="button" className="btn btn-secondary sm:w-auto" onClick={addEntry}>
+              <Plus className="h-4 w-4" /> {entryLabels.add}
             </button>
             <span className="text-sm text-muted-foreground">
-              Total <span className="font-semibold tabular-nums text-foreground">{formatMoney(chequesTotal)}</span>
+              Total <span className="font-semibold tabular-nums text-foreground">{formatMoney(entriesTotal)}</span>
             </span>
           </div>
         </div>
@@ -245,7 +254,7 @@ export function CollectPaymentForm({
       <button
         type="submit"
         className="btn btn-primary w-full"
-        disabled={submitting || amountNum <= 0 || tooMuch || (isCheque && !chequesValid) || (staffOptions ? !staffId : false) || target.balance <= 0}
+        disabled={submitting || amountNum <= 0 || tooMuch || (isMultiEntry && !entriesValid) || (staffOptions ? !staffId : false) || target.balance <= 0}
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <HandCoins className="h-4 w-4" />}
         Record {formatMoney(amountNum)}

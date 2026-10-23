@@ -348,17 +348,19 @@ export interface CreatePaymentInput {
   /** Who received it — an admin or stock incharge. Defaults to the signed-in user; ignored
    * for the stock role (always attributed to itself). */
   staffId?: string;
-  /** Ignored for CHEQUE payments, where the total is the sum of `cheques`. */
+  /** Ignored for CHEQUE, NET_BANKING and VOUCHER payments, where the total is the sum of `entries`. */
   amount?: number;
   paymentMethod: PaymentMethod;
-  /** Required (at least one) for CHEQUE payments. */
-  cheques?: ChequeInput[];
+  /** Required (at least one) for CHEQUE, NET_BANKING and VOUCHER payments — one per cheque,
+   * bank transfer or voucher, each settling invoices in turn (FIFO). */
+  entries?: PaymentEntryInput[];
   notes?: string;
 }
 
-export interface ChequeInput {
-  serialNumber: string;
-  /** YYYY-MM-DD, the date written on the cheque. */
+export interface PaymentEntryInput {
+  /** Cheque serial number, bank transfer reference/UTR, or voucher number. */
+  reference: string;
+  /** YYYY-MM-DD — the date on the cheque, or the date the transfer/voucher was made. */
   date: string;
   amount: number;
 }

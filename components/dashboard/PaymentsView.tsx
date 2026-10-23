@@ -10,15 +10,20 @@ import { DateRangeFilter, type DateRange } from "./date-range";
 import { CollectPaymentForm, type CollectPaymentTarget } from "./payment-form";
 import { Combobox } from "./Combobox";
 
+/** CHEQUE, NET_BANKING and VOUCHER payments can all be split across several entries
+ * (cheques / transfers / vouchers) — see payment-form.tsx. */
+const MULTI_ENTRY_METHODS = new Set(["CHEQUE", "NET_BANKING", "VOUCHER"]);
+
 /**
- * One line in the list. A cheque that settled several invoices is stored as several payment
- * rows (one per invoice), so rows sharing a chequeGroupId are shown as a single cheque line;
- * every other payment is a line of its own.
+ * One line in the list. A payment that settled several invoices is stored as several payment
+ * rows (one per invoice), so rows sharing a chequeGroupId are shown as a single line; every
+ * other payment is a line of its own.
  */
 interface PaymentLine {
   key: string;
   rows: PaymentDTO[];
-  /** Set for cheque lines — what Flag bounce / Reflect again act on. */
+  /** Set for cheque/net-banking/voucher lines. Flag bounce / Reflect again only ever apply
+   * when the method is CHEQUE — see render below. */
   groupId: string | null;
   amount: number;
   invoiceLabel: string;
@@ -29,7 +34,7 @@ function buildLines(payments: PaymentDTO[]): PaymentLine[] {
   const lines: PaymentLine[] = [];
   const byGroup = new Map<string, PaymentLine>();
   for (const p of payments) {
-    const groupId = p.paymentMethod === "CHEQUE" ? p.chequeGroupId : null;
+    const groupId = MULTI_ENTRY_METHODS.has(p.paymentMethod) ? p.chequeGroupId : null;
     const existing = groupId ? byGroup.get(groupId) : undefined;
     if (existing) {
       existing.rows.push(p);
@@ -42,7 +47,7 @@ function buildLines(payments: PaymentDTO[]): PaymentLine[] {
   for (const l of lines) {
     l.amount = round2(l.rows.reduce((s, r) => s + r.amount, 0));
     l.invoiceLabel = [...new Set(l.rows.map((r) => r.invoiceNumber ?? "Unbilled"))].join(", ");
-    l.bounced = l.rows[0].chequeStatus === "BOUNCED";
+    l.bounced = l.rows[0].paymentMethod === "CHEQUE" && l.rows[0].chequeStatus === "BOUNCED";
   }
   return lines;
 }
@@ -95,7 +100,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
     () =>
       lines.filter((l) => {
         if (status === "all") return true;
-        if (!l.groupId) return false;
+        if (!l.groupId || l.rows[0].paymentMethod !== "CHEQUE") return false;
         return status === "bounced-cheques" ? l.bounced : !l.bounced;
       }),
     [lines, status],
@@ -210,7 +215,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                   <th className="th">Outlet</th>
                   {isAdmin && <th className="th">Collected by</th>}
                   <th className="th">Method</th>
-                  <th className="th">Cheque</th>
+                  <th className="th">Reference</th>
                   <th className="th">Invoice</th>
                   <th className="th">Status</th>
                   <th className="th">Notes</th>
@@ -221,6 +226,9 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
               <tbody className="divide-y divide-border">
                 {linesPage.pageItems.map((l) => {
                   const p = l.rows[0];
+                  // Bounce/reflect-again is a bank-cheque concept — net-banking and voucher
+                  // entries are still grouped as one line (see buildLines) but never show it.
+                  const isChequeLine = !!l.groupId && p.paymentMethod === "CHEQUE";
                   return (
                     <tr key={l.key} className="hover:bg-secondary">
                       <td className="td whitespace-nowrap text-muted-foreground">{formatDate(p.createdAt)}</td>
@@ -232,7 +240,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                       </td>
                       <td className="td font-mono text-xs">{l.invoiceLabel}</td>
                       <td className="td">
-                        {l.groupId ? (
+                        {isChequeLine ? (
                           <div className="space-y-0.5">
                             <span
                               className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${
@@ -265,7 +273,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                       </td>
                       <td className="td">
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                          {l.groupId && !l.bounced && (
+                          {isChequeLine && !l.bounced && (
                             <button
                               className="btn btn-secondary px-2.5 py-1 text-xs text-danger-foreground"
                               onClick={() => setChequeAction({ line: l, mode: "bounce" })}
@@ -273,7 +281,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                               Flag bounce
                             </button>
                           )}
-                          {l.groupId && l.bounced && (
+                          {isChequeLine && l.bounced && (
                             <button
                               className="btn btn-secondary px-2.5 py-1 text-xs text-info-foreground"
                               onClick={() => setChequeAction({ line: l, mode: "reflect" })}
@@ -281,7 +289,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                               <RotateCcw className="h-3.5 w-3.5" /> Reflect again
                             </button>
                           )}
-                          {l.groupId && (
+                          {isChequeLine && (
                             <button
                               className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
                               onClick={() => setHistoryLine(l)}
