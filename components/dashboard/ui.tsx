@@ -64,13 +64,13 @@ export function StatCard({
     teal: "bg-info text-info-foreground",
   } as const;
   return (
-    <div className="app-rise card flex items-center gap-4 p-4">
+    <div className="app-rise card stat-cell flex items-center gap-4 p-4">
       <div className={`rounded-lg p-2.5 ${tones[tone]}`}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-        <p className="truncate text-lg font-bold tracking-[-.03em] tabular-nums">{useCountUp(value)}</p>
+        <p className="stat-label text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="stat-value truncate text-lg font-bold tracking-[-.03em] tabular-nums">{useCountUp(value)}</p>
       </div>
     </div>
   );
@@ -148,7 +148,7 @@ export function StatusBadge({ status }: { status: InvoiceStatus }) {
     PARTIAL: "bg-warning text-warning-foreground",
     UNPAID: "bg-danger text-danger-foreground",
   };
-  return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${styles[status]}`}>{status}</span>;
+  return <span className={`tag inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${styles[status]}`}>{status}</span>;
 }
 
 export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
@@ -158,7 +158,7 @@ export function FulfilmentBadge({ status }: { status: FulfilmentStatus }) {
     DISPATCHED: "bg-primary text-primary-foreground",
     CANCELLED: "bg-muted text-muted-foreground",
   };
-  return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${styles[status]}`}>{status}</span>;
+  return <span className={`tag inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${styles[status]}`}>{status}</span>;
 }
 
 /**
