@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, Ticket, X, type LucideIcon } from "lucide-react";
 import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
 import { DAYS_CRITICAL_THRESHOLD, DAYS_WARNING_THRESHOLD } from "@/lib/money";
+import { useCountUp } from "./useCountUp";
 
 type SelectableMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -69,7 +70,7 @@ export function StatCard({
       </div>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-        <p className="truncate text-lg font-bold tracking-[-.03em]">{value}</p>
+        <p className="truncate text-lg font-bold tracking-[-.03em] tabular-nums">{useCountUp(value)}</p>
       </div>
     </div>
   );

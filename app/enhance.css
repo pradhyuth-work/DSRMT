@@ -1,0 +1,114 @@
+/* DSRMT enhancement layer. Visual polish only: no element is added, moved, resized or re-coloured.
+   Uses the existing theme tokens only (navy, cream, lime, status pastels). Imported AFTER globals.css. */
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ---------- Buttons: press feedback + a soft sheen on the primary ---------- */
+.btn { transition: transform .16s var(--ease-out), box-shadow .2s var(--ease-out), background-color .15s ease, border-color .15s ease, color .15s ease; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, hsl(var(--background) / .22) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled)::after { transform: translateX(120%); transition: transform .7s var(--ease-out); }
+}
+
+/* ---------- Cards: gentle lift, corner brackets, pointer spotlight ---------- */
+.card { position: relative; transition: transform .22s var(--ease-out), box-shadow .22s var(--ease-out), border-color .2s ease; }
+.card::before, .card::after {
+  content: ""; position: absolute; width: 10px; height: 10px; pointer-events: none; opacity: 0;
+  transition: opacity .2s ease, transform .22s var(--ease-out);
+}
+.card::before { top: 6px; left: 6px; border-top: 1.5px solid hsl(var(--foreground) / .45); border-left: 1.5px solid hsl(var(--foreground) / .45); transform: translate(3px, 3px); }
+.card::after  { bottom: 6px; right: 6px; border-bottom: 1.5px solid hsl(var(--foreground) / .45); border-right: 1.5px solid hsl(var(--foreground) / .45); transform: translate(-3px, -3px); }
+.card.is-spot { background-image: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--accent) / .14), transparent 70%); }
+@media (hover: hover) and (pointer: fine) {
+  .card:hover { box-shadow: 0 10px 28px -14px hsl(var(--foreground) / .28); border-color: hsl(var(--foreground) / .22); }
+  .card:hover::before, .card:hover::after { opacity: 1; transform: none; }
+}
+
+/* ---------- Tables: left edge appears on the row under the pointer ---------- */
+@media (hover: hover) and (pointer: fine) {
+  tbody tr { transition: background-color .15s ease, box-shadow .15s ease; }
+  tbody tr:hover { box-shadow: inset 3px 0 0 hsl(var(--accent)); }
+}
+
+/* ---------- Sidebar nav: small hover shift ---------- */
+@media (hover: hover) and (pointer: fine) {
+  aside nav button, aside nav a { transition: transform .18s var(--ease-out), background-color .15s ease; }
+  aside nav button:hover:not([aria-current="page"]), aside nav a:hover { transform: translateX(2px); }
+}
+
+/* ---------- Page entry: stagger the first cards on a tab change ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .app-rise > .card:nth-child(1), .app-rise > *:nth-child(1) { animation-delay: 0ms; }
+  .app-rise > .card:nth-child(2), .app-rise > *:nth-child(2) { animation-delay: 40ms; }
+  .app-rise > .card:nth-child(3), .app-rise > *:nth-child(3) { animation-delay: 80ms; }
+}
+
+/* ---------- Charts (only used if Part B is applied) ---------- */
+.chart-kicker { font-family: var(--font-mono, "DM Mono", monospace); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 2px; }
+.chart-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.chart-strip > div { border: 1px solid hsl(var(--border)); border-radius: 10px; padding: 8px 10px; }
+.chart-strip small { display: block; font-size: 10.5px; color: hsl(var(--muted-foreground)); }
+.chart-strip b { font-size: 14px; letter-spacing: -.02em; }
+.chart-area { position: relative; height: 190px; touch-action: pan-y; }
+.chart-area svg { width: 100%; height: 100%; display: block; }
+.chart-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: chart-draw .9s var(--ease-out) forwards; }
+@keyframes chart-draw { to { stroke-dashoffset: 0; } }
+.chart-cross { position: absolute; top: 0; bottom: 0; width: 1px; background: hsl(var(--foreground) / .35); pointer-events: none; }
+.chart-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: hsl(var(--accent)); border: 2px solid hsl(var(--foreground)); pointer-events: none; }
+.chart-pop { position: absolute; top: 4px; transform: translateX(-50%); background: hsl(var(--foreground)); color: hsl(var(--background)); font-size: 11px; padding: 3px 8px; border-radius: 8px; white-space: nowrap; pointer-events: none; }
+.chart-bar { display: grid; grid-template-columns: minmax(70px, 130px) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+.chart-track { height: 8px; border-radius: 99px; background: hsl(var(--border) / .6); overflow: hidden; }
+.chart-track > span { display: block; height: 100%; border-radius: 99px; background: hsl(var(--foreground)); transform-origin: left; animation: chart-grow .6s var(--ease-out) both; }
+.chart-bar.is-top .chart-track > span { background: hsl(var(--accent)); }
+@keyframes chart-grow { from { transform: scaleX(0); } }
+.chart-rung { position: relative; display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; font-size: 13px; overflow: hidden; }
+.chart-rung > i { position: absolute; inset: 0 auto 0 0; background: #d7e878; opacity: .55; transform-origin: left; animation: chart-grow .6s var(--ease-out) both; z-index: 0; }
+.chart-rung.is-warm > i { background: #f9dfc4; }
+.chart-rung.is-hot > i { background: #f5d6d0; }
+.chart-rung > span { position: relative; z-index: 1; }
+@media (max-width: 640px) { .chart-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Reduced motion: keep state changes, drop movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .card, tbody tr, aside nav button, aside nav a { transition: none; }
+  .btn:active:not(:disabled) { transform: none; }
+  .btn-primary::after, .card::before, .card::after { display: none; }
+  .chart-line, .chart-track > span, .chart-rung > i { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ---------- Sign-in screen (see LoginFx.tsx) ---------- */
+.login-cv { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+.login-tape { position: fixed; top: 0; left: 0; right: 0; height: 32px; z-index: 1; overflow: hidden; white-space: nowrap; display: flex; align-items: center; pointer-events: none;
+  border-bottom: 1px solid hsl(var(--foreground) / .08); background: hsl(var(--card) / .7);
+  font-family: var(--font-mono, "DM Mono", monospace); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground));
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.login-tape > div { display: inline-flex; padding-left: 20px; animation: login-tape 70s linear infinite; }
+.login-tape span { padding-right: 24px; }
+@keyframes login-tape { to { transform: translateX(-50%); } }
+.login-tile { animation: login-glow 3.4s ease-in-out 1s infinite; }
+@keyframes login-glow { 0%, 100% { box-shadow: 0 0 0 0 hsl(var(--accent) / 0); } 50% { box-shadow: 0 0 0 7px hsl(var(--accent) / .22); } }
+.login-status { position: absolute; left: 0; right: 0; bottom: -20px; display: flex; justify-content: center; align-items: center; gap: 8px; margin: 0; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.login-status b { font-weight: 400; color: hsl(var(--foreground)); }
+.login-status i { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); animation: login-ping 2s ease-out infinite; }
+@keyframes login-ping { 0% { box-shadow: 0 0 0 0 hsl(var(--accent) / .6); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
+.pin-bars { position: absolute; left: 0; bottom: -11px; display: flex; gap: 6px; height: 6px; }
+.pin-bars i { width: 22px; height: 4px; border-radius: 4px; background: hsl(var(--border)); transition: background .2s var(--ease-out), transform .25s var(--ease-out); }
+.pin-bars i.on { background: hsl(var(--foreground)); transform: scaleY(1.5); }
+.login-rise > * { animation: login-rise .6s var(--ease-out) both; }
+.login-rise > *:nth-child(2) { animation-delay: .1s; }
+.login-rise > *:nth-child(3) { animation-delay: .2s; }
+@keyframes login-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.login-shake { animation: login-shake .4s var(--ease-out); }
+@keyframes login-shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .login-tape > div, .login-tile, .login-status i, .login-rise > *, .login-shake { animation: none; }
+  .login-tape { display: none; }
+}

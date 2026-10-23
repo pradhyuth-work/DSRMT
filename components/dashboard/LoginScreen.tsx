@@ -6,6 +6,7 @@ import type { AuthUser } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert } from "./ui";
 import { BrandMark } from "./BrandMark";
+import { LoginBackdrop, Typewriter, LiveStatus, PinBars } from "./LoginFx";
 
 export default function LoginScreen({
   notice,
@@ -18,6 +19,7 @@ export default function LoginScreen({
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCount, setErrorCount] = useState(0);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,25 +30,28 @@ export default function LoginScreen({
       onLogin(token, user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
+      setErrorCount((n) => n + 1);
       setBusy(false);
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm space-y-6">
+      <LoginBackdrop />
+      <div className="login-rise relative z-10 w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-xl bg-primary p-3 text-primary-foreground">
+          <div className="login-tile rounded-xl bg-primary p-3 text-primary-foreground">
             <BrandMark size={24} />
           </div>
-          <div>
+          <div className="relative">
             <h1 className="text-xl font-semibold">Varasidhi Enterprises</h1>
             <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-muted-foreground/70">MT &middot; billing &amp; dispatch</p>
-            <p className="mt-2 text-sm text-muted-foreground">Sign in to continue</p>
+            <p className="mt-2 text-sm text-muted-foreground"><Typewriter /></p>
+            <LiveStatus />
           </div>
         </div>
 
-        <form onSubmit={submit} className="card space-y-4 p-5">
+        <form key={errorCount} onSubmit={submit} className={`card space-y-4 p-5${errorCount > 0 ? " login-shake" : ""}`}>
           {notice && <Alert kind="warning">{notice}</Alert>}
           <div>
             <label className="label" htmlFor="login-username">Username</label>
@@ -65,18 +70,21 @@ export default function LoginScreen({
           </div>
           <div>
             <label className="label" htmlFor="login-pin">PIN</label>
-            <input
-              id="login-pin"
-              type="password"
-              className="input"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={8}
-              autoComplete="current-password"
-              required
-            />
+            <div className="relative">
+              <input
+                id="login-pin"
+                type="password"
+                className="input"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={8}
+                autoComplete="current-password"
+                required
+              />
+              <PinBars length={pin.length} />
+            </div>
           </div>
           {error && <Alert kind="error">{error}</Alert>}
           <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !pin}>
