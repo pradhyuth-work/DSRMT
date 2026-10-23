@@ -1,0 +1,92 @@
+/* "Spec-sheet" look, copied from the reference (Slipstream) screen recording:
+   square corners, hairline 1px ink borders, flat panels, mono UPPERCASE labels, heavy tight headings,
+   solid ink buttons, dark ink rule across the top, boxed stat cells.
+   Visual skin ONLY: no element is added, moved or resized, and no colour is introduced -
+   every colour below is an existing theme token (navy ink, cream, lime, status pastels).
+   Imported AFTER globals.css and enhance.css. */
+
+:root {
+  --ink: hsl(var(--foreground));
+  --hair: hsl(var(--foreground) / .22);
+  --shadow-card: none;
+  --shadow-float: 0 0 0 1px hsl(var(--foreground));
+}
+
+/* ---------- Dark ink rule along the very top (fixed overlay, takes no space) ---------- */
+body::before {
+  content: ""; position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 60;
+  background: var(--ink); pointer-events: none;
+}
+
+/* ---------- Square corners everywhere (round dots / avatars keep rounded-full) ---------- */
+.rounded-sm, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[11px\],
+.rounded-t-2xl, .sm\:rounded-2xl { border-radius: 2px; }
+.rounded-t-2xl { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.card, .input, .btn { border-radius: 2px; }
+.chart-strip > div, .chart-pop, .chart-rung { border-radius: 2px; }
+
+/* ---------- Panels: flat, ink hairline ---------- */
+.card { border-color: hsl(var(--foreground) / .8); box-shadow: none; background: hsl(var(--card)); }
+@media (hover: hover) and (pointer: fine) {
+  .card:hover { box-shadow: none; border-color: var(--ink); }
+}
+.card.is-spot { background-image: none; }
+
+/* ---------- Headings: heavy, tight, uppercase ---------- */
+h1, h2, h3 { font-weight: 700; text-transform: uppercase; letter-spacing: -.01em; line-height: 1.05; }
+
+/* ---------- Mono UPPERCASE micro-labels ---------- */
+.label {
+  font-family: var(--app-font-mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.th { border-bottom: 1px solid var(--ink); }
+.td { border-bottom: 1px solid var(--hair); }
+thead { background: transparent; }
+tbody tr { border-bottom: 1px solid var(--hair); }
+table { border-collapse: collapse; }
+@media (hover: hover) and (pointer: fine) {
+  tbody tr:hover { box-shadow: inset 3px 0 0 var(--ink); background: hsl(var(--accent) / .18); }
+}
+
+/* ---------- Inputs: boxed, ink border ---------- */
+.input { border: 1px solid hsl(var(--foreground) / .7); background: hsl(var(--card)); }
+.input:focus { border-color: var(--ink); box-shadow: 0 0 0 2px hsl(var(--accent) / .55); }
+
+/* ---------- Buttons: mono uppercase, flat ink ---------- */
+.btn {
+  font-family: var(--app-font-mono); font-size: 12px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.btn-primary { background: var(--ink); color: hsl(var(--primary-foreground)); border: 1px solid var(--ink); }
+.btn-primary:hover:not(:disabled) { transform: none; background: hsl(var(--foreground) / .88); }
+.btn-secondary { background: hsl(var(--card)); border: 1px solid hsl(var(--foreground) / .8); }
+.btn-secondary:hover:not(:disabled) { background: hsl(var(--accent) / .35); border-color: var(--ink); }
+
+/* ---------- Status tags: square mono chips instead of pills ---------- */
+.tag {
+  border-radius: 2px !important; font-family: var(--app-font-mono); font-weight: 500 !important;
+  letter-spacing: .1em; text-transform: uppercase; border: 1px solid hsl(var(--foreground) / .25);
+}
+
+/* ---------- Stat cells: boxed spec cells, big heavy figure ---------- */
+.stat-cell > div:first-child { border-radius: 2px; }
+.stat-label {
+  font-family: var(--app-font-mono); font-size: 10px !important; font-weight: 500 !important;
+  letter-spacing: .12em; text-transform: uppercase;
+}
+.stat-value { font-weight: 700; letter-spacing: -.03em; }
+
+/* ---------- Modals: ink-outlined sheet, ruled title bar ---------- */
+[role="dialog"] { border: 1px solid var(--ink); box-shadow: none; }
+[role="dialog"] > div:first-child { border-bottom: 1px solid var(--ink); }
+
+/* ---------- Header + sidebar: ruled, mono micro-labels ---------- */
+main header { border-bottom: 1px solid var(--ink); }
+aside { border-right: 1px solid var(--ink); }
+aside nav button, aside nav a { border-radius: 2px; }
+
+/* ---------- Pagination / dividers ---------- */
+.border-border { border-color: var(--hair); }
+.card.border-border, .card .border-border { border-color: var(--hair); }
+.card { border-color: hsl(var(--foreground) / .8) !important; }
