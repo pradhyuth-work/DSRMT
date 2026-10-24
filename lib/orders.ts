@@ -16,29 +16,52 @@ export interface PricedLine {
  * Merges duplicate products, prices each line at the current unit price (or schemePrice,
  * when `hasScheme` — used when editing an order that already has scheme pricing on, so
  * adding/removing items doesn't silently revert it to normal pricing) and checks the
- * requested quantity against current stock. Stock is not reserved here; it is deducted
- * at dispatch. Field agents get an error without exact stock counts.
+ * requested quantity against stock still free to claim. Stock itself isn't deducted here
+ * (that happens at billing), but quantities already sitting on *other* PENDING orders are
+ * subtracted from stockQty first — otherwise two orders for the same scarce product can
+ * both pass this check and the slower one fails at billing instead, after the agent and
+ * outlet already think the order went through. `excludeInvoiceId` leaves an order's own
+ * existing items out of that reservation total when it's being edited, so re-saving it
+ * with the same or smaller quantities doesn't count its old items against itself. Field
+ * agents get an error without exact stock counts.
  */
 export async function priceLines(
   tx: Prisma.TransactionClient,
   items: SaleItemInput[],
   role: Role,
   hasScheme = false,
+  excludeInvoiceId?: string,
 ): Promise<{ lines: PricedLine[]; totalAmount: number }> {
   const quantities = new Map<string, number>();
   for (const item of items) {
     quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
   }
+  const productIds = [...quantities.keys()];
 
-  const products = await tx.product.findMany({ where: { id: { in: [...quantities.keys()] } } });
+  const [products, reserved] = await Promise.all([
+    tx.product.findMany({ where: { id: { in: productIds } } }),
+    tx.invoiceItem.groupBy({
+      by: ["productId"],
+      where: {
+        productId: { in: productIds },
+        invoice: {
+          fulfilmentStatus: "PENDING",
+          ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
+        },
+      },
+      _sum: { quantity: true },
+    }),
+  ]);
   const productById = new Map(products.map((p) => [p.id, p]));
+  const reservedById = new Map(reserved.map((r) => [r.productId, r._sum.quantity ?? 0]));
 
   const shortages: { productId: string; name: string; requested: number; available: number }[] = [];
   for (const [productId, quantity] of quantities) {
     const product = productById.get(productId);
     if (!product) throw new HttpError(400, `Product ${productId} not found`);
-    if (product.stockQty < quantity) {
-      shortages.push({ productId, name: product.name, requested: quantity, available: product.stockQty });
+    const available = product.stockQty - (reservedById.get(productId) ?? 0);
+    if (available < quantity) {
+      shortages.push({ productId, name: product.name, requested: quantity, available: Math.max(available, 0) });
     }
   }
   if (shortages.length > 0) {
