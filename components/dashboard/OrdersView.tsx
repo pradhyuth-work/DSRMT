@@ -551,6 +551,10 @@ export default function OrdersView({
                 </li>
               ))}
             </ul>
+            <div className="flex items-center justify-between gap-2 border-b border-border pb-2 text-sm font-bold uppercase">
+              <span>Total items</span>
+              <span className="shrink-0 tabular-nums">{dispatchPreviewTotals.reduce((sum, s) => sum + s.quantity, 0)}</span>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
