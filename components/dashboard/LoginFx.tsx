@@ -34,7 +34,7 @@ export function LoginBackdrop() {
           if (x) cx.lineTo(x, y); else cx.moveTo(x, y);
         }
         // navy at low alpha; the middle line uses the theme lime
-        cx.strokeStyle = k === 1 ? "hsla(71,78%,50%,.4)" : "hsla(225,31%,16%,.06)";
+        cx.strokeStyle = k === 1 ? "hsla(47,77%,55%,.45)" : "hsla(0,0%,100%,.08)";
         cx.lineWidth = k === 1 ? 1.5 : 1;
         cx.stroke();
       }

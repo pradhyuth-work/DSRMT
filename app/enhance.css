@@ -112,3 +112,35 @@
   .login-tape > div, .login-tile, .login-status i, .login-rise > *, .login-shake { animation: none; }
   .login-tape { display: none; }
 }
+
+/* ================= Stratum theme layer (paper / gold / ink, terminal type) ================= */
+body { letter-spacing: -.01em; }
+h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
+.ops-grid { background-image: linear-gradient(hsl(var(--foreground) / .045) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / .045) 1px, transparent 1px); }
+
+/* Buttons: slanted, as in the Stratum design. Primary = gold, secondary = ink outline. Sizes and padding are unchanged. */
+.btn { border-radius: 0; clip-path: polygon(7% 0, 100% 0, 93% 100%, 0 100%); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.btn-primary { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.btn-secondary { border: 1.5px solid transparent; background: linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box, linear-gradient(hsl(var(--foreground)), hsl(var(--foreground))) border-box; }
+.btn-primary::after { background: linear-gradient(105deg, transparent 35%, hsl(0 0% 100% / .35) 50%, transparent 65%); }
+.input { border-radius: 3px; }
+.label, .th { letter-spacing: .14em; }
+
+/* Badges: squarer, bracketed look */
+.tag { border-radius: 2px !important; letter-spacing: .08em; }
+
+/* Stat/other pill-shaped icon chips */
+.stat-cell > div:first-child { border-radius: 4px; }
+
+/* Sign-in: gold glow over a dark field, like the DSR sign-in. Layout untouched. */
+.login-bg { position: relative; background: radial-gradient(120% 70% at 50% 0%, #d9ad22 0%, #7a600f 35%, #1c1707 70%, #0b0a06 100%); }
+.login-bg::before { content: ""; position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); background-size: 32px 32px; -webkit-mask-image: linear-gradient(#000, transparent 70%); mask-image: linear-gradient(#000, transparent 70%); }
+.login-bg h1 { color: #eef5f0; text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.6), 0 0 24px rgba(217,173,34,.35); }
+.login-bg .login-sub { color: #e8dca8 !important; }
+.login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(217,173,34,.18); }
+.login-bg .login-note, .login-bg .login-status, .login-bg .login-status b { color: #cbbf94; }
+.login-bg .login-tape { background: rgba(11,10,6,.45); border-bottom-color: rgba(217,173,34,.25); color: #cbbf94; }
+.login-bg .pin-bars i { background: hsl(var(--border)); }
+.login-bg .pin-bars i.on { background: hsl(var(--foreground)); }
+.brand-tile { display: block; flex: none; border-radius: 8px; object-fit: cover; }
+.login-bg .brand-tile { box-shadow: 0 8px 24px rgba(0,0,0,.45); }
