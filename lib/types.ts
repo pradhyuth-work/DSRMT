@@ -529,6 +529,10 @@ export interface DashboardMetrics {
   totalBilled: number;
   totalCollected: number;
   totalOutstanding: number;
+  /** Current calendar month (India time): label like "Oct 2026", billed and collected within it. */
+  monthLabel: string;
+  monthBilled: number;
+  monthCollected: number;
   totalStockValue: number;
   invoiceCount: number;
   /** Outlets whose single oldest unpaid invoice is past DAYS_CRITICAL_THRESHOLD (lib/money.ts). */

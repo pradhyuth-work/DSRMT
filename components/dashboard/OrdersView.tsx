@@ -287,7 +287,7 @@ export default function OrdersView({
                     <span>{o.hasScheme ? "With scheme" : "Without scheme"}</span>
                     <span
                       className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                        o.hasScheme ? "bg-success" : "bg-border"
+                        o.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
                       }`}
                     >
                       <span
