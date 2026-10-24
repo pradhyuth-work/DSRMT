@@ -5,7 +5,7 @@ import { Loader2, LogIn } from "lucide-react";
 import type { AuthUser } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert } from "./ui";
-import { BrandMark } from "./BrandMark";
+import { BrandTile } from "./BrandMark";
 import { LoginBackdrop, Typewriter, LiveStatus, PinBars } from "./LoginFx";
 
 export default function LoginScreen({
@@ -36,17 +36,17 @@ export default function LoginScreen({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="login-bg flex min-h-screen items-center justify-center px-4 py-10">
       <LoginBackdrop />
       <div className="login-rise relative z-10 w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="login-tile rounded-xl bg-primary p-3 text-primary-foreground">
-            <BrandMark size={24} />
+          <div className="login-tile rounded-xl">
+            <BrandTile size={56} />
           </div>
           <div className="relative">
             <h1 className="text-xl font-semibold">Varasidhi Enterprises</h1>
-            <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-muted-foreground/70">MT &middot; billing &amp; dispatch</p>
-            <p className="mt-2 text-sm text-muted-foreground"><Typewriter /></p>
+            <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-muted-foreground/70 login-sub">MT &middot; billing &amp; dispatch</p>
+            <p className="mt-2 text-sm text-muted-foreground login-sub"><Typewriter /></p>
             <LiveStatus />
           </div>
         </div>
@@ -92,7 +92,7 @@ export default function LoginScreen({
             Sign in
           </button>
         </form>
-        <p className="text-center text-xs text-muted-foreground">Accounts are created by an admin. Ask them if you can&apos;t sign in.</p>
+        <p className="login-note text-center text-xs text-muted-foreground">Accounts are created by an admin. Ask them if you can&apos;t sign in.</p>
       </div>
     </div>
   );

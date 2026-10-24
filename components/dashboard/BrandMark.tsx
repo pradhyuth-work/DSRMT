@@ -10,3 +10,10 @@ export function BrandMark({ size = 18, tone = "light", className }: { size?: num
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} width={size} height={size} alt="" draggable={false} className={className} />;
 }
+
+/** The full Varasidhi app tile (dark rounded square with the V + receipt). Use instead of
+ * BrandMark inside a coloured container. */
+export function BrandTile({ size = 36, className = "" }: { size?: number; className?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/brand-mark.png" width={size} height={size} alt="" draggable={false} className={`brand-tile ${className}`} />;
+}

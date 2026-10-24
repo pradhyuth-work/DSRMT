@@ -40,7 +40,7 @@ import { formatMoney } from "@/lib/money";
 import { api, setUnauthorizedHandler } from "./api-client";
 import { clearToken, getToken, setToken } from "./session";
 import { Alert, StatCard } from "./ui";
-import { BrandMark } from "./BrandMark";
+import { BrandTile } from "./BrandMark";
 import LoginScreen from "./LoginScreen";
 import SaleForm from "./SaleForm";
 import AgentOrderForm from "./AgentOrderForm";
@@ -137,9 +137,7 @@ async function loadData(role: Role): Promise<DashboardData> {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
-        <BrandMark size={18} tone="dark" />
-      </div>
+      <BrandTile size={36} />
       <div>
         <p className={`${compact ? "text-base" : "text-[17px]"} font-bold tracking-[-.03em]`}>Varasidhi Enterprises</p>
         {!compact && <p className="font-mono-app text-[9px] uppercase tracking-[.2em] text-sidebar-foreground/45">MT &middot; billing &amp; dispatch</p>}
@@ -281,9 +279,7 @@ export default function Dashboard() {
           </button>
 
           {sidebarCollapsed ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-sidebar-primary text-sidebar-primary-foreground">
-              <BrandMark size={18} tone="dark" />
-            </div>
+            <BrandTile size={36} />
           ) : (
             <Brand />
           )}
@@ -364,9 +360,7 @@ export default function Dashboard() {
           <header className="flex h-[76px] items-center justify-between border-b border-foreground/10">
             {isAgent ? (
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <BrandMark size={18} />
-                </div>
+                <BrandTile size={36} />
                 <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi Enterprises</h1>
               </div>
             ) : (
