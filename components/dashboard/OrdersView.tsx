@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
@@ -134,6 +134,31 @@ export default function OrdersView({
     }
     return [...totals.values()].sort((a, b) => a.productName.localeCompare(b.productName));
   }, [dispatchPreview]);
+
+  // Field agents get a summary sheet of their BILLED orders only (not pending, dispatched or
+  // cancelled): per-product quantities plus order count and combined value, regardless of the
+  // status tab currently shown.
+  const [showBilledSummary, setShowBilledSummary] = useState(false);
+  const billedSummary = useMemo(() => {
+    if (user.role !== "agent") return null;
+    const billed = data.orders.filter((o) => o.fulfilmentStatus === "BILLED");
+    const totals = new Map<string, { productId: string; productName: string; quantity: number }>();
+    let amount = 0;
+    for (const o of billed) {
+      amount = round2(amount + o.totalAmount);
+      for (const i of o.items) {
+        const t = totals.get(i.productId) ?? { productId: i.productId, productName: i.productName, quantity: 0 };
+        t.quantity += i.quantity;
+        totals.set(i.productId, t);
+      }
+    }
+    return {
+      orderCount: billed.length,
+      amount,
+      products: [...totals.values()].sort((a, b) => a.productName.localeCompare(b.productName)),
+    };
+  }, [data.orders, user.role]);
+
   const canCancel = (o: OrderDTO) =>
     user.role === "admin"
       ? o.fulfilmentStatus !== "CANCELLED" && o.paidAmount === 0
@@ -210,6 +235,12 @@ export default function OrdersView({
               placeholder="All field agents"
               options={[{ value: "", label: "All field agents" }, ...agentOptions]}
             />
+          )}
+          {billedSummary && (
+            <button type="button" className="btn btn-secondary shrink-0" onClick={() => setShowBilledSummary(true)}>
+              <ClipboardList className="h-4 w-4" />
+              Billed summary
+            </button>
           )}
           <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -475,6 +506,33 @@ export default function OrdersView({
                 Yes, cancel
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={showBilledSummary && !!billedSummary} title="Billed orders summary" onClose={() => setShowBilledSummary(false)}>
+        {billedSummary && (
+          <div className="space-y-4">
+            {billedSummary.orderCount === 0 ? (
+              <EmptyState>No billed orders right now.</EmptyState>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {billedSummary.orderCount} billed order{billedSummary.orderCount === 1 ? "" : "s"} · {formatMoney(billedSummary.amount)} combined
+                </p>
+                <ul className="max-h-80 space-y-1.5 overflow-y-auto border-y border-border py-2 text-sm">
+                  {billedSummary.products.map((s) => (
+                    <li key={s.productId} className="flex justify-between gap-2">
+                      <span className="min-w-0 truncate">{s.productName}</span>
+                      <span className="shrink-0 tabular-nums font-semibold">{s.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <button type="button" className="btn btn-secondary h-12 w-full text-base" onClick={() => setShowBilledSummary(false)}>
+              Close
+            </button>
           </div>
         )}
       </Modal>
