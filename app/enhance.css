@@ -140,8 +140,13 @@ h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: itali
 .login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(217,173,34,.18); }
 .login-bg .login-note, .login-bg .login-status, .login-bg .login-status b { color: #cbbf94; }
 .login-bg .login-tape { background: rgba(11,10,6,.45); border-bottom-color: rgba(217,173,34,.25); color: #cbbf94; }
-.login-bg .pin-bars i { background: hsl(var(--border)); }
-.login-bg .pin-bars i.on { background: hsl(var(--foreground)); }
+/* Sign-in card blends into the background (dark glass) instead of a white panel, like the DSR sign-in. */
+.login-bg .card { background: rgba(11,10,6,.55); border-color: rgba(217,173,34,.22); color: #eef5f0; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.login-bg .card .label { color: #cbbf94; }
+.login-bg .card .input { background: rgba(0,0,0,.45); border-color: rgba(217,173,34,.28); color: #eef5f0; }
+.login-bg .card .input:focus { border-color: #d9ad22; }
+.login-bg .pin-bars i { background: rgba(238,245,240,.18); }
+.login-bg .pin-bars i.on { background: #d9ad22; }
 .brand-tile { display: block; flex: none; border-radius: 8px; object-fit: cover; }
 .login-bg .brand-tile { box-shadow: 0 8px 24px rgba(0,0,0,.45); }
 
