@@ -64,9 +64,9 @@ export function StatCard({
     teal: "bg-info text-info-foreground",
   } as const;
   return (
-    <div className="app-rise card stat-cell flex items-center gap-4 p-4">
-      <div className={`rounded-lg p-2.5 ${tones[tone]}`}>
-        <Icon className="h-5 w-5" />
+    <div className="app-rise card stat-cell flex items-center gap-3 p-4">
+      <div className={`rounded-lg p-2 ${tones[tone]}`}>
+        <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
         <p className="stat-label text-xs font-semibold text-muted-foreground">{label}</p>
