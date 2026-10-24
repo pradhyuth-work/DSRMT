@@ -21,18 +21,30 @@ export interface ReportsRange {
 }
 
 /**
- * Dashboard totals and outlet ledgers are always all-time. Only staffPerformance is
+ * Dashboard totals (except the month* figures) and outlet ledgers are all-time. Only staffPerformance is
  * date-filtered (by `range`, when given): sales figures by the order's date, collection
  * figures by the payment's date — that's the accrual-vs-cash distinction the two numbers
  * actually represent, so a payment collected today against an old order still counts today.
  */
+/** Start of the current calendar month in India time (UTC+05:30), as a UTC instant, plus its label. */
+function currentMonthIst(now = new Date()) {
+  const IST_MS = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + IST_MS);
+  const start = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), 1) - IST_MS);
+  const label = new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric", timeZone: "Asia/Kolkata" }).format(now);
+  return { start, label };
+}
+
 export async function buildReports(range: ReportsRange = {}): Promise<ReportsResponse> {
+  const month = currentMonthIst();
   const dateFilter = range.from || range.to ? { gte: range.from, lte: range.to } : undefined;
 
-  const [invoiceTotals, paymentTotals, stockTotals, outlets, staff, staffInvoices, staffPayments] =
+  const [invoiceTotals, paymentTotals, monthInvoices, monthPayments, stockTotals, outlets, staff, staffInvoices, staffPayments] =
     await Promise.all([
       prisma.invoice.aggregate({ where: notCancelled, _sum: { totalAmount: true, balanceDue: true }, _count: true }),
       prisma.paymentCollection.aggregate({ where: { chequeStatus: "ACTIVE" }, _sum: { amount: true } }),
+      prisma.invoice.aggregate({ where: { ...notCancelled, createdAt: { gte: month.start } }, _sum: { totalAmount: true } }),
+      prisma.paymentCollection.aggregate({ where: { chequeStatus: "ACTIVE", createdAt: { gte: month.start } }, _sum: { amount: true } }),
       prisma.product.findMany({ select: { stockQty: true, unitPrice: true } }),
       prisma.outlet.findMany({
         orderBy: { name: "asc" },
@@ -186,6 +198,10 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       totalBilled: round2(invoiceTotals._sum.totalAmount ?? 0),
       totalCollected: round2(paymentTotals._sum.amount ?? 0),
       totalOutstanding: round2(invoiceTotals._sum.balanceDue ?? 0),
+      // The headline cards show the current calendar month (India time) for billed and collected.
+      monthLabel: month.label,
+      monthBilled: round2(monthInvoices._sum.totalAmount ?? 0),
+      monthCollected: round2(monthPayments._sum.amount ?? 0),
       // Stock value in hand = on-hand quantity × standard unit price, summed over all products.
       totalStockValue: round2(stockTotals.reduce((s, p) => s + p.stockQty * p.unitPrice, 0)),
       invoiceCount: invoiceTotals._count,

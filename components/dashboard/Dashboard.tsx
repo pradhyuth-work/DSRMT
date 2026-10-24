@@ -444,8 +444,8 @@ export default function Dashboard() {
 
           {user.role === "admin" && (
             <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
-              <StatCard label="Total Billed" value={metrics ? formatMoney(metrics.totalBilled) : "—"} icon={IndianRupee} tone="lime" />
-              <StatCard label="Total Collected" value={metrics ? formatMoney(metrics.totalCollected) : "—"} icon={Wallet} tone="gold" />
+              <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" />
+              <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" />
               <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
               <StatCard label="Stock Value in Hand" value={metrics ? formatMoney(metrics.totalStockValue) : "—"} icon={Boxes} tone="teal" />
               <StatCard
