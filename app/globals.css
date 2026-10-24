@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap');
 @import "tailwindcss";
 
 /* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
    matches it: warm cream surface, dark-navy sidebar, olive/gold/rose/teal accents,
-   Space Grotesk + DM Mono type. Light theme only — this app has no dark-mode toggle. */
+   Barlow / Barlow Condensed / Courier Prime type (from the reference screen recording). Light theme only — this app has no dark-mode toggle. */
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -75,8 +75,9 @@
   --danger-foreground: #a14f42;
   --info: #cfe8e2;
   --info-foreground: #2f6f60;
-  --app-font-sans: 'Space Grotesk', sans-serif;
-  --app-font-mono: 'DM Mono', monospace;
+  --app-font-sans: 'Barlow', sans-serif;
+  --app-font-display: 'Barlow Condensed', 'Barlow', sans-serif;
+  --app-font-mono: 'Courier Prime', 'Courier New', monospace;
   --radius: .7rem;
   --shadow-card: 0 4px 18px hsl(225 31% 16% / .055);
   --shadow-float: 0 18px 45px hsl(225 31% 16% / .12);
