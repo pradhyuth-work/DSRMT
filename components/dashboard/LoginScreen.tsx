@@ -87,10 +87,12 @@ export default function LoginScreen({
             </div>
           </div>
           {error && <Alert kind="error">{error}</Alert>}
-          <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !pin}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            Sign in
-          </button>
+          <div className="neon-wrap">
+            <button type="submit" className="btn btn-primary w-full" disabled={busy || !username || !pin}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              Sign in
+            </button>
+          </div>
         </form>
         <p className="login-note text-center text-xs text-muted-foreground">Accounts are created by an admin. Ask them if you can&apos;t sign in.</p>
       </div>
