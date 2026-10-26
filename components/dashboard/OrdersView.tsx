@@ -278,7 +278,9 @@ export default function OrdersView({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
-            const outletGst = outletById.get(o.outletId)?.gstNumber ?? null;
+            const outlet = outletById.get(o.outletId);
+            const outletGst = outlet?.gstNumber ?? null;
+            const outletRoute = outlet?.routeName ?? null;
             return (
               <article key={o.id} className="card flex flex-col p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -290,6 +292,7 @@ export default function OrdersView({
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
+                      {outletRoute && <> · {outletRoute}</>}
                     </p>
                     <p className="font-mono text-[11px] text-muted-foreground">GSTIN: {outletGst ?? "Not on file"}</p>
                   </div>
