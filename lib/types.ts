@@ -205,6 +205,8 @@ export interface ResetPinResponse {
 export interface SaleItemInput {
   productId: string;
   quantity: number;
+  /** Prices this line off Product.schemePrice instead of unitPrice. The product must have one set. */
+  hasScheme?: boolean;
 }
 
 export interface CreateSaleInput {
@@ -215,8 +217,6 @@ export interface CreateSaleInput {
   paidAmount: number;
   paymentMethod: PaymentMethod;
   notes?: string;
-  /** Prices every line off Product.schemePrice instead of unitPrice. Every item's product must have one set. */
-  hasScheme?: boolean;
 }
 
 export interface CreateSaleResponse {
@@ -227,9 +227,8 @@ export interface CreateSaleResponse {
     balanceDue: number;
     status: InvoiceStatus;
     fulfilmentStatus: FulfilmentStatus;
-    hasScheme: boolean;
     createdAt: string;
-    items: { productId: string; productName: string; quantity: number; unitPrice: number; subtotal: number }[];
+    items: { productId: string; productName: string; quantity: number; unitPrice: number; subtotal: number; hasScheme: boolean }[];
   };
 }
 
@@ -239,6 +238,8 @@ export interface OrderItemDTO {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  /** Whether this line is priced with scheme rates. Toggleable while PENDING; locked once billed. */
+  hasScheme: boolean;
 }
 
 export interface OrderDTO {
@@ -254,8 +255,6 @@ export interface OrderDTO {
   balanceDue: number;
   status: InvoiceStatus;
   fulfilmentStatus: FulfilmentStatus;
-  /** Whether this order is priced with scheme rates. Toggleable by anyone while PENDING; locked once billed. */
-  hasScheme: boolean;
   createdAt: string;
   billedAt: string | null;
   billedByName: string | null;
@@ -279,6 +278,7 @@ export interface UpdateOrderInput {
 }
 
 export interface ToggleSchemeInput {
+  productId: string;
   hasScheme: boolean;
 }
 

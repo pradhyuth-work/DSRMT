@@ -34,7 +34,7 @@ const id = z.string().trim().min(1);
 const paymentMethod = z.enum(["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"]);
 const role = z.enum(["admin", "stock", "agent"]);
 const saleItems = z
-  .array(z.object({ productId: id, quantity: z.coerce.number().int().positive() }))
+  .array(z.object({ productId: id, quantity: z.coerce.number().int().positive(), hasScheme: z.boolean().default(false) }))
   .min(1, "Add at least one item");
 const username = z
   .string()
@@ -80,7 +80,6 @@ export const createSaleSchema = z.object({
   paidAmount: money.default(0),
   paymentMethod: paymentMethod.default("CASH"),
   notes: z.string().trim().max(500).optional(),
-  hasScheme: z.boolean().default(false),
 }) satisfies z.ZodType<CreateSaleInput, z.ZodTypeDef, unknown>;
 
 export const updateOrderSchema = z
@@ -103,7 +102,7 @@ export const dispatchBulkSchema = z.object({
   orderIds: z.array(id).min(1, "Select at least one order").max(100, "At most 100 orders at once"),
 }) satisfies z.ZodType<DispatchBulkInput, z.ZodTypeDef, unknown>;
 
-export const toggleSchemeSchema = z.object({ hasScheme: z.boolean() }) satisfies z.ZodType<
+export const toggleSchemeSchema = z.object({ productId: id, hasScheme: z.boolean() }) satisfies z.ZodType<
   ToggleSchemeInput,
   z.ZodTypeDef,
   unknown

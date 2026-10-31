@@ -157,9 +157,6 @@ model Invoice {
   balanceDue       Float
   status           InvoiceStatus    @default(UNPAID)
   fulfilmentStatus FulfilmentStatus @default(PENDING)
-  /// Whether this order is currently priced with scheme rates (Product.schemePrice) rather
-  /// than normal unitPrice. Toggleable by anyone while PENDING; locked once billed.
-  hasScheme        Boolean          @default(false)
   billedAt         DateTime?
   billedById       String?
   dispatchedAt     DateTime?
@@ -189,6 +186,9 @@ model InvoiceItem {
   quantity  Int
   unitPrice Float
   subtotal  Float
+  /// Whether this line is currently priced with scheme rates (Product.schemePrice) rather
+  /// than normal unitPrice. Toggleable per line while the order is PENDING; locked once billed.
+  hasScheme Boolean @default(false)
   /// The product's scheme price at the moment this order was billed (effectiveSchemePrice,
   /// i.e. respecting schemeActive) — NULL if no scheme price was set/active then. Captured
   /// once, at billing, regardless of whether this order itself was priced "with scheme";

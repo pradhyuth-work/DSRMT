@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         throw new HttpError(403, "This outlet isn't on your route");
       }
 
-      const { lines, totalAmount } = await priceLines(tx, input.items, user.role, input.hasScheme);
+      const { lines, totalAmount } = await priceLines(tx, input.items, user.role);
       const paidAmount = round2(input.paidAmount);
       if (paidAmount > totalAmount) {
         throw new HttpError(400, `Payment (${paidAmount}) exceeds invoice total (${totalAmount})`);
@@ -50,13 +50,13 @@ export async function POST(req: Request) {
           paidAmount,
           balanceDue,
           status: statusFor(totalAmount, paidAmount),
-          hasScheme: input.hasScheme,
           items: {
-            create: lines.map(({ productId, quantity, unitPrice, subtotal }) => ({
+            create: lines.map(({ productId, quantity, unitPrice, subtotal, hasScheme }) => ({
               productId,
               quantity,
               unitPrice,
               subtotal,
+              hasScheme,
             })),
           },
         },
@@ -88,7 +88,6 @@ export async function POST(req: Request) {
         balanceDue: invoice.balanceDue,
         status: invoice.status,
         fulfilmentStatus: invoice.fulfilmentStatus,
-        hasScheme: invoice.hasScheme,
         createdAt: invoice.createdAt.toISOString(),
         items: invoice.lines,
       },
