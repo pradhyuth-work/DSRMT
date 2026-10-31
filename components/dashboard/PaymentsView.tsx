@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, HandCoins, History, Loader2, RotateCcw, Trash2, Wallet2 } from "lucide-react";
+import { AlertTriangle, Download, HandCoins, History, Loader2, RotateCcw, Search, Trash2, Wallet2 } from "lucide-react";
 import type { AuthUser, BounceChequeResponse, ChequeEventDTO, OutletDTO, PaymentDTO, ReflectChequeResponse, StaffDTO } from "@/lib/types";
 import { CHEQUE_BOUNCE_FEE, formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
@@ -66,6 +66,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   const isAdmin = user.role === "admin";
   const [outletId, setOutletId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [range, setRange] = useState<DateRange>({});
   const [payments, setPayments] = useState<PaymentDTO[] | null>(null);
@@ -96,15 +97,17 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
   }, [load]);
 
   const lines = useMemo(() => buildLines(payments ?? []), [payments]);
-  const visible = useMemo(
-    () =>
-      lines.filter((l) => {
-        if (status === "all") return true;
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return lines.filter((l) => {
+      if (status !== "all") {
         if (!l.groupId || l.rows[0].paymentMethod !== "CHEQUE") return false;
-        return status === "bounced-cheques" ? l.bounced : !l.bounced;
-      }),
-    [lines, status],
-  );
+        if (status === "bounced-cheques" ? !l.bounced : l.bounced) return false;
+      }
+      if (q && !l.invoiceLabel.toLowerCase().includes(q) && !l.rows[0].outletName.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [lines, status, search]);
   // A bounced cheque is not money received, so it is left out of the total.
   const received = lines.filter((l) => !l.bounced);
   const bouncedLines = lines.filter((l) => l.bounced);
@@ -146,6 +149,15 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-56">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="input pl-9"
+              placeholder="Search bill no. or outlet…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <Combobox
             className="w-44"
             value={outletId}
