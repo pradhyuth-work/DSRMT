@@ -45,7 +45,7 @@ export async function GET(req: Request) {
           o.staffName,
           o.fulfilmentStatus,
           o.status,
-          o.hasScheme ? "Scheme" : "No Scheme",
+          i.hasScheme ? "Scheme" : "No Scheme",
           i.productName,
           i.quantity,
           formatMoney(basic),

@@ -47,7 +47,6 @@ export interface SchemeSavingsInvoiceInput {
   invoiceNumber: string | null;
   billedAt: Date | null;
   fulfilmentStatus: FulfilmentStatus;
-  hasScheme: boolean;
   outletId: string;
   outletName: string;
   staffId: string;
@@ -58,6 +57,7 @@ export interface SchemeSavingsInvoiceInput {
     quantity: number;
     unitPrice: number;
     subtotal: number;
+    hasScheme: boolean;
     schemeUnitPrice: number | null;
     schemeEstimated: boolean;
   }[];
@@ -74,10 +74,11 @@ const COUNTED_STATUSES: readonly FulfilmentStatus[] = ["BILLED", "DISPATCHED"];
  * `productId` narrows to that product's lines only — an invoice with none left is dropped
  * entirely rather than appearing with a zero.
  *
- * Saved/given are counted across every matching line regardless of hasScheme (per line:
- * add to saved when the invoice is hasScheme=false, to given when true). Everything else —
- * billed, atScheme, the breakdowns, the bills list — is scoped to the hasScheme=false bills
- * only; `given` is informational context, not part of that population.
+ * Saved/given are counted per line based on that line's own hasScheme: add to saved when
+ * false, to given when true — so a single bill can contribute to both. Everything else —
+ * billed, atScheme, the breakdowns, the bills list — is scoped to each bill's hasScheme=false
+ * lines only (a bill with no such lines doesn't appear at all); `given` is informational
+ * context, not part of that population.
  *
  * Also discards an *estimated* scheme price that's higher than the line's own unitPrice —
  * a stale guess (the product's scheme has since changed), not a real negative saving. See
@@ -109,8 +110,6 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
     let invSaved = 0;
 
     for (const item of items) {
-      invBilled = round2(invBilled + item.subtotal);
-
       // An *estimated* scheme price (back-filled from the product's current price, not
       // captured live at billing) that's higher than what this line actually billed at is
       // provably wrong — a scheme price is a discount, so it can't exceed the real price,
@@ -127,27 +126,29 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
       } else {
         if (item.schemeEstimated) estimatedLines++;
         lineSaved = round2((item.unitPrice - schemeUnitPrice) * item.quantity);
-        if (inv.hasScheme) given = round2(given + lineSaved);
+        if (item.hasScheme) given = round2(given + lineSaved);
         else {
           saved = round2(saved + lineSaved);
           invSaved = round2(invSaved + lineSaved);
         }
       }
 
-      lines.push({
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        schemeUnitPrice,
-        schemeEstimated: schemeUnitPrice != null && item.schemeEstimated,
-        saved: lineSaved,
-      });
-
-      if (!inv.hasScheme) bump(byProduct, item.productId, item.productName, item.subtotal, lineSaved);
+      if (!item.hasScheme) {
+        invBilled = round2(invBilled + item.subtotal);
+        lines.push({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          schemeUnitPrice,
+          schemeEstimated: schemeUnitPrice != null && item.schemeEstimated,
+          saved: lineSaved,
+        });
+        bump(byProduct, item.productId, item.productName, item.subtotal, lineSaved);
+      }
     }
 
-    if (inv.hasScheme) continue;
+    if (lines.length === 0) continue;
 
     billed = round2(billed + invBilled);
     bills.push({
@@ -217,7 +218,6 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
       invoiceNumber: true,
       billedAt: true,
       fulfilmentStatus: true,
-      hasScheme: true,
       outletId: true,
       outlet: { select: { name: true } },
       staffId: true,
@@ -228,6 +228,7 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
           quantity: true,
           unitPrice: true,
           subtotal: true,
+          hasScheme: true,
           schemeUnitPrice: true,
           schemeEstimated: true,
           product: { select: { name: true } },
@@ -241,7 +242,6 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
     invoiceNumber: inv.invoiceNumber,
     billedAt: inv.billedAt,
     fulfilmentStatus: inv.fulfilmentStatus,
-    hasScheme: inv.hasScheme,
     outletId: inv.outletId,
     outletName: inv.outlet.name,
     staffId: inv.staffId,
@@ -252,6 +252,7 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
       quantity: i.quantity,
       unitPrice: i.unitPrice,
       subtotal: i.subtotal,
+      hasScheme: i.hasScheme,
       schemeUnitPrice: i.schemeUnitPrice,
       schemeEstimated: i.schemeEstimated,
     })),

@@ -45,6 +45,7 @@ export default function OrdersView({
   const closeEdit = useCallback(() => setEditing(null), []);
 
   const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
+  const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
 
   const agentOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -302,40 +303,10 @@ export default function OrdersView({
                   </div>
                 </div>
 
-                {user.role !== "stock" && (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={o.hasScheme}
-                    disabled={busy || o.fulfilmentStatus !== "PENDING"}
-                    onClick={() =>
-                      void run(
-                        o.id,
-                        () => api.toggleScheme(o.id, !o.hasScheme),
-                        `${orderLabel(o)} switched to ${!o.hasScheme ? "with scheme" : "without scheme"} pricing`,
-                      )
-                    }
-                    className="mt-3 flex w-full items-center justify-between rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground transition disabled:cursor-not-allowed disabled:opacity-60"
-                    title={o.fulfilmentStatus !== "PENDING" ? "Locked — this order has already been billed" : undefined}
-                  >
-                    <span>{o.hasScheme ? "With scheme" : "Without scheme"}</span>
-                    <span
-                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                        o.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                          o.hasScheme ? "translate-x-[18px]" : "translate-x-0.5"
-                        }`}
-                      />
-                    </span>
-                  </button>
-                )}
-
                 <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
                   {o.items.map((i) => {
                     const { gst } = splitBasicAndGst(i.unitPrice);
+                    const schemeAvailable = productById.get(i.productId)?.schemePrice != null;
                     return (
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
@@ -344,10 +315,37 @@ export default function OrdersView({
                           </span>
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
                         </div>
-                        <div className="flex justify-between gap-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>Unit price {formatMoney(i.unitPrice)}/pc</span>
                           <span className="tabular-nums">GST {formatMoney(gst)}/pc</span>
                         </div>
+                        {user.role !== "stock" && (
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={i.hasScheme}
+                            disabled={busy || o.fulfilmentStatus !== "PENDING" || (!i.hasScheme && !schemeAvailable)}
+                            onClick={() =>
+                              void run(
+                                o.id,
+                                () => api.toggleScheme(o.id, i.productId, !i.hasScheme),
+                                `${i.productName} on ${orderLabel(o)} switched to ${!i.hasScheme ? "scheme" : "normal"} pricing`,
+                              )
+                            }
+                            title={
+                              o.fulfilmentStatus !== "PENDING"
+                                ? "Locked — this order has already been billed"
+                                : !i.hasScheme && !schemeAvailable
+                                  ? "No scheme price set for this product"
+                                  : undefined
+                            }
+                            className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                              i.hasScheme ? "border-[#1fc2a8] bg-[#1fc2a8]/10 text-[#1fc2a8]" : "border-border text-muted-foreground"
+                            }`}
+                          >
+                            {i.hasScheme ? "Scheme price" : "Normal price"}
+                          </button>
+                        )}
                       </li>
                     );
                   })}
@@ -587,6 +585,7 @@ export default function OrdersView({
 interface EditLine {
   productId: string;
   quantity: number;
+  hasScheme: boolean;
 }
 
 function EditOrderForm({
@@ -599,17 +598,27 @@ function EditOrderForm({
   onDone: (message: string) => Promise<void>;
 }) {
   const [outletId, setOutletId] = useState(order.outletId);
-  const [lines, setLines] = useState<EditLine[]>(order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+  const [lines, setLines] = useState<EditLine[]>(
+    order.items.map((i) => ({ productId: i.productId, quantity: i.quantity, hasScheme: i.hasScheme })),
+  );
   const [addProductId, setAddProductId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
-  const total = round2(lines.reduce((s, l) => s + (productById.get(l.productId)?.unitPrice ?? 0) * l.quantity, 0));
+  const total = round2(
+    lines.reduce((s, l) => {
+      const p = productById.get(l.productId);
+      const unitPrice = l.hasScheme && p?.schemePrice != null ? p.schemePrice : p?.unitPrice ?? 0;
+      return s + unitPrice * l.quantity;
+    }, 0),
+  );
   const tooLow = total < order.paidAmount;
 
   const setQty = (productId: string, quantity: number) =>
     setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, quantity: Math.max(1, quantity) } : l)));
+  const toggleLineScheme = (productId: string) =>
+    setLines((prev) => prev.map((l) => (l.productId === productId ? { ...l, hasScheme: !l.hasScheme } : l)));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -640,9 +649,21 @@ function EditOrderForm({
       <ul className="divide-y divide-border rounded-lg border border-border">
         {lines.map((l) => {
           const p = productById.get(l.productId);
+          const schemeAvailable = p?.schemePrice != null;
           return (
             <li key={l.productId} className="flex items-center gap-2 px-3 py-2 text-sm">
               <span className="min-w-0 flex-1 truncate">{p?.name ?? l.productId}</span>
+              <button
+                type="button"
+                disabled={!l.hasScheme && !schemeAvailable}
+                title={schemeAvailable ? undefined : "No scheme price set for this product"}
+                onClick={() => toggleLineScheme(l.productId)}
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  l.hasScheme ? "border-[#1fc2a8] bg-[#1fc2a8]/10 text-[#1fc2a8]" : "border-border text-muted-foreground"
+                }`}
+              >
+                {l.hasScheme ? "Scheme" : "Normal"}
+              </button>
               <button type="button" className="rounded p-1 hover:bg-secondary" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
                 <Minus className="h-4 w-4" />
               </button>
@@ -687,7 +708,7 @@ function EditOrderForm({
           className="btn btn-secondary"
           disabled={!addProductId}
           onClick={() => {
-            setLines((prev) => [...prev, { productId: addProductId, quantity: 1 }]);
+            setLines((prev) => [...prev, { productId: addProductId, quantity: 1, hasScheme: false }]);
             setAddProductId("");
           }}
         >

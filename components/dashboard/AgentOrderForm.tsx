@@ -49,7 +49,7 @@ export default function AgentOrderForm({
   const [search, setSearch] = useState("");
   const [paidNow, setPaidNow] = useState(false);
   const [paid, setPaid] = useState("");
-  const [hasScheme, setHasScheme] = useState(false);
+  const [schemeByProduct, setSchemeByProduct] = useState<Record<string, boolean>>({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,14 +70,14 @@ export default function AgentOrderForm({
         .filter(([, qty]) => qty > 0)
         .map(([productId, quantity]) => {
           const product = products.find((p) => p.id === productId)!;
-          const unitPrice = hasScheme && product.schemePrice != null ? product.schemePrice : product.unitPrice;
-          return { product, quantity, unitPrice, subtotal: round2(unitPrice * quantity) };
+          const hasScheme = !!schemeByProduct[productId] && product.schemePrice != null;
+          const unitPrice = hasScheme ? product.schemePrice! : product.unitPrice;
+          return { product, quantity, unitPrice, subtotal: round2(unitPrice * quantity), hasScheme };
         }),
-    [qtyByProduct, products, hasScheme],
+    [qtyByProduct, products, schemeByProduct],
   );
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const total = round2(cartItems.reduce((s, i) => s + i.subtotal, 0));
-  const missingScheme = hasScheme ? cartItems.filter((i) => i.product.schemePrice == null) : [];
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -86,6 +86,8 @@ export default function AgentOrderForm({
 
   const setQty = (productId: string, qty: number) =>
     setQtyByProduct((prev) => ({ ...prev, [productId]: Math.max(0, qty) }));
+  const toggleItemScheme = (productId: string) =>
+    setSchemeByProduct((prev) => ({ ...prev, [productId]: !prev[productId] }));
 
   const paidNum = paidNow ? Number.parseFloat(paid) || 0 : 0;
   const overpaid = paidNum > total;
@@ -96,23 +98,22 @@ export default function AgentOrderForm({
     setPaidNow(false);
     setPaid("");
     setPaymentMethod("CASH");
-    setHasScheme(false);
+    setSchemeByProduct({});
     setLastInvoice(null);
     setError(null);
     setStep("browse");
   }
 
   async function placeOrder() {
-    if (!outletId || cartItems.length === 0 || overpaid || missingScheme.length > 0) return;
+    if (!outletId || cartItems.length === 0 || overpaid) return;
     setSubmitting(true);
     setError(null);
     try {
       const { invoice } = await api.createSale({
         outletId,
-        items: cartItems.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+        items: cartItems.map((i) => ({ productId: i.product.id, quantity: i.quantity, hasScheme: i.hasScheme })),
         paidAmount: paidNum,
         paymentMethod,
-        hasScheme,
       });
       setLastInvoice(invoice);
       setStep("done");
@@ -210,21 +211,32 @@ export default function AgentOrderForm({
         </div>
 
         <div className="card divide-y divide-border">
-          {cartItems.map((item) => (
-            <div key={item.product.id} className="flex items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{item.product.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatMoney(item.unitPrice)} each
-                  {hasScheme && item.product.schemePrice == null && <span className="text-danger-foreground"> · no scheme price set</span>}
-                </p>
+          {cartItems.map((item) => {
+            const schemeAvailable = item.product.schemePrice != null;
+            return (
+              <div key={item.product.id} className="flex items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{item.product.name}</p>
+                  <p className="text-sm text-muted-foreground">{formatMoney(item.unitPrice)} each</p>
+                  <button
+                    type="button"
+                    disabled={!schemeAvailable}
+                    title={schemeAvailable ? undefined : "No scheme price set for this product — set one from Stock first"}
+                    onClick={() => toggleItemScheme(item.product.id)}
+                    className={`mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      item.hasScheme ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    <Tag className="h-3 w-3" /> {item.hasScheme ? "Scheme price" : "Normal price"}
+                  </button>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <Stepper value={item.quantity} onChange={(q) => setQty(item.product.id, q)} />
+                  <span className="w-20 shrink-0 text-right font-semibold tabular-nums">{formatMoney(item.subtotal)}</span>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <Stepper value={item.quantity} onChange={(q) => setQty(item.product.id, q)} />
-                <span className="w-20 shrink-0 text-right font-semibold tabular-nums">{formatMoney(item.subtotal)}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="card p-4">
@@ -272,22 +284,6 @@ export default function AgentOrderForm({
           )}
         </div>
 
-        <div className="card p-4">
-          <button type="button" className="flex w-full items-center justify-between" onClick={() => setHasScheme((v) => !v)}>
-            <span className="flex items-center gap-2 font-medium">
-              <Tag className="h-4 w-4 text-primary" /> With scheme pricing?
-            </span>
-            <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${hasScheme ? "bg-primary" : "bg-secondary"}`} aria-hidden>
-              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition ${hasScheme ? "left-5" : "left-0.5"}`} />
-            </span>
-          </button>
-          {missingScheme.length > 0 && (
-            <div className="mt-4">
-              <Alert kind="warning">No scheme price set for: {missingScheme.map((i) => i.product.name).join(", ")}</Alert>
-            </div>
-          )}
-        </div>
-
         {error && <Alert kind="error">{error}</Alert>}
 
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 p-4 backdrop-blur">
@@ -298,7 +294,7 @@ export default function AgentOrderForm({
             </div>
             <button
               className="btn btn-primary h-14 flex-1 text-base"
-              disabled={submitting || overpaid || missingScheme.length > 0}
+              disabled={submitting || overpaid}
               onClick={() => void placeOrder()}
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}

@@ -35,13 +35,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       let totals = {};
       if (input.items) {
-        const { lines, totalAmount } = await priceLines(tx, input.items, user.role, invoice.hasScheme, id);
+        const { lines, totalAmount } = await priceLines(tx, input.items, user.role, id);
         if (invoice.paidAmount > totalAmount) {
           throw new HttpError(400, `New total (${totalAmount}) is less than the amount already paid (${invoice.paidAmount})`);
         }
         await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
         await tx.invoiceItem.createMany({
-          data: lines.map(({ productId, quantity, unitPrice, subtotal }) => ({ invoiceId: id, productId, quantity, unitPrice, subtotal })),
+          data: lines.map(({ productId, quantity, unitPrice, subtotal, hasScheme }) => ({
+            invoiceId: id,
+            productId,
+            quantity,
+            unitPrice,
+            subtotal,
+            hasScheme,
+          })),
         });
         totals = {
           totalAmount,
