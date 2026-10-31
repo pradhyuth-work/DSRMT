@@ -220,14 +220,27 @@ export default function AgentOrderForm({
                   <p className="text-sm text-muted-foreground">{formatMoney(item.unitPrice)} each</p>
                   <button
                     type="button"
+                    role="switch"
+                    aria-checked={item.hasScheme}
                     disabled={!schemeAvailable}
                     title={schemeAvailable ? undefined : "No scheme price set for this product — set one from Stock first"}
                     onClick={() => toggleItemScheme(item.product.id)}
-                    className={`mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                      item.hasScheme ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
-                    }`}
+                    className="mt-1.5 inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Tag className="h-3 w-3" /> {item.hasScheme ? "Scheme price" : "Normal price"}
+                    <span
+                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                        item.hasScheme ? "bg-primary" : "bg-border"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                          item.hasScheme ? "translate-x-[18px]" : "translate-x-0.5"
+                        }`}
+                      />
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <Tag className="h-3 w-3" /> Scheme price
+                    </span>
                   </button>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">

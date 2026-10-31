@@ -339,11 +339,20 @@ export default function OrdersView({
                                   ? "No scheme price set for this product"
                                   : undefined
                             }
-                            className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                              i.hasScheme ? "border-[#1fc2a8] bg-[#1fc2a8]/10 text-[#1fc2a8]" : "border-border text-muted-foreground"
-                            }`}
+                            className="mt-1 inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {i.hasScheme ? "Scheme price" : "Normal price"}
+                            <span
+                              className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
+                                i.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                              }`}
+                            >
+                              <span
+                                className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                                  i.hasScheme ? "translate-x-[14px]" : "translate-x-0.5"
+                                }`}
+                              />
+                            </span>
+                            <span className="text-[11px] font-medium text-muted-foreground">Scheme price</span>
                           </button>
                         )}
                       </li>
@@ -655,14 +664,25 @@ function EditOrderForm({
               <span className="min-w-0 flex-1 truncate">{p?.name ?? l.productId}</span>
               <button
                 type="button"
+                role="switch"
+                aria-checked={l.hasScheme}
                 disabled={!l.hasScheme && !schemeAvailable}
                 title={schemeAvailable ? undefined : "No scheme price set for this product"}
                 onClick={() => toggleLineScheme(l.productId)}
-                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                  l.hasScheme ? "border-[#1fc2a8] bg-[#1fc2a8]/10 text-[#1fc2a8]" : "border-border text-muted-foreground"
-                }`}
+                className="flex shrink-0 items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {l.hasScheme ? "Scheme" : "Normal"}
+                <span
+                  className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
+                    l.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                      l.hasScheme ? "translate-x-[14px]" : "translate-x-0.5"
+                    }`}
+                  />
+                </span>
+                <span className="text-[11px] font-medium text-muted-foreground">Scheme</span>
               </button>
               <button type="button" className="rounded p-1 hover:bg-secondary" onClick={() => setQty(l.productId, l.quantity - 1)} aria-label="Decrease">
                 <Minus className="h-4 w-4" />
