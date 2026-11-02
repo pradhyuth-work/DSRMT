@@ -428,6 +428,7 @@ function ChequeActionDialog({
   const first = line.rows[0];
   const [reason, setReason] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
+  const [adjustment, setAdjustment] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bounce = mode === "bounce";
@@ -436,14 +437,21 @@ function ChequeActionDialog({
     let cancelled = false;
     api
       .outletLedger(first.outletId)
-      .then((b) => !cancelled && setBalance(b.balance))
+      .then((b) => {
+        if (cancelled) return;
+        setBalance(b.balance);
+        setAdjustment(b.adjustmentTotal ?? 0);
+      })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [first.outletId]);
 
-  const after = balance === null ? null : round2(bounce ? balance + line.amount : balance - line.amount);
+  // Shown balance = open invoices + manual adjustments (bounce charges), so it matches the outlet's
+  // real amount owed. The overpay check below stays invoice-only, like the server.
+  const shownBefore = balance === null ? null : round2(balance + adjustment);
+  const after = shownBefore === null ? null : round2(bounce ? shownBefore + line.amount : shownBefore - line.amount);
   const wouldOverpay = !bounce && balance !== null && balance < line.amount;
 
   async function confirm() {
@@ -509,7 +517,7 @@ function ChequeActionDialog({
                     <Loader2 className="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
                   ) : (
                     <>
-                      <span className="text-muted-foreground">{formatMoney(balance)}</span>
+                      <span className="text-muted-foreground">{formatMoney(shownBefore ?? 0)}</span>
                       {" → "}
                       <span className="font-bold">{formatMoney(after)}</span>
                     </>

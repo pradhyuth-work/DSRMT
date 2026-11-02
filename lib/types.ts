@@ -146,6 +146,9 @@ export interface OutletBalanceDTO {
   outletId: string;
   outletName: string;
   balance: number;
+  /** Sum of manual balance adjustments on the outlet (e.g. cheque bounce charges). Not included in
+   * `balance`; only the ledger route fills it, for screens that show the full amount owed. */
+  adjustmentTotal?: number;
   /** Age of the single oldest open invoice, in days — null when there's nothing outstanding. */
   oldestInvoiceDays: number | null;
   openInvoices: { id: string; invoiceNumber: string | null; balanceDue: number; createdAt: string; daysOutstanding: number }[];
