@@ -13,6 +13,7 @@ import type { OutletBalanceDTO } from "@/lib/types";
  * `balance` here stays invoice-only (unlike OutletLedger.balance in the full reports view,
  * which also folds in manual corrections) — collecting a payment settles real open
  * invoices, oldest first, and a correction isn't tied to any one of them to settle.
+ * `adjustmentTotal` carries those corrections (incl. cheque bounce charges) separately.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,10 +29,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       select: { id: true, invoiceNumber: true, balanceDue: true, createdAt: true },
     });
 
+    const adjustments = await prisma.balanceAdjustment.aggregate({ where: { outletId: id }, _sum: { delta: true } });
+
     const body: OutletBalanceDTO = {
       outletId: outlet.id,
       outletName: outlet.name,
       balance: round2(openInvoices.reduce((s, i) => s + i.balanceDue, 0)),
+      adjustmentTotal: round2(adjustments._sum.delta ?? 0),
       oldestInvoiceDays: openInvoices.length > 0 ? daysOutstanding(openInvoices[0].createdAt) : null,
       openInvoices: openInvoices.map((i) => ({
         id: i.id,
