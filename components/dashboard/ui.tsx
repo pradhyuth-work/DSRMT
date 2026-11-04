@@ -46,16 +46,43 @@ export function PaymentMethodPicker({
   );
 }
 
+/** Running-total trend line for a stat card: faint area, a line that draws in, and a pulsing end point. Needs at least two days of data. */
+function Trend({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  if (max <= 0) return null;
+  const span = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = 1 + (i / (values.length - 1)) * 62;
+    const y = max === min ? 13 : 24 - ((v - min) / span) * 21;
+    return [x, y] as const;
+  });
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const [ex, ey] = pts[pts.length - 1];
+  return (
+    <svg className="stat-spark" viewBox="0 0 68 26" aria-hidden="true">
+      <path className="ar" d={`${line} L63 24 L1 24 Z`} />
+      <path className="ln" pathLength={1} d={line} />
+      <circle className="ring" cx={ex} cy={ey} r={2.5} />
+      <circle className="dot" cx={ex} cy={ey} r={2.5} />
+    </svg>
+  );
+}
+
 export function StatCard({
   label,
   value,
   icon: Icon,
   tone = "lime",
+  trend,
 }: {
   label: string;
   value: string;
   icon: LucideIcon;
   tone?: "lime" | "gold" | "rose" | "teal";
+  /** Optional running totals, oldest first. Omit when there is no real series to show. */
+  trend?: number[];
 }) {
   const tones = {
     lime: "bg-success text-success-foreground",
@@ -64,14 +91,15 @@ export function StatCard({
     teal: "bg-info text-info-foreground",
   } as const;
   return (
-    <div className="app-rise card stat-cell flex items-center gap-3 p-4">
-      <div className={`rounded-lg p-2 ${tones[tone]}`}>
+    <div className="app-rise card stat-cell relative flex items-center gap-3 overflow-hidden p-4" data-tone={tone}>
+      <div className={`rounded-lg p-1.5 ${tones[tone]}`}>
         <Icon className="h-4 w-4" />
       </div>
-      <div className="min-w-0">
+      <div className="relative z-10 min-w-0">
         <p className="stat-label text-xs font-semibold text-muted-foreground">{label}</p>
         <p className="stat-value truncate text-lg font-bold tracking-[-.03em] tabular-nums">{useCountUp(value)}</p>
       </div>
+      {trend && <Trend values={trend} />}
     </div>
   );
 }

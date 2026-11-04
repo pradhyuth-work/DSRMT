@@ -540,6 +540,8 @@ export interface DashboardMetrics {
   invoiceCount: number;
   /** Outlets whose single oldest unpaid invoice is past DAYS_CRITICAL_THRESHOLD (lib/money.ts). */
   outletsOver30Days: number;
+  /** Running month-to-date totals, one value per day from the 1st (India time) to today; the last value equals monthBilled / monthCollected. Drives the stat-card trend lines. */
+  trends: { billed: number[]; collected: number[] };
 }
 
 export interface LedgerEntry {

@@ -169,7 +169,8 @@ function TabButton({
     <button
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`focus-ring group flex w-full items-center gap-3 rounded-xl py-3 text-left transition-all ${
+      data-active={active ? "true" : undefined}
+      className={`nav-tab focus-ring group flex w-full items-center gap-3 rounded-xl py-3 text-left transition-all ${
         collapsed ? "justify-center px-0" : "px-3"
       } ${
         active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -397,11 +398,11 @@ export default function Dashboard() {
           </div>
 
           {sidebarCollapsed ? (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" title="Connected" />
+            <span className="led h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" title="Connected" />
           ) : (
             <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/70 p-4">
               <div className="flex items-center gap-2 text-[11px] font-semibold text-sidebar-foreground/70">
-                <span className="h-2 w-2 rounded-full bg-sidebar-primary" />
+                <span className="led h-2 w-2 rounded-full bg-sidebar-primary" />
                 Connected
               </div>
               <p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/50">Changes save straight to the live database.</p>
@@ -435,7 +436,7 @@ export default function Dashboard() {
 
       <main className="ops-grid min-w-0 flex-1">
         <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
-          <header className="flex h-[76px] items-center justify-between border-b border-foreground/10">
+          <header className="app-header flex h-[76px] items-center justify-between border-b border-foreground/10">
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <BrandTile size={36} />
@@ -482,7 +483,7 @@ export default function Dashboard() {
                   <LogOut size={16} />
                 </button>
               )}
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
+              <div className="avatar-ring flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
                 {initials}
               </div>
             </div>
@@ -557,8 +558,8 @@ export default function Dashboard() {
 
           {user.role === "admin" && (
             <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
-              <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" />
-              <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" />
+              <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" trend={metrics?.trends?.billed} />
+              <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" trend={metrics?.trends?.collected} />
               <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
               <StatCard label="Stock Value in Hand" value={metrics ? formatMoney(metrics.totalStockValue) : "—"} icon={Boxes} tone="teal" />
               <StatCard
