@@ -35,6 +35,19 @@ function currentMonthIst(now = new Date()) {
   return { start, label };
 }
 
+/** Running total per day from `start` (an IST month start) through `now`; one value per day, last = month-to-date total. */
+function dailyRunningTotals(start: Date, rows: Array<{ at: Date; amount: number }>, now = new Date()): number[] {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const days = Math.max(1, Math.floor((now.getTime() - start.getTime()) / DAY_MS) + 1);
+  const perDay = new Array<number>(days).fill(0);
+  for (const r of rows) {
+    const i = Math.floor((r.at.getTime() - start.getTime()) / DAY_MS);
+    if (i >= 0 && i < days) perDay[i] += r.amount;
+  }
+  let running = 0;
+  return perDay.map((v) => round2((running += v)));
+}
+
 export async function buildReports(range: ReportsRange = {}): Promise<ReportsResponse> {
   const month = currentMonthIst();
   const dateFilter = range.from || range.to ? { gte: range.from, lte: range.to } : undefined;
@@ -88,6 +101,14 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
     ]);
 
   const now = new Date();
+  const [monthInvoiceRows, monthPaymentRows] = await Promise.all([
+    prisma.invoice.findMany({ where: { ...notCancelled, createdAt: { gte: month.start } }, select: { createdAt: true, totalAmount: true } }),
+    prisma.paymentCollection.findMany({ where: { chequeStatus: "ACTIVE", createdAt: { gte: month.start } }, select: { createdAt: true, amount: true } }),
+  ]);
+  const trends = {
+    billed: dailyRunningTotals(month.start, monthInvoiceRows.map((r) => ({ at: r.createdAt, amount: r.totalAmount })), now),
+    collected: dailyRunningTotals(month.start, monthPaymentRows.map((r) => ({ at: r.createdAt, amount: r.amount })), now),
+  };
   const outletLedgers: OutletLedger[] = outlets.map((outlet) => {
     const rows: Omit<LedgerEntry, "runningBalance">[] = [
       ...outlet.invoices.map((inv) => ({
@@ -206,6 +227,7 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       totalStockValue: round2(stockTotals.reduce((s, p) => s + p.stockQty * p.unitPrice, 0)),
       invoiceCount: invoiceTotals._count,
       outletsOver30Days,
+      trends,
     },
     outletLedgers,
     staffPerformance,

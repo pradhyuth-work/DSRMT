@@ -283,7 +283,7 @@ export default function OrdersView({
             const outletGst = outlet?.gstNumber ?? null;
             const outletRoute = outlet?.routeName ?? null;
             return (
-              <article key={o.id} className="card flex flex-col p-4">
+              <article key={o.id} className="card order-card flex flex-col p-4" data-status={o.fulfilmentStatus}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
@@ -389,6 +389,11 @@ export default function OrdersView({
                     <dd className="tabular-nums text-warning-foreground">{formatMoney(o.balanceDue)}</dd>
                   </div>
                 </dl>
+                {o.totalAmount > 0 && (
+                  <div className="paid-meter" aria-hidden="true">
+                    <i style={{ width: `${Math.min(100, Math.max(0, (o.paidAmount / o.totalAmount) * 100))}%` }} />
+                  </div>
+                )}
 
                 {o.billedAt && (
                   <p className="mt-2 text-xs text-muted-foreground">
