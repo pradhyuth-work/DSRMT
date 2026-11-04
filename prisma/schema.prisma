@@ -52,7 +52,16 @@ enum StockMovementType {
   DISPATCH
   /// Stock deducted when an order is billed.
   BILL
+  /// Stock handed to a field agent (an Agent Issue) — leaves the warehouse, bills no outlet.
+  AGENT_ISSUE
   CANCEL_RETURN
+}
+
+enum AgentSettlementType {
+  /// The agent paid for the units in cash.
+  PAID
+  /// Admin wrote the units off with a reason; nobody is charged.
+  WRITE_OFF
 }
 
 model Product {
@@ -75,8 +84,10 @@ model Product {
   stockQty    Int      @default(0)
   createdAt   DateTime @default(now())
 
-  invoiceItems   InvoiceItem[]
-  stockMovements StockMovement[]
+  invoiceItems     InvoiceItem[]
+  stockMovements   StockMovement[]
+  agentIssueItems  AgentIssueItem[]
+  agentSettlements AgentSettlement[]
 }
 
 /// A route groups outlets and is assigned to at most one field agent — and an agent is
@@ -140,6 +151,12 @@ model Staff {
   balanceAdjustments BalanceAdjustment[]
   chequeEvents       ChequeEvent[]
   route              Route?
+  /// Stock issued TO this person (when they are a field agent) and what they have settled.
+  agentIssues        AgentIssue[]       @relation("AgentIssueAgent")
+  agentSettlements   AgentSettlement[]  @relation("AgentSettlementAgent")
+  /// Issues and settlements this person recorded.
+  agentIssuesMade       AgentIssue[]      @relation("AgentIssueCreator")
+  agentSettlementsMade  AgentSettlement[] @relation("AgentSettlementCreator")
 }
 
 /// id is an internal cuid; invoiceNumber is the human-facing bill-book number, entered by
@@ -301,4 +318,66 @@ model BalanceAdjustment {
   createdBy Staff  @relation(fields: [createdById], references: [id])
 
   @@index([outletId, createdAt])
+}
+
+
+/// Stock handed to a field agent without billing any outlet (for example to cover a missed
+/// target — targets themselves are tracked outside the app). Admin or stock incharge records
+/// it by hand. number is the human-facing reference (AI-YYMM-001). It is not a tax invoice:
+/// prices already include tax, so it carries no tax line.
+model AgentIssue {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  agentId     String
+  note        String?
+  totalAmount Float
+  createdById String
+  createdAt   DateTime @default(now())
+
+  agent     Staff            @relation("AgentIssueAgent", fields: [agentId], references: [id])
+  createdBy Staff            @relation("AgentIssueCreator", fields: [createdById], references: [id])
+  items     AgentIssueItem[]
+
+  @@index([agentId, createdAt])
+}
+
+/// One product line of an issue. unitPrice is the billing rate frozen at the moment of issue.
+/// settledQty is how many of the units have been cleared so far (oldest issue first); what the
+/// agent still owes for the line is (quantity - settledQty) * unitPrice. Kept within
+/// 0..quantity by a CHECK constraint in the migration.
+model AgentIssueItem {
+  id         String @id @default(cuid())
+  issueId    String
+  productId  String
+  quantity   Int
+  unitPrice  Float
+  subtotal   Float
+  settledQty Int    @default(0)
+
+  issue   AgentIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  product Product    @relation(fields: [productId], references: [id])
+
+  @@index([issueId])
+  @@index([productId])
+}
+
+/// Units cleared from an agent's holding: PAID (cash received) or WRITE_OFF (admin only, with
+/// a reason). amount is the value of those units at their issue rates. Units never come back
+/// to stock, so there is no return type.
+model AgentSettlement {
+  id          String              @id @default(cuid())
+  agentId     String
+  productId   String
+  quantity    Int
+  amount      Float
+  type        AgentSettlementType
+  reason      String?
+  createdById String
+  createdAt   DateTime            @default(now())
+
+  agent     Staff   @relation("AgentSettlementAgent", fields: [agentId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  createdBy Staff   @relation("AgentSettlementCreator", fields: [createdById], references: [id])
+
+  @@index([agentId, createdAt])
 }

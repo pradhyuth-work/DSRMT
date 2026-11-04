@@ -1,5 +1,11 @@
 import type {
   AdjustStockInput,
+  AgentBalanceDTO,
+  AgentIssueDTO,
+  AgentLedgerEntryDTO,
+  CreateAgentIssueInput,
+  SettleAgentInput,
+  SettleAgentResponse,
   ApiError,
   AuthUser,
   BalanceAdjustmentDTO,
@@ -171,6 +177,13 @@ export const api = {
   deletePayment: (id: string) => request<{ ok: true }>(`/api/payments/${enc(id)}`, { method: "DELETE" }),
   downloadPaymentsCsv: (query?: PaymentsQuery) => downloadFile(`/api/payments/csv${qs(query)}`, "payments.csv"),
   downloadSalesReportCsv: (query?: SalesReportQuery) => downloadFile(`/api/reports/sales/csv${qs(query)}`, "sales-report.csv"),
+
+  agentBalances: () => request<AgentBalanceDTO[]>("/api/agent-balances"),
+  agentLedger: (agentId: string) => request<AgentLedgerEntryDTO[]>(`/api/agent-balances/${enc(agentId)}/ledger`),
+  agentIssues: () => request<AgentIssueDTO[]>("/api/agent-issues"),
+  createAgentIssue: (input: CreateAgentIssueInput) => post<AgentIssueDTO>("/api/agent-issues", input),
+  settleAgent: (agentId: string, input: SettleAgentInput) =>
+    post<SettleAgentResponse>(`/api/agent-balances/${enc(agentId)}/settle`, input),
 
   schemeSavings: (query?: SchemeSavingsQuery) => request<SchemeSavingsResponse>(`/api/scheme-savings${qs(query)}`),
   schemeSavingsBills: (query?: SchemeSavingsQuery) => request<SchemeSavingsBillRow[]>(`/api/scheme-savings/bills${qs(query)}`),

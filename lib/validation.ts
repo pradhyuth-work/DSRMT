@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type {
   AdjustStockInput,
+  CreateAgentIssueInput,
+  SettleAgentInput,
   BillOrderInput,
   BounceChequeInput,
   BulkAdjustInput,
@@ -308,6 +310,29 @@ export const updateRouteSchema = z
 export const bounceChequeSchema = z.object({
   reason: z.string().trim().max(200, "Reason is too long").optional(),
 }) satisfies z.ZodType<BounceChequeInput, z.ZodTypeDef, unknown>;
+
+/** Record stock given to a field agent. Billing rate and stock are handled server-side. */
+export const createAgentIssueSchema = z.object({
+  agentId: id,
+  note: z.string().trim().max(200, "Note is too long").optional(),
+  items: z
+    .array(z.object({ productId: id, quantity: z.coerce.number().int().positive("Quantity must be at least 1") }))
+    .min(1, "Add at least one product")
+    .max(100),
+}) satisfies z.ZodType<CreateAgentIssueInput, z.ZodTypeDef, unknown>;
+
+/** Clear units from an agent's holding: cash received, or an admin write-off (reason required). */
+export const settleAgentSchema = z
+  .object({
+    productId: id,
+    quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
+    method: z.enum(["PAID", "WRITE_OFF"]),
+    reason: z.string().trim().max(200, "Reason is too long").optional(),
+  })
+  .refine((v) => v.method !== "WRITE_OFF" || (v.reason ?? "").length >= 3, {
+    path: ["reason"],
+    message: "A write-off needs a reason",
+  }) satisfies z.ZodType<SettleAgentInput, z.ZodTypeDef, unknown>;
 
 // Query-string schemas: every value arrives as a string (or is absent).
 export const paymentsQuerySchema = z.object({

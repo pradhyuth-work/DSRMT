@@ -18,6 +18,7 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   ADJUST: "Adjusted",
   DISPATCH: "Dispatched",
   BILL: "Billed",
+  AGENT_ISSUE: "Issued to agent",
   CANCEL_RETURN: "Returned (cancelled)",
 };
 

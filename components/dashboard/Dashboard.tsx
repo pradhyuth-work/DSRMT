@@ -5,6 +5,8 @@ import {
   AlarmClockCheck,
   BadgePercent,
   Boxes,
+  HandCoins,
+  PackageMinus,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -54,6 +56,8 @@ import OutletsInCreditView from "./OutletsInCreditView";
 import UsersManager from "./UsersManager";
 import SalesReports from "./SalesReports";
 import SchemeSavings from "./SchemeSavings";
+import AgentIssueView from "./AgentIssueView";
+import AgentBalancesView from "./AgentBalancesView";
 
 type TabId =
   | "sale"
@@ -66,7 +70,9 @@ type TabId =
   | "inwarding"
   | "users"
   | "reports"
-  | "schemeSavings";
+  | "schemeSavings"
+  | "agentIssue"
+  | "agentBalances";
 
 interface TabDef {
   id: TabId;
@@ -86,6 +92,8 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "staff", label: "Staff Performance", helper: "Track the crew", icon: Users },
     { id: "reports", label: "Reports", helper: "Sales breakdowns", icon: BarChart3 },
     { id: "schemeSavings", label: "Scheme Savings", helper: "Saved without schemes", icon: BadgePercent },
+    { id: "agentIssue", label: "Agent Issue", helper: "Stock to field agents", icon: PackageMinus },
+    { id: "agentBalances", label: "Agent Balances", helper: "What agents owe", icon: HandCoins },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
     { id: "inwarding", label: "Inwarding", helper: "Record purchases", icon: PackagePlus },
     { id: "users", label: "Users", helper: "Accounts & roles", icon: UserCog },
@@ -94,12 +102,15 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
     { id: "orders", label: "Orders to dispatch", helper: "Dispatch queue", icon: ClipboardList },
     { id: "credit", label: "Outlets in Credit", helper: "Pending dues only", icon: ReceiptText },
     { id: "payments", label: "Collect Payment", helper: "Collections", icon: Wallet2 },
+    { id: "agentIssue", label: "Agent Issue", helper: "Stock to field agents", icon: PackageMinus },
+    { id: "agentBalances", label: "Agent Balances", helper: "What agents owe", icon: HandCoins },
     { id: "inventory", label: "Stock", helper: "Stock on hand", icon: Package },
   ],
   agent: [
     { id: "sale", label: "New order", helper: "Record a sale", icon: ShoppingCart },
     { id: "orders", label: "My orders", helper: "Track your orders", icon: ClipboardList },
     { id: "credit", label: "Outlets in Credit", helper: "Who owes what", icon: ReceiptText },
+    { id: "agentBalances", label: "My balance", helper: "Stock issued to you", icon: HandCoins },
   ],
 };
 
@@ -521,6 +532,8 @@ export default function Dashboard() {
                 {tab === "staff" && <StaffPerformanceView />}
                 {tab === "reports" && <SalesReports outlets={data.outlets} products={data.products} />}
                 {tab === "schemeSavings" && <SchemeSavings outlets={data.outlets} products={data.products} staff={data.staff} />}
+                {tab === "agentIssue" && <AgentIssueView data={data} onSaved={refresh} />}
+                {tab === "agentBalances" && <AgentBalancesView user={user} onSaved={refresh} />}
                 {tab === "inventory" && (
                   <InventoryManager products={data.products} movements={data.movements} role={user.role} onSaved={refresh} />
                 )}
