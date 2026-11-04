@@ -7,6 +7,7 @@ import {
   Boxes,
   HandCoins,
   PackageMinus,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -19,6 +20,7 @@ import {
   ReceiptText,
   RefreshCw,
   BarChart3,
+  ShieldCheck,
   ShoppingCart,
   Store,
   UserCog,
@@ -112,6 +114,11 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   ],
 };
 
+// Tucked under the collapsible "Admin control" group in the sidebar instead of sitting flat
+// in the main list — the day-to-day tabs (sale/orders/ledgers/credit/payments/stock) stay up
+// top, these less-frequent admin tools collapse out of the way by default.
+const ADMIN_CONTROL_TAB_IDS = new Set<TabId>(["staff", "reports", "schemeSavings", "agentIssue", "inwarding", "users"]);
+
 const ROLE_LABEL: Record<Role, string> = { admin: "Admin", stock: "Stock incharge", agent: "Field agent" };
 
 export interface DashboardData {
@@ -143,6 +150,45 @@ async function loadData(role: Role): Promise<DashboardData> {
   return { products, outlets, orders, staff, routes, reports, movements };
 }
 
+function TabButton({
+  label,
+  helper,
+  icon: Icon,
+  active,
+  collapsed,
+  onClick,
+}: {
+  label: string;
+  helper: string;
+  icon: LucideIcon;
+  active: boolean;
+  collapsed: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      className={`focus-ring group flex w-full items-center gap-3 rounded-xl py-3 text-left transition-all ${
+        collapsed ? "justify-center px-0" : "px-3"
+      } ${
+        active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      }`}
+    >
+      <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+      {!collapsed && (
+        <>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{label}</span>
+            <span className={`block text-[10px] ${active ? "opacity-60" : "opacity-45"}`}>{helper}</span>
+          </span>
+          {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}
+        </>
+      )}
+    </button>
+  );
+}
+
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
@@ -167,6 +213,9 @@ export default function Dashboard() {
   // Persisted per browser so the choice sticks across reloads; defaults to expanded (and
   // during SSR) to avoid a hydration mismatch, then syncs from storage right after mount.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Closed by default — opens on click, or automatically whenever the active tab is one of
+  // the admin-control tools (e.g. landing on Reports via a saved tab shouldn't hide it).
+  const [adminGroupOpen, setAdminGroupOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -215,6 +264,9 @@ export default function Dashboard() {
   }, []);
 
   const tabs = useMemo(() => (user ? TABS_BY_ROLE[user.role] : []), [user]);
+  const mainTabs = useMemo(() => tabs.filter((t) => !ADMIN_CONTROL_TAB_IDS.has(t.id)), [tabs]);
+  const adminTabs = useMemo(() => tabs.filter((t) => ADMIN_CONTROL_TAB_IDS.has(t.id)), [tabs]);
+  const isAdminGroupOpen = adminGroupOpen || adminTabs.some((t) => t.id === tab);
 
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
@@ -298,32 +350,49 @@ export default function Dashboard() {
               <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
             )}
             <nav className="space-y-1">
-              {tabs.map(({ id, label, helper, icon: Icon }) => {
-                const active = tab === id;
-                return (
+              {(sidebarCollapsed ? tabs : mainTabs).map(({ id, label, helper, icon: Icon }) => (
+                <TabButton
+                  key={id}
+                  label={label}
+                  helper={helper}
+                  icon={Icon}
+                  active={tab === id}
+                  collapsed={sidebarCollapsed}
+                  onClick={() => setTab(id)}
+                />
+              ))}
+
+              {!sidebarCollapsed && adminTabs.length > 0 && (
+                <div className="pt-1">
                   <button
-                    key={id}
-                    onClick={() => setTab(id)}
-                    title={sidebarCollapsed ? label : undefined}
-                    className={`focus-ring group flex w-full items-center gap-3 rounded-xl py-3 text-left transition-all ${
-                      sidebarCollapsed ? "justify-center px-0" : "px-3"
-                    } ${
-                      active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                    }`}
+                    type="button"
+                    onClick={() => setAdminGroupOpen((v) => !v)}
+                    className="focus-ring group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sidebar-foreground/65 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   >
-                    <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
-                    {!sidebarCollapsed && (
-                      <>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold">{label}</span>
-                          <span className={`block text-[10px] ${active ? "opacity-60" : "opacity-45"}`}>{helper}</span>
-                        </span>
-                        {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-current" />}
-                      </>
-                    )}
+                    <ShieldCheck size={18} strokeWidth={1.8} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">Admin control</span>
+                      <span className="block text-[10px] opacity-45">{adminTabs.length} tools</span>
+                    </span>
+                    <ChevronDown size={14} className={`shrink-0 transition-transform ${isAdminGroupOpen ? "rotate-180" : ""}`} />
                   </button>
-                );
-              })}
+                  {isAdminGroupOpen && (
+                    <div className="mt-1 space-y-1 border-l border-sidebar-border pl-3">
+                      {adminTabs.map(({ id, label, helper, icon: Icon }) => (
+                        <TabButton
+                          key={id}
+                          label={label}
+                          helper={helper}
+                          icon={Icon}
+                          active={tab === id}
+                          collapsed={false}
+                          onClick={() => setTab(id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </nav>
           </div>
 
@@ -422,7 +491,7 @@ export default function Dashboard() {
           {!isAgent && mobileNav && (
             <div className="app-enter border-b border-foreground/10 py-3 md:hidden">
               <nav className="grid grid-cols-2 gap-2">
-                {tabs.map(({ id, label, icon: Icon }) => {
+                {mainTabs.map(({ id, label, icon: Icon }) => {
                   const active = tab === id;
                   return (
                     <button
@@ -440,9 +509,44 @@ export default function Dashboard() {
                     </button>
                   );
                 })}
+
+                {adminTabs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAdminGroupOpen((v) => !v)}
+                    className="focus-ring col-span-2 flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
+                  >
+                    <span className="flex items-center gap-3">
+                      <ShieldCheck size={18} />
+                      <span className="text-sm font-semibold">Admin control</span>
+                    </span>
+                    <ChevronDown size={14} className={`transition-transform ${isAdminGroupOpen ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+
+                {isAdminGroupOpen &&
+                  adminTabs.map(({ id, label, icon: Icon }) => {
+                    const active = tab === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setTab(id);
+                          setMobileNav(false);
+                        }}
+                        className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                          active ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+                        }`}
+                      >
+                        <Icon size={18} />
+                        <span className="text-sm font-semibold">{label}</span>
+                      </button>
+                    );
+                  })}
+
                 <button
                   onClick={() => signOut()}
-                  className="focus-ring flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
+                  className="focus-ring col-span-2 flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
                 >
                   <LogOut size={18} />
                   <span className="text-sm font-semibold">Sign out</span>
