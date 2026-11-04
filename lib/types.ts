@@ -10,7 +10,7 @@ export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI
 export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"] as const satisfies readonly PaymentMethod[];
 export type Role = "admin" | "stock" | "agent";
 export type FulfilmentStatus = "PENDING" | "BILLED" | "DISPATCHED" | "CANCELLED";
-export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "BILL" | "CANCEL_RETURN";
+export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "BILL" | "AGENT_ISSUE" | "CANCEL_RETURN";
 
 export interface AuthUser {
   id: string;
@@ -714,4 +714,88 @@ export interface SchemeSavingsResponse {
 export interface ApiError {
   error: string;
   details?: unknown;
+}
+
+
+// ---- Agent Issue: stock given to a field agent without billing an outlet ----
+
+export type AgentSettlementType = "PAID" | "WRITE_OFF";
+
+export interface CreateAgentIssueInput {
+  agentId: string;
+  note?: string;
+  items: { productId: string; quantity: number }[];
+}
+
+export interface AgentIssueItemDTO {
+  productId: string;
+  productName: string;
+  quantity: number;
+  /** The billing rate frozen at the moment of issue (tax already inside). */
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface AgentIssueDTO {
+  id: string;
+  number: string;
+  agentId: string;
+  agentName: string;
+  note: string | null;
+  totalAmount: number;
+  createdByName: string;
+  createdAt: string;
+  items: AgentIssueItemDTO[];
+}
+
+export interface AgentHoldingDTO {
+  productId: string;
+  productName: string;
+  quantity: number;
+  /** Units in hand times the rate they were issued at. */
+  value: number;
+  /** Whole days since the oldest unsettled issue of this product. */
+  oldestDays: number;
+}
+
+export interface AgentBalanceDTO {
+  agentId: string;
+  agentName: string;
+  active: boolean;
+  /** What the agent still owes. */
+  balance: number;
+  unitsInHand: number;
+  /** Whole days since the oldest unsettled issue, or null when nothing is open. */
+  oldestDays: number | null;
+  holdings: AgentHoldingDTO[];
+}
+
+export interface AgentLedgerEntryDTO {
+  id: string;
+  date: string;
+  type: "ISSUE" | AgentSettlementType;
+  /** The issue number for an ISSUE row, otherwise null. */
+  ref: string | null;
+  productName: string;
+  quantity: number;
+  /** Added to the balance (an issue). */
+  debit: number;
+  /** Taken off the balance (cash received or a write-off). */
+  credit: number;
+  /** Running balance after this entry. */
+  balance: number;
+  note: string | null;
+}
+
+export interface SettleAgentInput {
+  productId: string;
+  quantity: number;
+  method: AgentSettlementType;
+  /** Required for WRITE_OFF. */
+  reason?: string;
+}
+
+export interface SettleAgentResponse {
+  amount: number;
+  balance: number;
 }
