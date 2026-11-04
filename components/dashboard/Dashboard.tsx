@@ -117,7 +117,7 @@ const TABS_BY_ROLE: Record<Role, TabDef[]> = {
 // Tucked under the collapsible "Admin control" group in the sidebar instead of sitting flat
 // in the main list — the day-to-day tabs (sale/orders/ledgers/credit/payments/stock) stay up
 // top, these less-frequent admin tools collapse out of the way by default.
-const ADMIN_CONTROL_TAB_IDS = new Set<TabId>(["staff", "reports", "schemeSavings", "agentIssue", "inwarding", "users"]);
+const ADMIN_CONTROL_TAB_IDS = new Set<TabId>(["staff", "reports", "schemeSavings", "inwarding", "users"]);
 
 const ROLE_LABEL: Record<Role, string> = { admin: "Admin", stock: "Stock incharge", agent: "Field agent" };
 
