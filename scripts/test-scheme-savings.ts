@@ -6,11 +6,11 @@ function bill(
   id: string,
   opts: {
     fulfilmentStatus?: SchemeSavingsInvoiceInput["fulfilmentStatus"];
-    hasScheme?: boolean;
     unitPrice: number;
-    schemeUnitPrice: number | null;
+    listUnitPrice: number;
+    totalAmount?: number;
     quantity?: number;
-    schemeEstimated?: boolean;
+    listPriceEstimated?: boolean;
   },
 ): SchemeSavingsInvoiceInput {
   const quantity = opts.quantity ?? 1;
@@ -23,24 +23,23 @@ function bill(
     outletName: "Test Outlet",
     staffId: "agent-1",
     staffName: "Test Agent",
+    totalAmount: opts.totalAmount ?? opts.unitPrice * quantity,
     items: [
       {
         productId: "product-1",
         productName: "Test Product",
         quantity,
         unitPrice: opts.unitPrice,
-        subtotal: opts.unitPrice * quantity,
-        hasScheme: opts.hasScheme ?? false,
-        schemeUnitPrice: opts.schemeUnitPrice,
-        schemeEstimated: opts.schemeEstimated ?? false,
+        listUnitPrice: opts.listUnitPrice,
+        listPriceEstimated: opts.listPriceEstimated ?? false,
       },
     ],
   };
 }
 
-// A single invoice with two lines, one scheme and one not — the point of the per-SKU
-// change: the non-scheme line counts toward saved/billed/the bill row, the scheme line
-// only toward given, and both live on the same invoiceId.
+// A single invoice with two lines, one at full price and one at a scheme discount — the
+// point of the per-line saved split: each line's saved is its share of the bill's overall
+// saving, prorated by its share of the full-price total.
 function mixedBill(id: string): SchemeSavingsInvoiceInput {
   return {
     id,
@@ -51,56 +50,63 @@ function mixedBill(id: string): SchemeSavingsInvoiceInput {
     outletName: "Test Outlet",
     staffId: "agent-1",
     staffName: "Test Agent",
+    totalAmount: 2_700, // 1,000 (full-price line) + 1,700 (scheme line, listed at 2,000)
     items: [
       {
         productId: "product-1",
-        productName: "No-scheme line",
+        productName: "Full-price line",
         quantity: 1,
         unitPrice: 1_000,
-        subtotal: 1_000,
-        hasScheme: false,
-        schemeUnitPrice: 900,
-        schemeEstimated: false,
+        listUnitPrice: 1_000,
+        listPriceEstimated: false,
       },
       {
         productId: "product-2",
         productName: "Scheme line",
         quantity: 1,
-        unitPrice: 2_000,
-        subtotal: 2_000,
-        hasScheme: true,
-        schemeUnitPrice: 1_700,
-        schemeEstimated: false,
+        unitPrice: 1_700,
+        listUnitPrice: 2_000,
+        listPriceEstimated: false,
       },
     ],
   };
 }
 
-// The three worked-example bills: billed 10,000 / 6,500 / 4,000, at-scheme 9,200 / 6,000 /
-// 3,750 → saved 800 + 500 + 250 = 1,550.
-const bill1 = bill("bill-1", { unitPrice: 10_000, schemeUnitPrice: 9_200 });
-const bill2 = bill("bill-2", { unitPrice: 6_500, schemeUnitPrice: 6_000, schemeEstimated: true });
-const bill3 = bill("bill-3", { fulfilmentStatus: "DISPATCHED", unitPrice: 4_000, schemeUnitPrice: 3_750 });
+// Entered total matches the full-price total exactly on the nose — billed at full price,
+// nothing to show. unitPrice == listUnitPrice, totalAmount == unitPrice * quantity.
+const billNoSaving = bill("bill-no-saving", { unitPrice: 5_000, listUnitPrice: 5_000 });
 
-// A line with no scheme price at all — contributes to billed, not to saved; counted in noSchemeLines.
-const billNoScheme = bill("bill-no-scheme", { unitPrice: 500, schemeUnitPrice: null, quantity: 2 });
+// Per-line scheme price lower than entered amount (hand-billed exactly at the natural sum).
+const bill1 = bill("bill-1", { unitPrice: 9_200, listUnitPrice: 10_000 });
+const bill2 = bill("bill-2", { unitPrice: 6_000, listUnitPrice: 6_500, listPriceEstimated: true });
+const bill3 = bill("bill-3", { fulfilmentStatus: "DISPATCHED", unitPrice: 3_750, listUnitPrice: 4_000 });
+
+// Entered at the bill book overrides the natural line sum — this is the MTR171 case: every
+// line priced at (or near) its full price individually, but the admin typed in a lower total
+// at billing. The saving shows up even though no single line looks discounted.
+const billRoundedDown = bill("bill-rounded-down", { unitPrice: 1_000, listUnitPrice: 1_000, totalAmount: 900 });
+
+// Entered total slightly ABOVE the full-price total (rounded up at billing) — a small
+// negative "saved", not clamped to 0, since that's genuinely what happened.
+const billRoundedUp = bill("bill-rounded-up", { unitPrice: 1_000, listUnitPrice: 1_000, totalAmount: 1_020 });
 
 // Excluded entirely: wrong fulfilmentStatus. Numbers chosen so they'd be obviously wrong if counted.
-const cancelled = bill("bill-cancelled", { fulfilmentStatus: "CANCELLED", unitPrice: 5_000, schemeUnitPrice: 4_000 });
-const pending = bill("bill-pending", { fulfilmentStatus: "PENDING", unitPrice: 5_000, schemeUnitPrice: 4_000 });
-
-// hasScheme = true: goes to `given`, not `saved`/`billed`/the bills list.
-const givenBill = bill("bill-given", { hasScheme: true, unitPrice: 8_000, schemeUnitPrice: 7_000 });
-
-// An *estimated* scheme price higher than what was actually billed — e.g. a product that
-// had an active scheme last month but not this one, so the back-fill guessed from today's
-// (different) scheme price. This must NOT produce a negative "saved": it's discarded
-// exactly like no scheme price was captured, contributing to billed/noSchemeLines only.
-const billBadEstimate = bill("bill-bad-estimate", { unitPrice: 2_000, schemeUnitPrice: 2_500, schemeEstimated: true });
+const cancelled = bill("bill-cancelled", { fulfilmentStatus: "CANCELLED", unitPrice: 4_000, listUnitPrice: 5_000 });
+const pending = bill("bill-pending", { fulfilmentStatus: "PENDING", unitPrice: 4_000, listUnitPrice: 5_000 });
 
 const mixed = mixedBill("bill-mixed");
 
-const result = computeSchemeSavings([bill1, bill2, bill3, billNoScheme, cancelled, pending, givenBill, billBadEstimate, mixed]);
+const result = computeSchemeSavings([
+  billNoSaving,
+  bill1,
+  bill2,
+  bill3,
+  billRoundedDown,
+  billRoundedUp,
+  cancelled,
+  pending,
+  mixed,
+]);
 
 let failures = 0;
 let total = 0;
@@ -111,36 +117,43 @@ function check(label: string, actual: unknown, expected: unknown) {
   if (!ok) failures++;
 }
 
-// bill1 + bill2 + bill3 + billNoScheme + billBadEstimate + mixed's non-scheme line only.
-const BILLED = 10_000 + 6_500 + 4_000 + 1_000 + 2_000 + 1_000;
-const SAVED = 1550 + 100; // headline 1,550 + mixed's non-scheme line (1,000 - 900)
-const GIVEN = 1000 + 300; // bill-given's 1,000 + mixed's scheme line (2,000 - 1,700)
+// billed = sum of full-price totals, but only for bills with a nonzero saving — billNoSaving
+// is excluded here too, not just from the bills list, so pctSaved isn't diluted by bills that
+// have nothing to do with scheme savings.
+const BILLED = 10_000 + 6_500 + 4_000 + 1_000 + 1_000 + 3_000;
+const SAVED = 800 + 500 + 250 + 100 + -20 + 300; // bill1/2/3, rounded-down, rounded-up, mixed
 
-check("saved (the headline worked example plus mixed's non-scheme line)", result.saved, SAVED);
+check("saved", result.saved, SAVED);
 check("billed", result.billed, BILLED);
 check("atScheme (billed - saved)", result.atScheme, BILLED - SAVED);
-check("given (bill-given plus mixed's scheme line)", result.given, GIVEN);
-check("net (saved - given)", result.net, SAVED - GIVEN);
 check("pctSaved (saved / billed * 100, rounded)", result.pctSaved, Math.round((SAVED / BILLED) * 100 * 100) / 100);
-check("billCount (cancelled/pending/given excluded; mixed counted once for its non-scheme line)", result.billCount, 6);
-check("noSchemeLines (the null one + the discarded bad estimate)", result.noSchemeLines, 2);
-check("estimatedLines (only the genuinely-used estimate)", result.estimatedLines, 1);
 check(
-  "bills list contains exactly the bills with at least one no-scheme line, not cancelled/pending/pure-given",
+  "billCount (no-saving/cancelled/pending excluded)",
+  result.billCount,
+  6,
+);
+check("estimatedLines (only bill-2's line)", result.estimatedLines, 1);
+check(
+  "bills list excludes the zero-saving, cancelled and pending bills",
   result.bills.map((b) => b.invoiceId).sort(),
-  ["bill-1", "bill-2", "bill-3", "bill-no-scheme", "bill-bad-estimate", "bill-mixed"].sort(),
+  ["bill-1", "bill-2", "bill-3", "bill-rounded-down", "bill-rounded-up", "bill-mixed"].sort(),
 );
 
-const mixedBillResult = result.bills.find((b) => b.invoiceId === "bill-mixed");
-check("mixed bill: only its non-scheme line is listed", mixedBillResult?.items.map((i) => i.productId), ["product-1"]);
-check("mixed bill: billedAmount is the non-scheme line's subtotal only", mixedBillResult?.billedAmount, 1_000);
-check("mixed bill: saved is the non-scheme line's saving only", mixedBillResult?.saved, 100);
+const roundedDown = result.bills.find((b) => b.invoiceId === "bill-rounded-down");
+check("rounded-down bill: saved is the bill-level adjustment, no line looks discounted on its own", roundedDown?.saved, 100);
+check("rounded-down bill: its single line absorbs the whole saving", roundedDown?.items[0]?.saved, 100);
 
-const badEstimateBill = result.bills.find((b) => b.invoiceId === "bill-bad-estimate");
-check("bad-estimate bill: saved is 0, not negative", badEstimateBill?.saved, 0);
-check("bad-estimate bill: atScheme falls back to billedAmount", badEstimateBill?.atScheme, badEstimateBill?.billedAmount);
-check("bad-estimate bill: line's schemeUnitPrice is discarded to null", badEstimateBill?.items[0]?.schemeUnitPrice, null);
-check("bad-estimate bill: line's schemeEstimated flag is cleared", badEstimateBill?.items[0]?.schemeEstimated, false);
+const roundedUp = result.bills.find((b) => b.invoiceId === "bill-rounded-up");
+check("rounded-up bill: saved is negative, not clamped to 0", roundedUp?.saved, -20);
+
+const mixedResult = result.bills.find((b) => b.invoiceId === "bill-mixed");
+check("mixed bill: both lines listed", mixedResult?.items.map((i) => i.productId).sort(), ["product-1", "product-2"]);
+check("mixed bill: saved is the full bill-level saving", mixedResult?.saved, 300);
+check(
+  "mixed bill: saved is prorated across lines by share of full price (1,000/3,000 and 2,000/3,000 of 300)",
+  mixedResult?.items.map((i) => i.saved),
+  [100, 200],
+);
 
 if (failures > 0) {
   console.error(`\n${failures} of ${total} check(s) failed.`);

@@ -662,15 +662,16 @@ export interface SchemeSavingsBreakdownRow {
   pctSaved: number;
 }
 
-/** One line of a bill, for the Bills-tab drill-down modal. `saved` is 0 (not meaningfully
- * computable) when schemeUnitPrice is null. */
+/** One line of a bill, for the Bills-tab drill-down modal. `saved` is this line's share of
+ * the bill's overall saving (see SchemeSavingsResponse), prorated by its share of the bill's
+ * full-price total — not simply `(listUnitPrice - unitPrice) * quantity` on its own. */
 export interface SchemeSavingsBillLine {
   productId: string;
   productName: string;
   quantity: number;
   unitPrice: number;
-  schemeUnitPrice: number | null;
-  schemeEstimated: boolean;
+  listUnitPrice: number;
+  listPriceEstimated: boolean;
   saved: number;
 }
 
@@ -687,24 +688,21 @@ export interface SchemeSavingsBillRow {
 }
 
 /**
- * Scheme Savings: what billing at the normal price instead of scheme saved, on bills where
- * `hasScheme` is false. `given` (the same figure on `hasScheme = true` bills) is shown for
- * context only — it's not folded into `billed`/`atScheme`/`saved`/the breakdowns/`bills`,
- * all of which are scoped to the no-scheme population. `net = saved - given`.
+ * Scheme Savings: per bill, what was actually entered (Invoice.totalAmount) vs. what it
+ * would total at every line's regular, non-scheme price ("what it would be if not edited"
+ * down to scheme pricing). `billed` is the full-price sum, `atScheme` is the entered-amount
+ * sum, and `saved` is the difference — a bill that matches exactly (nothing discounted or
+ * hand-adjusted) contributes nothing and doesn't appear in `bills` or the breakdowns.
  */
 export interface SchemeSavingsResponse {
   billed: number;
   atScheme: number;
   saved: number;
-  given: number;
-  net: number;
   /** `saved` as a percentage of `billed` — 0 when `billed` is 0. */
   pctSaved: number;
-  /** Number of no-scheme bills counted (i.e. `bills.length`). */
+  /** Number of bills counted (i.e. `bills.length`). */
   billCount: number;
-  /** Lines with no scheme price captured at all — skipped from saved/given entirely. */
-  noSchemeLines: number;
-  /** Lines whose scheme price was back-filled (migration 0012) rather than captured live at billing. */
+  /** Lines whose full price was back-filled (migration 0018) rather than captured live at billing. */
   estimatedLines: number;
   byOutlet: SchemeSavingsBreakdownRow[];
   byProduct: SchemeSavingsBreakdownRow[];

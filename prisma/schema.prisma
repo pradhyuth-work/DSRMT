@@ -206,15 +206,15 @@ model InvoiceItem {
   /// Whether this line is currently priced with scheme rates (Product.schemePrice) rather
   /// than normal unitPrice. Toggleable per line while the order is PENDING; locked once billed.
   hasScheme Boolean @default(false)
-  /// The product's scheme price at the moment this order was billed (effectiveSchemePrice,
-  /// i.e. respecting schemeActive) — NULL if no scheme price was set/active then. Captured
-  /// once, at billing, regardless of whether this order itself was priced "with scheme";
-  /// it's what Scheme Savings compares the actual unitPrice against, not a live lookup.
-  schemeUnitPrice Float?
-  /// True when schemeUnitPrice was back-filled from the product's *current* scheme price by
-  /// the 0012 migration rather than captured live at billing time — the historical price at
-  /// billing may have differed, so Scheme Savings flags these as estimates.
-  schemeEstimated Boolean @default(false)
+  /// The product's regular (non-scheme) unitPrice at the moment this order was billed —
+  /// captured once, at billing, for every line regardless of hasScheme. This is "what it
+  /// would be if not edited" down to scheme pricing: Scheme Savings sums it across a bill's
+  /// lines and compares that against Invoice.totalAmount (the bill value actually entered).
+  listUnitPrice Float?
+  /// True when listUnitPrice was back-filled from the product's *current* unitPrice by the
+  /// 0018 migration rather than captured live at billing time — the regular price at billing
+  /// may have differed, so Scheme Savings flags these as estimates.
+  listPriceEstimated Boolean @default(false)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])

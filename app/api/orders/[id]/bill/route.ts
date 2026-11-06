@@ -6,7 +6,6 @@ import { authorize } from "@/lib/auth";
 import { billOrderSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
-import { effectiveSchemePrice } from "@/lib/products";
 import type { OrderDTO } from "@/lib/types";
 
 /**
@@ -16,9 +15,10 @@ import type { OrderDTO } from "@/lib/types";
  * figure payments get collected against from here on. Admin and stock only — whoever
  * prepares the paperwork before the physical dispatch.
  *
- * Also snapshots each line's scheme price (Scheme Savings compares this against the actual
- * unitPrice later) — captured now, once, because Product.schemePrice can change after
- * billing and the live value at that later date wouldn't reflect what applied here.
+ * Also snapshots each line's regular (non-scheme) unit price (Scheme Savings sums this
+ * across the bill and compares it against the entered amount above) — captured now, once,
+ * because Product.unitPrice can change after billing and the live value at that later date
+ * wouldn't reflect what applied here.
  *
  * This is also where stock leaves the inventory: lock the order's products, refuse if any is
  * short, deduct stock and record BILL movements — all in the same transaction, so nothing
@@ -50,8 +50,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       if (productIds.length > 0) {
         // Lock in a consistent order so two bills sharing products can't deadlock.
-        const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number; schemePrice: number | null; schemeActive: boolean }[]>`
-          SELECT "id", "name", "stockQty", "schemePrice", "schemeActive" FROM "Product"
+        const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number; unitPrice: number }[]>`
+          SELECT "id", "name", "stockQty", "unitPrice" FROM "Product"
           WHERE "id" IN (${Prisma.join(productIds)})
           ORDER BY "id"
           FOR UPDATE`;
@@ -67,14 +67,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         // a per-row loop here hit the transaction timeout on orders with many line items,
         // since every iteration is its own round trip over the Supabase pooler.
         const productById = new Map(stock.map((p) => [p.id, p]));
-        const schemePriceRows = invoice.items.map((item) => {
+        const listPriceRows = invoice.items.map((item) => {
           const product = productById.get(item.productId);
-          return Prisma.sql`(${item.id}::text, ${product ? effectiveSchemePrice(product) : null}::double precision)`;
+          return Prisma.sql`(${item.id}::text, ${product ? product.unitPrice : null}::double precision)`;
         });
         await tx.$executeRaw`
           UPDATE "InvoiceItem" AS ii
-          SET "schemeUnitPrice" = v.price
-          FROM (VALUES ${Prisma.join(schemePriceRows)}) AS v(id, price)
+          SET "listUnitPrice" = v.price
+          FROM (VALUES ${Prisma.join(listPriceRows)}) AS v(id, price)
           WHERE ii."id" = v.id`;
 
         const stockRows = productIds.map((productId) => Prisma.sql`(${productId}::text, ${needed.get(productId)!}::int)`);

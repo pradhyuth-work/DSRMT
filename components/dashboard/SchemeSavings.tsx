@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Gift, IndianRupee, Loader2, PiggyBank, Tag } from "lucide-react";
+import { Download, IndianRupee, Loader2, PiggyBank, Tag } from "lucide-react";
 import type { OutletDTO, ProductDTO, SchemeSavingsBillRow, SchemeSavingsBreakdownRow, SchemeSavingsResponse, StaffDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
@@ -76,17 +76,8 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
     : { billed: 0, atScheme: 0, saved: 0, pctSaved: 0 };
 
   const qualityNote =
-    report && (report.noSchemeLines > 0 || report.estimatedLines > 0)
-      ? [
-          report.noSchemeLines > 0
-            ? `${report.noSchemeLines} line${report.noSchemeLines === 1 ? " has" : "s have"} no scheme price set`
-            : null,
-          report.estimatedLines > 0
-            ? `${report.estimatedLines} line${report.estimatedLines === 1 ? " uses" : "s use"} an estimated scheme price (older bills)`
-            : null,
-        ]
-          .filter((s): s is string => s !== null)
-          .join("; ") + "."
+    report && report.estimatedLines > 0
+      ? `${report.estimatedLines} line${report.estimatedLines === 1 ? " uses" : "s use"} an estimated full price (older bills).`
       : null;
 
   return (
@@ -134,11 +125,10 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
       {error && <Alert kind="error">{error}</Alert>}
       {qualityNote && <Alert kind="warning">{qualityNote}</Alert>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Billed (no scheme)" value={report ? formatMoney(report.billed) : "—"} icon={IndianRupee} tone="teal" />
         <StatCard label="At Scheme Price" value={report ? formatMoney(report.atScheme) : "—"} icon={Tag} tone="gold" />
         <StatCard label="Saved" value={report ? formatMoney(report.saved) : "—"} icon={PiggyBank} tone="lime" />
-        <StatCard label="Scheme Given" value={report ? formatMoney(report.given) : "—"} icon={Gift} tone="rose" />
       </div>
 
       <div className="flex gap-1 border-b border-border">
@@ -285,7 +275,7 @@ function BillDetail({ bill }: { bill: SchemeSavingsBillRow }) {
               <th className="th">Product</th>
               <th className="th text-right">Qty</th>
               <th className="th text-right">Billed Price</th>
-              <th className="th text-right">Scheme Price</th>
+              <th className="th text-right">Full Price</th>
               <th className="th text-right">Saved</th>
             </tr>
           </thead>
@@ -296,8 +286,8 @@ function BillDetail({ bill }: { bill: SchemeSavingsBillRow }) {
                 <td className="td text-right tabular-nums">{i.quantity}</td>
                 <td className="td text-right tabular-nums">{formatMoney(i.unitPrice)}</td>
                 <td className="td text-right tabular-nums">
-                  {i.schemeUnitPrice != null ? formatMoney(i.schemeUnitPrice) : <span className="text-muted-foreground">—</span>}
-                  {i.schemeEstimated && <span className="ml-1 text-[10px] text-muted-foreground">(est.)</span>}
+                  {formatMoney(i.listUnitPrice)}
+                  {i.listPriceEstimated && <span className="ml-1 text-[10px] text-muted-foreground">(est.)</span>}
                 </td>
                 <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(i.saved)}</td>
               </tr>
