@@ -52,11 +52,11 @@ export function CollectPaymentForm({
   staffOptions?: StaffDTO[];
   onDone: (message: string) => Promise<void>;
 }) {
-  const [amount, setAmount] = useState(String(target.balance));
+  const [amount, setAmount] = useState("");
   const receivers = useMemo(() => (staffOptions ?? []).filter((s) => s.role !== "agent"), [staffOptions]);
   const [staffId, setStaffId] = useState(user.id);
   const [method, setMethod] = useState<PaymentMethod>("CASH");
-  const [entries, setEntries] = useState<EntryRow[]>([{ key: 0, reference: "", date: today(), amount: String(target.balance) }]);
+  const [entries, setEntries] = useState<EntryRow[]>([{ key: 0, reference: "", date: today(), amount: "" }]);
   const [nextKey, setNextKey] = useState(1);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -84,9 +84,7 @@ export function CollectPaymentForm({
   }
 
   function addEntry() {
-    const paid = entriesTotal;
-    const left = Math.max(0, round2(target.balance - paid));
-    setEntries((rows) => [...rows, { key: nextKey, reference: "", date: today(), amount: left > 0 ? String(left) : "" }]);
+    setEntries((rows) => [...rows, { key: nextKey, reference: "", date: today(), amount: "" }]);
     setNextKey((k) => k + 1);
   }
 
