@@ -50,6 +50,7 @@ import type {
   RouteDTO,
   CreateRouteInput,
   UpdateRouteInput,
+  MtDsrQuery,
   SalesReportQuery,
   SalesReportResponse,
   SchemeSavingsBillRow,
@@ -107,7 +108,7 @@ const patch = <T>(url: string, body: unknown) => send<T>("PATCH", url, body);
 const enc = encodeURIComponent;
 
 /** Builds a query string from a plain object, dropping undefined/empty values. */
-function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery | SchemeSavingsQuery | StockMovementsQuery): string {
+function qs(params?: MtDsrQuery | ReportsQuery | PaymentsQuery | SalesReportQuery | SchemeSavingsQuery | StockMovementsQuery): string {
   if (!params) return "";
   const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
@@ -115,7 +116,7 @@ function qs(params?: ReportsQuery | PaymentsQuery | SalesReportQuery | SchemeSav
 
 /** Downloads a file the browser can't reach with a plain <a href> because it needs the
  * bearer token — used for every CSV/JSON export. Reads the filename off Content-Disposition. */
-async function downloadFile(path: string, fallbackName: string): Promise<void> {
+async function downloadFile(path: string, fallbackName: string): Promise<Headers> {
   const token = getToken();
   const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
   if (!res.ok) {
@@ -131,6 +132,7 @@ async function downloadFile(path: string, fallbackName: string): Promise<void> {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+  return res.headers;
 }
 
 export const api = {
@@ -176,6 +178,9 @@ export const api = {
   chequeHistory: (groupId: string) => request<ChequeEventDTO[]>(`/api/cheques/${enc(groupId)}`),
   deletePayment: (id: string) => request<{ ok: true }>(`/api/payments/${enc(id)}`, { method: "DELETE" }),
   downloadPaymentsCsv: (query?: PaymentsQuery) => downloadFile(`/api/payments/csv${qs(query)}`, "payments.csv"),
+  /** Returns the names of products that had no column in the workbook (empty when all mapped). */
+  downloadMtDsrXlsx: async (query: MtDsrQuery): Promise<string> =>
+    decodeURIComponent((await downloadFile(`/api/reports/mt-dsr${qs(query)}`, "MT_DSR.xlsx")).get("X-Unmapped-Products") ?? ""),
   downloadSalesReportCsv: (query?: SalesReportQuery) => downloadFile(`/api/reports/sales/csv${qs(query)}`, "sales-report.csv"),
 
   agentBalances: () => request<AgentBalanceDTO[]>("/api/agent-balances"),

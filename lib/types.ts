@@ -606,6 +606,11 @@ export interface SalesReportQuery {
   outletId?: string;
 }
 
+export interface MtDsrQuery {
+  from: string;
+  to: string;
+}
+
 export interface ProductSalesRow {
   productId: string;
   productName: string;
