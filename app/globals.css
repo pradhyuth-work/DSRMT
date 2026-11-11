@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@1,62..125,700..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 /* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
@@ -77,9 +77,9 @@
   --danger-foreground: #ff8a7a;
   --info: #1a2a2e;
   --info-foreground: #a9c4c0;
-  --app-font-sans: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --app-font-display: 'Archivo', 'Arial Black', Arial, sans-serif;
-  --app-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --app-font-sans: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --app-font-display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --app-font-mono: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --radius: .35rem;
   --shadow-card: 0 1px 1px hsl(0 0% 8% / .05), 0 3px 5px hsl(0 0% 8% / .04), 0 12px 20px hsl(0 0% 8% / .05);
   --shadow-float: 0 18px 45px hsl(0 0% 8% / .14);

@@ -34,7 +34,7 @@ body::before {
 
 /* ---------- Headings: heavy, tight, uppercase ---------- */
 h1, h2, h3, .stat-value { font-family: var(--app-font-display); }
-h1, h2, h3 { font-weight: 800; text-transform: uppercase; letter-spacing: -.01em; line-height: 1.05; }
+h1, h2, h3 { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; line-height: 1.05; }
 
 /* ---------- Mono UPPERCASE micro-labels ---------- */
 .label {
@@ -76,7 +76,7 @@ table { border-collapse: collapse; }
   font-family: var(--app-font-mono); font-size: 10px !important; font-weight: 500 !important;
   letter-spacing: .12em; text-transform: uppercase;
 }
-.stat-value { font-weight: 800; letter-spacing: -.01em; font-size: 1.35em; line-height: 1; }
+.stat-value { font-weight: 600; letter-spacing: .02em; font-size: 1.35em; line-height: 1; }
 
 /* ---------- Modals: ink-outlined sheet, ruled title bar ---------- */
 [role="dialog"] { border: 1px solid hsl(var(--accent)); box-shadow: none; }

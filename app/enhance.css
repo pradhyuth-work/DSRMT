@@ -115,7 +115,7 @@
 
 /* ================= Stratum theme layer (paper / gold / ink, terminal type) ================= */
 body { letter-spacing: -.01em; }
-h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
+h1 { font-family: var(--app-font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .ops-grid { background-image: linear-gradient(hsl(var(--foreground) / .045) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground) / .045) 1px, transparent 1px); }
 
 /* Buttons: slanted, as in the Stratum design. Primary = gold, secondary = ink outline. Sizes and padding are unchanged. */
@@ -159,7 +159,7 @@ h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: itali
 @media (prefers-reduced-motion: reduce) { .login-bg .neon-wrap { animation: none; } }
 
 /* Stat figures: the wide italic display face cut long rupee amounts to "…". Use the normal-width cut and never ellipsize. */
-.stat-cell .stat-value { font-stretch: 100%; font-size: 1.05em; text-overflow: clip; overflow: visible; white-space: nowrap; letter-spacing: -.02em; }
+.stat-cell .stat-value { font-stretch: 100%; font-size: 1.3em; text-overflow: clip; overflow: visible; white-space: nowrap; letter-spacing: .02em; }
 .stat-cell .stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* =====================================================================
