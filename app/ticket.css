@@ -135,3 +135,19 @@ body { letter-spacing: 0; }
 .order-card .font-mono { font-family: var(--app-font-mono); }
 .order-card .tabular-nums { font-variant-numeric: tabular-nums; }
 .order-card .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+
+/* Background grid and glows live on the page canvas (body), not on <main>, so they cover the whole
+   scrollable area at any zoom level instead of stopping where <main> stops. */
+body {
+  background-image:
+    radial-gradient(60% 40% at 0% 0%, rgba(255,122,26,.10), transparent 70%),
+    radial-gradient(40% 30% at 100% 0%, rgba(47,208,192,.06), transparent 70%),
+    linear-gradient(hsl(var(--foreground) / .045) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / .045) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+}
+.ops-grid { background-image: none; }
+/* The page shell never grows wider than the screen, so header, stats, filters and cards stay in one column */
+.ops-app { max-width: 100vw; }
+main.ops-grid { max-width: 100%; }
