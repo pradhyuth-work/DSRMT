@@ -149,9 +149,13 @@ body {
 }
 .ops-grid { background-image: none; }
 
-/* Never let the page grow wider than the screen: a wider page leaves the header and the body
-   background (which are viewport-wide) stopping short of the content. */
-html, body { max-width: 100%; overflow-x: clip; }
+/* Zoom/alignment: grid and form children may shrink below their content width, so a wide table or
+   long label can never stretch a grid track (and with it the whole page) past the screen. Wide tables
+   scroll inside their own overflow-x-auto wrapper instead. */
+.grid > *, .flex > .min-w-0 { min-width: 0; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+/* Page glows stay pinned to the visible screen, so they never stop short at any zoom level */
+body { background-attachment: fixed, fixed, scroll, scroll; }
 /* Status tabs: a clean swipe row with no scrollbar strip */
 .tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 .tabs-scroll::-webkit-scrollbar { display: none; }
