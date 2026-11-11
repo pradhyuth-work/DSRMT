@@ -148,3 +148,11 @@ body {
   background-repeat: no-repeat, no-repeat, repeat, repeat;
 }
 .ops-grid { background-image: none; }
+
+/* Never let the page grow wider than the screen: a wider page leaves the header and the body
+   background (which are viewport-wide) stopping short of the content. */
+html, body { max-width: 100%; overflow-x: clip; }
+/* Status tabs: a clean swipe row with no scrollbar strip */
+.tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll > button { flex: none; }

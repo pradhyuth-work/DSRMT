@@ -200,7 +200,7 @@ export default function OrdersView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className={`flex gap-2 overflow-x-auto pb-1 transition ${billQuery ? "opacity-50" : ""}`}>
+        <div className={`tabs-scroll flex min-w-0 max-w-full gap-2 overflow-x-auto transition ${billQuery ? "opacity-50" : ""}`}>
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -278,14 +278,14 @@ export default function OrdersView({
           <EmptyState>{billQuery ? `No bill matches “${billSearch.trim()}”.` : "No orders here."}</EmptyState>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
             const outlet = outletById.get(o.outletId);
             const outletGst = outlet?.gstNumber ?? null;
             const outletRoute = outlet?.routeName ?? null;
             return (
-              <article key={o.id} className="card order-card flex flex-col p-4" data-status={o.fulfilmentStatus}>
+              <article key={o.id} className="card order-card flex min-w-0 flex-col p-4" data-status={o.fulfilmentStatus}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
@@ -297,7 +297,7 @@ export default function OrdersView({
                       onClick={() => setViewingOutlet({ name: o.outletName, outlet: outlet ?? null })}
                       aria-label={`View details of ${o.outletName}`}
                     >
-                      <span className="min-w-0 truncate">{o.outletName}</span>
+                      <span className="min-w-0 break-words">{o.outletName}</span>
                     </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
@@ -319,7 +319,7 @@ export default function OrdersView({
                     return (
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
-                          <span className="min-w-0 truncate">
+                          <span className="min-w-0 break-words">
                             <span className="text-accent">{i.quantity} ×</span> {i.productName}
                           </span>
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
