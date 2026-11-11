@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 /* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
@@ -63,7 +63,7 @@
   --secondary: 193 25% 13%;
   --secondary-foreground: 40 42% 85%;
   --muted: 193 22% 12%;
-  --muted-foreground: 172 9% 58%;
+  --muted-foreground: 172 14% 70%;
   --accent: 25 100% 55%;
   --accent-foreground: 197 33% 6%;
   --input: 190 22% 28%;
