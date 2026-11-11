@@ -278,14 +278,14 @@ export default function OrdersView({
           <EmptyState>{billQuery ? `No bill matches “${billSearch.trim()}”.` : "No orders here."}</EmptyState>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
             const outlet = outletById.get(o.outletId);
             const outletGst = outlet?.gstNumber ?? null;
             const outletRoute = outlet?.routeName ?? null;
             return (
-              <article key={o.id} className="card order-card flex flex-col p-4" data-status={o.fulfilmentStatus}>
+              <article key={o.id} className="card order-card flex min-w-0 flex-col p-4" data-status={o.fulfilmentStatus}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
