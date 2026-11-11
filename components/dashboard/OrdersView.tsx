@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, ChevronRight, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
@@ -278,14 +278,14 @@ export default function OrdersView({
           <EmptyState>{billQuery ? `No bill matches “${billSearch.trim()}”.` : "No orders here."}</EmptyState>
         </div>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
             const outlet = outletById.get(o.outletId);
             const outletGst = outlet?.gstNumber ?? null;
             const outletRoute = outlet?.routeName ?? null;
             return (
-              <article key={o.id} className="card order-card flex min-w-0 flex-col p-4" data-status={o.fulfilmentStatus}>
+              <article key={o.id} className="card order-card flex flex-col p-4" data-status={o.fulfilmentStatus}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
@@ -298,7 +298,6 @@ export default function OrdersView({
                       aria-label={`View details of ${o.outletName}`}
                     >
                       <span className="min-w-0 truncate">{o.outletName}</span>
-                      <ChevronRight className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
                     </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
