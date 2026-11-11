@@ -148,6 +148,3 @@ body {
   background-repeat: no-repeat, no-repeat, repeat, repeat;
 }
 .ops-grid { background-image: none; }
-/* The page shell never grows wider than the screen, so header, stats, filters and cards stay in one column */
-.ops-app { max-width: 100vw; }
-main.ops-grid { max-width: 100%; }
