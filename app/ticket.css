@@ -128,5 +128,10 @@ aside nav button, aside nav a { border-radius: 2px; }
 
 /* Readability: no scanlines or tight tracking behind text, steadier weights */
 body { letter-spacing: 0; }
-.order-card { font-size: 15px; }
+/* Card text in Barlow (a sturdier sans) at a larger size; bill numbers, GSTIN and buttons keep the mono face */
+.order-card { font-family: 'Barlow', system-ui, sans-serif; font-size: 16px; }
+.order-card .text-sm { font-size: 16px; }
+.order-card .text-xs, .order-card .text-\[11px\] { font-size: 13px; }
+.order-card .font-mono { font-family: var(--app-font-mono); }
+.order-card .tabular-nums { font-variant-numeric: tabular-nums; }
 .order-card .text-muted-foreground { color: hsl(var(--muted-foreground)); }
