@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, Ban, ChevronRight, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
@@ -293,12 +293,12 @@ export default function OrdersView({
                     </p>
                     <button
                       type="button"
-                      className="flex max-w-full items-baseline gap-2 text-left font-[family-name:var(--app-font-display)] text-[28px] font-semibold uppercase leading-none tracking-[.04em]"
+                      className="focus-ring mt-0.5 inline-flex max-w-full items-center gap-2 border border-input bg-secondary px-3 py-2 text-left font-[family-name:var(--app-font-display)] text-[26px] font-semibold uppercase leading-none tracking-[.04em] transition active:scale-[.97] hover:border-accent"
                       onClick={() => setViewingOutlet({ name: o.outletName, outlet: outlet ?? null })}
                       aria-label={`View details of ${o.outletName}`}
                     >
                       <span className="min-w-0 truncate">{o.outletName}</span>
-                      <span className="shrink-0 border-b border-accent font-mono text-[10px] font-normal tracking-[.16em] text-accent">DETAILS ▸</span>
+                      <ChevronRight className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
                     </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
