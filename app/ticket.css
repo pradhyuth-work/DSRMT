@@ -91,3 +91,39 @@ aside nav button, aside nav a { border-radius: 2px; }
 .border-border { border-color: var(--hair); }
 .card.border-border, .card .border-border { border-color: var(--hair); }
 .card { border-color: hsl(var(--line)) !important; }
+
+
+/* ================= Blade Runner finish: haze, scanlines, brackets, stamped tags, segmented meter =================
+   Same layout; this only restyles existing elements. */
+
+/* Panels: faint orange haze at the top over fine scanlines, orange corner brackets always shown */
+.card, .card.is-spot {
+  background-image:
+    linear-gradient(180deg, hsl(var(--accent) / .10), transparent 140px),
+    repeating-linear-gradient(0deg, hsl(var(--foreground) / .035) 0 1px, transparent 1px 3px);
+}
+.card::before { opacity: 1; transform: none; top: -1px; left: -1px; width: 14px; height: 14px; border-top: 2px solid hsl(var(--accent)); border-left: 2px solid hsl(var(--accent)); }
+.card::after { opacity: 1; transform: none; bottom: -1px; right: -1px; width: 14px; height: 14px; border-bottom: 2px solid hsl(var(--accent)); border-right: 2px solid hsl(var(--accent)); }
+
+/* Dialogs: orange top rule, stronger haze, small spaced orange title */
+[role="dialog"] {
+  border-color: hsl(var(--line)); border-top: 2px solid hsl(var(--accent));
+  background-image:
+    linear-gradient(180deg, hsl(var(--accent) / .16), transparent 160px),
+    repeating-linear-gradient(0deg, hsl(var(--foreground) / .035) 0 1px, transparent 1px 3px);
+}
+[role="dialog"] > div:first-child { border-bottom-color: hsl(var(--line)); }
+[role="dialog"] h2 { font-family: var(--app-font-mono); font-size: 11px; font-weight: 400; letter-spacing: .24em; color: hsl(var(--accent)); }
+
+/* Buttons: plain rectangles, wider tracking */
+.btn { clip-path: none; letter-spacing: .16em; }
+
+/* Status tags: outlined stamps */
+.tag { background: transparent !important; border: 1px solid currentColor !important; letter-spacing: .2em; padding: 4px 8px !important; border-radius: 0 !important; }
+.tag.bg-primary { color: hsl(var(--accent)) !important; }
+
+/* Order cards: spaced labels, orange condensed total, segmented paid bar */
+.order-card dt { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; }
+.order-card dd.font-semibold { font-family: var(--app-font-display); font-size: 22px; line-height: 1.1; color: hsl(var(--accent)); }
+.paid-meter { height: 6px; border-radius: 0; background: hsl(var(--muted)); -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 calc(4.1667% - 2px), transparent 0 4.1667%); mask-image: repeating-linear-gradient(90deg, #000 0 calc(4.1667% - 2px), transparent 0 4.1667%); }
+.paid-meter > i { border-radius: 0; }
