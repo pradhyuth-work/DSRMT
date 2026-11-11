@@ -293,11 +293,12 @@ export default function OrdersView({
                     </p>
                     <button
                       type="button"
-                      className="block max-w-full truncate text-left font-medium underline decoration-dotted decoration-muted-foreground underline-offset-4"
+                      className="flex max-w-full items-baseline gap-2 text-left font-[family-name:var(--app-font-display)] text-[28px] font-semibold uppercase leading-none tracking-[.04em]"
                       onClick={() => setViewingOutlet({ name: o.outletName, outlet: outlet ?? null })}
                       aria-label={`View details of ${o.outletName}`}
                     >
-                      {o.outletName}
+                      <span className="min-w-0 truncate">{o.outletName}</span>
+                      <span className="shrink-0 border-b border-accent font-mono text-[10px] font-normal tracking-[.16em] text-accent">DETAILS ▸</span>
                     </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
@@ -320,7 +321,7 @@ export default function OrdersView({
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
                           <span className="min-w-0 truncate">
-                            {i.quantity} × {i.productName}
+                            <span className="text-accent">{i.quantity} ×</span> {i.productName}
                           </span>
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
                         </div>
@@ -503,14 +504,14 @@ export default function OrdersView({
       <Modal open={!!viewingOutlet} title="Outlet details" onClose={() => setViewingOutlet(null)}>
         {viewingOutlet && (
           <div className="space-y-4">
-            <p className="text-lg font-semibold">{viewingOutlet.name}</p>
+            <p className="font-[family-name:var(--app-font-display)] text-4xl font-semibold uppercase leading-none tracking-[.04em]">{viewingOutlet.name}</p>
             {viewingOutlet.outlet ? (
               <dl className="space-y-3 border-y border-border py-3 text-sm">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Phone</dt>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Phone</dt>
                   <dd>
                     {viewingOutlet.outlet.phone ? (
-                      <a className="underline underline-offset-2" href={`tel:${viewingOutlet.outlet.phone}`}>
+                      <a className="text-accent underline underline-offset-4" href={`tel:${viewingOutlet.outlet.phone}`}>
                         {viewingOutlet.outlet.phone}
                       </a>
                     ) : (
@@ -519,20 +520,22 @@ export default function OrdersView({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Address</dt>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Address</dt>
                   <dd className="whitespace-pre-line">{viewingOutlet.outlet.address || "Not on file"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">GSTIN</dt>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">GSTIN</dt>
                   <dd className="font-mono">{viewingOutlet.outlet.gstNumber ?? "Not on file"}</dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Route</dt>
-                  <dd>{viewingOutlet.outlet.routeName ?? "No route assigned"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Field agent</dt>
-                  <dd>{viewingOutlet.outlet.agentName ?? "No field agent assigned"}</dd>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Route</dt>
+                    <dd>{viewingOutlet.outlet.routeName ?? "No route assigned"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Field agent</dt>
+                    <dd>{viewingOutlet.outlet.agentName ?? "No field agent assigned"}</dd>
+                  </div>
                 </div>
               </dl>
             ) : (
