@@ -412,7 +412,7 @@ function Stepper({ value, onChange, full }: { value: number; onChange: (q: numbe
       <span className="w-8 shrink-0 text-center text-base font-semibold tabular-nums">{value}</span>
       <button
         type="button"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white transition active:scale-95"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition active:scale-95"
         onClick={() => onChange(value + 1)}
         aria-label="Increase quantity"
       >

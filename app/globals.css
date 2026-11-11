@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@1,62..125,700..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 /* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
    matches it: warm cream surface, dark-navy sidebar, olive/gold/rose/teal accents,
-   Barlow / Barlow Condensed / Courier Prime type (from the reference screen recording). Light theme only — this app has no dark-mode toggle. */
+   Barlow / Barlow Condensed / Courier Prime type (from the reference screen recording). Dark teal-black theme only — this app has no theme toggle. */
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -44,41 +44,42 @@
 }
 
 :root {
-  /* "Stratum" theme: paper, gold, ink, terminal type. Same token names as before, new values. */
-  --background: 60 9% 96%;
-  --foreground: 0 0% 8%;
-  --border: 0 0% 85%;
-  --card: 60 14% 99%;
-  --card-foreground: 0 0% 8%;
-  --sidebar: 0 0% 10%;
-  --sidebar-foreground: 0 0% 93%;
-  --sidebar-border: 0 0% 18%;
-  --sidebar-primary: 47 77% 49%;
-  --sidebar-primary-foreground: 0 0% 8%;
-  --sidebar-accent: 0 0% 16%;
-  --sidebar-accent-foreground: 0 0% 93%;
-  --primary: 0 0% 10%;
-  --primary-foreground: 60 14% 99%;
-  --secondary: 60 6% 93%;
-  --secondary-foreground: 0 0% 8%;
-  --muted: 60 6% 92%;
-  --muted-foreground: 60 3% 38%;
-  --accent: 47 77% 49%;
-  --accent-foreground: 0 0% 8%;
-  --input: 0 0% 72%;
-  --ring: 0 0% 8%;
-  /* Status pastels: teal / gold / vermilion / grey. */
-  --success: #cfe8e4;
-  --success-foreground: #17504d;
-  --warning: #f3e6b3;
-  --warning-foreground: #5c4300;
-  --danger: #f1d5cc;
-  --danger-foreground: #8a2f1a;
-  --info: #e6e6e1;
-  --info-foreground: #2a2a2a;
-  --app-font-sans: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --app-font-display: 'Archivo', 'Arial Black', Arial, sans-serif;
-  --app-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* "Blade Runner" colours: teal-black panels, bone text, sodium orange accent, teal and red status. Same token names, new values. */
+  --background: 197 33% 6%;
+  --foreground: 40 42% 85%;
+  --border: 190 25% 19%;
+  --line: 190 22% 24%;
+  --card: 194 29% 9%;
+  --card-foreground: 40 42% 85%;
+  --sidebar: 197 40% 5%;
+  --sidebar-foreground: 40 42% 85%;
+  --sidebar-border: 190 25% 15%;
+  --sidebar-primary: 25 100% 55%;
+  --sidebar-primary-foreground: 197 33% 6%;
+  --sidebar-accent: 193 28% 13%;
+  --sidebar-accent-foreground: 40 42% 85%;
+  --primary: 25 100% 55%;
+  --primary-foreground: 197 33% 6%;
+  --secondary: 193 25% 13%;
+  --secondary-foreground: 40 42% 85%;
+  --muted: 193 22% 12%;
+  --muted-foreground: 172 9% 58%;
+  --accent: 25 100% 55%;
+  --accent-foreground: 197 33% 6%;
+  --input: 190 22% 28%;
+  --ring: 25 100% 55%;
+  /* Status tints: teal / orange / red / grey, dark versions. */
+  --success: #123a38;
+  --success-foreground: #5fe0d2;
+  --warning: #3d2a0e;
+  --warning-foreground: #ffb35c;
+  --danger: #3f1a17;
+  --danger-foreground: #ff8a7a;
+  --info: #1a2a2e;
+  --info-foreground: #a9c4c0;
+  --app-font-sans: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --app-font-display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --app-font-mono: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --radius: .35rem;
   --shadow-card: 0 1px 1px hsl(0 0% 8% / .05), 0 3px 5px hsl(0 0% 8% / .04), 0 12px 20px hsl(0 0% 8% / .05);
   --shadow-float: 0 18px 45px hsl(0 0% 8% / .14);
