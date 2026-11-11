@@ -210,7 +210,7 @@ export default function OrdersView({
               }}
               className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                 filter === f.id && !billQuery
-                  ? "border-primary bg-primary text-white"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "border-input bg-card text-muted-foreground hover:bg-secondary"
               }`}
             >
@@ -352,7 +352,7 @@ export default function OrdersView({
                           >
                             <span
                               className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
-                                i.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                                i.hasScheme ? "bg-[#2fd0c0]" : "bg-border"
                               }`}
                             >
                               <span
@@ -563,7 +563,7 @@ export default function OrdersView({
                 Keep order
               </button>
               <button
-                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                className="btn h-12 bg-danger-foreground text-base text-background hover:bg-danger-foreground"
                 disabled={busyId === confirmingCancel.id}
                 onClick={() => {
                   const order = confirmingCancel;
@@ -732,7 +732,7 @@ function EditOrderForm({
               >
                 <span
                   className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
-                    l.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                    l.hasScheme ? "bg-[#2fd0c0]" : "bg-border"
                   }`}
                 >
                   <span

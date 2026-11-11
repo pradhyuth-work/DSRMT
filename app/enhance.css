@@ -70,9 +70,9 @@
 .chart-bar.is-top .chart-track > span { background: hsl(var(--accent)); }
 @keyframes chart-grow { from { transform: scaleX(0); } }
 .chart-rung { position: relative; display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; font-size: 13px; overflow: hidden; }
-.chart-rung > i { position: absolute; inset: 0 auto 0 0; background: #d7e878; opacity: .55; transform-origin: left; animation: chart-grow .6s var(--ease-out) both; z-index: 0; }
-.chart-rung.is-warm > i { background: #f9dfc4; }
-.chart-rung.is-hot > i { background: #f5d6d0; }
+.chart-rung > i { position: absolute; inset: 0 auto 0 0; background: #2fd0c0; opacity: .55; transform-origin: left; animation: chart-grow .6s var(--ease-out) both; z-index: 0; }
+.chart-rung.is-warm > i { background: #ff9a3c; }
+.chart-rung.is-hot > i { background: #ff6a55; }
 .chart-rung > span { position: relative; z-index: 1; }
 @media (max-width: 640px) { .chart-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -133,29 +133,29 @@ h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: itali
 .stat-cell > div:first-child { border-radius: 4px; }
 
 /* Sign-in: gold glow over a dark field, like the DSR sign-in. Layout untouched. */
-.login-bg { position: relative; background: radial-gradient(120% 70% at 50% 0%, #d9ad22 0%, #7a600f 35%, #1c1707 70%, #0b0a06 100%); }
+.login-bg { position: relative; background: radial-gradient(120% 70% at 50% 0%, #ff7a1a 0%, #7a3a0c 35%, #0f1a1d 70%, #0a1114 100%); }
 .login-bg::before { content: ""; position: fixed; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); background-size: 32px 32px; -webkit-mask-image: linear-gradient(#000, transparent 70%); mask-image: linear-gradient(#000, transparent 70%); }
-.login-bg h1 { color: #eef5f0; text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.6), 0 0 24px rgba(217,173,34,.35); }
-.login-bg .login-sub { color: #e8dca8 !important; }
-.login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(217,173,34,.18); }
-.login-bg .login-note, .login-bg .login-status, .login-bg .login-status b { color: #cbbf94; }
-.login-bg .login-tape { background: rgba(11,10,6,.45); border-bottom-color: rgba(217,173,34,.25); color: #cbbf94; }
+.login-bg h1 { color: #eef5f0; text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.6), 0 0 24px rgba(255,122,26,.35); }
+.login-bg .login-sub { color: #f0d9b8 !important; }
+.login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(255,122,26,.18); }
+.login-bg .login-note, .login-bg .login-status, .login-bg .login-status b { color: #b9a98c; }
+.login-bg .login-tape { background: rgba(10,17,20,.45); border-bottom-color: rgba(255,122,26,.25); color: #b9a98c; }
 /* Sign-in card blends into the background (dark glass) instead of a white panel, like the DSR sign-in. */
-.login-bg .card { background: rgba(11,10,6,.55); border-color: rgba(217,173,34,.22); color: #eef5f0; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-.login-bg .card .label { color: #cbbf94; }
-.login-bg .card .input { background: rgba(0,0,0,.45); border-color: rgba(217,173,34,.28); color: #eef5f0; }
-.login-bg .card .input:focus { border-color: #d9ad22; }
+.login-bg .card { background: rgba(10,17,20,.55); border-color: rgba(255,122,26,.22); color: #eef5f0; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.login-bg .card .label { color: #b9a98c; }
+.login-bg .card .input { background: rgba(0,0,0,.45); border-color: rgba(255,122,26,.28); color: #eef5f0; }
+.login-bg .card .input:focus { border-color: #ff7a1a; }
 .login-bg .pin-bars i { background: rgba(238,245,240,.18); }
-.login-bg .pin-bars i.on { background: #d9ad22; }
+.login-bg .pin-bars i.on { background: #ff7a1a; }
 .brand-tile { display: block; flex: none; border-radius: 8px; object-fit: cover; }
 .login-bg .brand-tile { box-shadow: 0 8px 24px rgba(0,0,0,.45); }
 
 /* Sign-in button: neon gold glow like the DSR sign-in. The glow sits on a wrapper because .btn's clip-path would cut off its own shadow. */
-.login-bg .neon-wrap { filter: drop-shadow(0 0 5px rgba(255,214,64,.8)) drop-shadow(0 0 16px rgba(255,200,40,.5)); animation: neon-pulse 2.8s ease-in-out infinite; transition: filter .2s ease, opacity .2s ease; }
-.login-bg .neon-wrap .btn-primary { background: #ffd23f; color: #1a1400; border-color: #ffe27a; font-weight: 700; text-shadow: 0 0 6px rgba(255,255,255,.45); }
-.login-bg .neon-wrap:hover:not(:has(:disabled)) { filter: drop-shadow(0 0 7px rgba(255,224,90,.95)) drop-shadow(0 0 24px rgba(255,205,50,.65)); }
-.login-bg .neon-wrap:has(:disabled) { animation: none; opacity: .55; filter: drop-shadow(0 0 3px rgba(255,214,64,.3)); }
-@keyframes neon-pulse { 0%, 100% { filter: drop-shadow(0 0 5px rgba(255,214,64,.8)) drop-shadow(0 0 16px rgba(255,200,40,.5)); } 50% { filter: drop-shadow(0 0 7px rgba(255,222,80,.95)) drop-shadow(0 0 22px rgba(255,200,40,.65)); } }
+.login-bg .neon-wrap { filter: drop-shadow(0 0 5px rgba(255,122,26,.8)) drop-shadow(0 0 16px rgba(255,122,26,.5)); animation: neon-pulse 2.8s ease-in-out infinite; transition: filter .2s ease, opacity .2s ease; }
+.login-bg .neon-wrap .btn-primary { background: #ff7a1a; color: #0a1114; border-color: #ff9a3c; font-weight: 700; text-shadow: 0 0 6px rgba(255,255,255,.45); }
+.login-bg .neon-wrap:hover:not(:has(:disabled)) { filter: drop-shadow(0 0 7px rgba(255,154,60,.95)) drop-shadow(0 0 24px rgba(255,122,26,.65)); }
+.login-bg .neon-wrap:has(:disabled) { animation: none; opacity: .55; filter: drop-shadow(0 0 3px rgba(255,122,26,.3)); }
+@keyframes neon-pulse { 0%, 100% { filter: drop-shadow(0 0 5px rgba(255,122,26,.8)) drop-shadow(0 0 16px rgba(255,122,26,.5)); } 50% { filter: drop-shadow(0 0 7px rgba(255,154,60,.95)) drop-shadow(0 0 22px rgba(255,122,26,.65)); } }
 @media (prefers-reduced-motion: reduce) { .login-bg .neon-wrap { animation: none; } }
 
 /* Stat figures: the wide italic display face cut long rupee amounts to "…". Use the normal-width cut and never ellipsize. */
@@ -170,13 +170,13 @@ h1 { font-family: var(--app-font-display); font-stretch: 125%; font-style: itali
 
 /* Sidebar: soft depth instead of flat black; active tab is a plain gold bar (no slant) */
 aside {
-  background: radial-gradient(120% 32% at 0% 100%, rgba(217,173,34,.13), transparent 70%), linear-gradient(180deg, #1b1a16 0%, #121211 65%);
-  border-right: 1px solid #2a2a26;
+  background: radial-gradient(120% 32% at 0% 100%, rgba(255,122,26,.13), transparent 70%), linear-gradient(180deg, #0f181b 0%, #070c0e 65%);
+  border-right: 1px solid #24383c;
 }
 aside nav .nav-tab { border-radius: 6px; }
 .nav-tab[data-active="true"] {
-  background: linear-gradient(95deg, #e8bf34, #d9ad22);
-  box-shadow: 0 4px 10px rgba(217,173,34,.28);
+  background: linear-gradient(95deg, #ff9a3c, #ff7a1a);
+  box-shadow: 0 4px 10px rgba(255,122,26,.28);
 }
 @media (hover: hover) and (pointer: fine) {
   .nav-tab:not([data-active="true"]):hover { transform: translateX(2px); box-shadow: inset 2px 0 0 hsl(var(--accent)); }
@@ -188,8 +188,8 @@ aside nav .nav-tab { border-radius: 6px; }
 /* Main area: faint gold + teal glows over the existing grid */
 .ops-grid {
   background-image:
-    radial-gradient(60% 40% at 0% 0%, rgba(217,173,34,.10), transparent 70%),
-    radial-gradient(40% 30% at 100% 0%, rgba(47,143,134,.06), transparent 70%),
+    radial-gradient(60% 40% at 0% 0%, rgba(255,122,26,.10), transparent 70%),
+    radial-gradient(40% 30% at 100% 0%, rgba(47,208,192,.06), transparent 70%),
     linear-gradient(hsl(var(--foreground) / .045) 1px, transparent 1px),
     linear-gradient(90deg, hsl(var(--foreground) / .045) 1px, transparent 1px);
 }
@@ -202,14 +202,14 @@ aside nav .nav-tab { border-radius: 6px; }
   transform-origin: left; animation: hdr-sweep .9s var(--ease-out) both;
 }
 @keyframes hdr-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.avatar-ring { box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 3px hsl(var(--accent) / .75); background-image: linear-gradient(135deg, #e8bf34, #d9ad22); }
+.avatar-ring { box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 3px hsl(var(--accent) / .75); background-image: linear-gradient(135deg, #ff9a3c, #ff7a1a); }
 
 /* Stat cards: tone stripe, trend line */
-.card.stat-cell { --tone: #8b8a80; box-shadow: inset 3px 0 0 var(--tone); }
-.card.stat-cell[data-tone="lime"] { --tone: #2f8f86; }
-.card.stat-cell[data-tone="gold"] { --tone: #d9ad22; }
-.card.stat-cell[data-tone="rose"] { --tone: #c4573a; }
-.card.stat-cell[data-tone="teal"] { --tone: #6b6a62; }
+.card.stat-cell { --tone: #5f7a78; box-shadow: inset 3px 0 0 var(--tone); }
+.card.stat-cell[data-tone="lime"] { --tone: #2fd0c0; }
+.card.stat-cell[data-tone="gold"] { --tone: #ff7a1a; }
+.card.stat-cell[data-tone="rose"] { --tone: #ff6a55; }
+.card.stat-cell[data-tone="teal"] { --tone: #6fa8a2; }
 .stat-spark { margin-left: auto; width: 84px; height: 32px; flex: none; overflow: visible; color: var(--tone); }
 .stat-spark .ar { fill: currentColor; opacity: .14; stroke: none; }
 .stat-spark .ln { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: spark-draw 1.1s .25s var(--ease-out) forwards; }
@@ -220,22 +220,22 @@ aside nav .nav-tab { border-radius: 6px; }
 @media (max-width: 480px) { .stat-spark { width: 64px; } }
 
 /* Order cards: status stripe on the left (inset shadow, so the corner brackets and spotlight keep working) */
-.card.order-card { --sc: #8b8a80; box-shadow: inset 3px 0 0 var(--sc); }
-.card.order-card[data-status="BILLED"] { --sc: #d9ad22; }
-.card.order-card[data-status="DISPATCHED"] { --sc: #2f8f86; }
-.card.order-card[data-status="CANCELLED"] { --sc: #c9c8c0; }
+.card.order-card { --sc: #5f7a78; box-shadow: inset 3px 0 0 var(--sc); }
+.card.order-card[data-status="BILLED"] { --sc: #ff7a1a; }
+.card.order-card[data-status="DISPATCHED"] { --sc: #2fd0c0; }
+.card.order-card[data-status="CANCELLED"] { --sc: #3a4f52; }
 @media (hover: hover) and (pointer: fine) {
   .card.order-card:hover { transform: translateY(-2px); box-shadow: inset 3px 0 0 var(--sc), 0 10px 28px -14px hsl(var(--foreground) / .28); }
 }
 .paid-meter { height: 3px; margin-top: 10px; background: hsl(var(--foreground) / .08); overflow: hidden; border-radius: 2px; }
-.paid-meter > i { display: block; height: 100%; background: #2f8f86; transform-origin: left; animation: meter-in .8s .2s var(--ease-out) both; }
+.paid-meter > i { display: block; height: 100%; background: #2fd0c0; transform-origin: left; animation: meter-in .8s .2s var(--ease-out) both; }
 @keyframes meter-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* Badges: keep the squarer shape, add a little weight */
 .tag { font-weight: 700; }
 
 /* Sign-in: just a touch — a gold hairline on the card and a soft glow behind the logo */
-.login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(217,173,34,.18), inset 0 1px 0 rgba(217,173,34,.45); }
+.login-bg .card { box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 31px rgba(255,122,26,.18), inset 0 1px 0 rgba(255,122,26,.45); }
 
 @media (prefers-reduced-motion: reduce) {
   .led::after, .stat-spark .ring { animation: none; opacity: 0; }
