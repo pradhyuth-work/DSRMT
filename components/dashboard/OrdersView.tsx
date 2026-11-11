@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
-import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
+import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
@@ -42,6 +42,8 @@ export default function OrdersView({
   const [editing, setEditing] = useState<OrderDTO | null>(null);
   const [billing, setBilling] = useState<OrderDTO | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
+  // Outlet whose details are open — set by tapping the outlet name on an order card.
+  const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
 
   const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
@@ -289,7 +291,14 @@ export default function OrdersView({
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
                       {o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "Not billed yet"}
                     </p>
-                    <p className="truncate font-medium">{o.outletName}</p>
+                    <button
+                      type="button"
+                      className="block max-w-full truncate text-left font-medium underline decoration-dotted decoration-muted-foreground underline-offset-4"
+                      onClick={() => setViewingOutlet({ name: o.outletName, outlet: outlet ?? null })}
+                      aria-label={`View details of ${o.outletName}`}
+                    >
+                      {o.outletName}
+                    </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
@@ -488,6 +497,51 @@ export default function OrdersView({
               await onSaved();
             }}
           />
+        )}
+      </Modal>
+
+      <Modal open={!!viewingOutlet} title="Outlet details" onClose={() => setViewingOutlet(null)}>
+        {viewingOutlet && (
+          <div className="space-y-4">
+            <p className="text-lg font-semibold">{viewingOutlet.name}</p>
+            {viewingOutlet.outlet ? (
+              <dl className="space-y-3 border-y border-border py-3 text-sm">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Phone</dt>
+                  <dd>
+                    {viewingOutlet.outlet.phone ? (
+                      <a className="underline underline-offset-2" href={`tel:${viewingOutlet.outlet.phone}`}>
+                        {viewingOutlet.outlet.phone}
+                      </a>
+                    ) : (
+                      "Not on file"
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Address</dt>
+                  <dd className="whitespace-pre-line">{viewingOutlet.outlet.address || "Not on file"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">GSTIN</dt>
+                  <dd className="font-mono">{viewingOutlet.outlet.gstNumber ?? "Not on file"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Route</dt>
+                  <dd>{viewingOutlet.outlet.routeName ?? "No route assigned"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Field agent</dt>
+                  <dd>{viewingOutlet.outlet.agentName ?? "No field agent assigned"}</dd>
+                </div>
+              </dl>
+            ) : (
+              <EmptyState>Details for this outlet aren't available.</EmptyState>
+            )}
+            <button type="button" className="btn btn-secondary h-12 w-full text-base" onClick={() => setViewingOutlet(null)}>
+              Close
+            </button>
+          </div>
         )}
       </Modal>
 
