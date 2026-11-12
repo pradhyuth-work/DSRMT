@@ -22,7 +22,7 @@ export default function AgentStockView({ data, user, onSaved }: { data: Dashboar
             type="button"
             onClick={() => setView(v.id)}
             className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-              view === v.id ? "border-primary bg-primary text-white" : "border-input bg-card text-muted-foreground hover:bg-secondary"
+              view === v.id ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-muted-foreground hover:bg-secondary"
             }`}
           >
             {v.label}

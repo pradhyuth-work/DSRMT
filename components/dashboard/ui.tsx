@@ -132,7 +132,7 @@ export function Modal({
   // dialog to that ancestor's box — invisible off-screen on any tab taller than the viewport.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-primary/30 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-background/75 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div

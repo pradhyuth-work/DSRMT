@@ -356,7 +356,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
                 Keep payment
               </button>
               <button
-                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                className="btn h-12 bg-danger-foreground text-base text-background hover:bg-danger-foreground"
                 disabled={deleting}
                 onClick={() => void confirmDelete()}
               >
@@ -560,7 +560,7 @@ function ChequeActionDialog({
           {bounce ? "Keep as received" : "Cancel"}
         </button>
         <button
-          className={`btn h-12 text-base ${bounce ? "bg-danger-foreground text-white hover:bg-danger-foreground" : "btn-primary"}`}
+          className={`btn h-12 text-base ${bounce ? "bg-danger-foreground text-background hover:bg-danger-foreground" : "btn-primary"}`}
           disabled={busy || wouldOverpay}
           onClick={() => void confirm()}
         >

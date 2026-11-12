@@ -353,6 +353,12 @@ export const salesReportQuerySchema = z.object({
   outletId: id.optional(),
 });
 
+/** The MT DSR export needs a stated period, so both ends are required. */
+export const mtDsrQuerySchema = z.object({
+  from: dateStr,
+  to: dateStr,
+});
+
 export const schemeSavingsQuerySchema = z.object({
   from: dateStr.optional(),
   to: dateStr.optional(),

@@ -502,7 +502,7 @@ export default function OutletLedgers({
                 Keep outlet
               </button>
               <button
-                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                className="btn h-12 bg-danger-foreground text-base text-background hover:bg-danger-foreground"
                 disabled={deleting}
                 onClick={() => void confirmDelete()}
               >

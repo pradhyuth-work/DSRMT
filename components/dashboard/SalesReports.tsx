@@ -48,6 +48,8 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
   const [loading, setLoading] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [downloadingDsr, setDownloadingDsr] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,6 +123,21 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
     }
   }
 
+  async function downloadMtDsr() {
+    if (!range.from || !range.to) return;
+    setDownloadingDsr(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const unmapped = await api.downloadMtDsrXlsx({ from: range.from, to: range.to });
+      if (unmapped) setNotice(`These products have no column in the MT DSR workbook, so their quantity is in the OTHER column: ${unmapped}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download MT DSR");
+    } finally {
+      setDownloadingDsr(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -152,10 +169,24 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
             {downloadingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
             Report CSV
           </button>
+          <button
+            className="btn btn-secondary sm:w-auto"
+            onClick={() => void downloadMtDsr()}
+            disabled={downloadingDsr || !range.from || !range.to}
+            title={
+              range.from && range.to
+                ? "Download the MT DSR workbook (WD DSR + FA-Outlet Wise Sale) for the selected period"
+                : "Pick a from and to date (not All time) to download the MT DSR"
+            }
+          >
+            {downloadingDsr ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            MT DSR (.xlsx)
+          </button>
         </div>
       </div>
 
       {error && <Alert kind="error">{error}</Alert>}
+      {notice && <Alert kind="warning">{notice}</Alert>}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Orders" value={report ? String(report.ordersCount) : "—"} icon={ClipboardList} tone="teal" />

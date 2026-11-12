@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
-import type { AuthUser, FulfilmentStatus, OrderDTO } from "@/lib/types";
+import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
@@ -42,6 +42,8 @@ export default function OrdersView({
   const [editing, setEditing] = useState<OrderDTO | null>(null);
   const [billing, setBilling] = useState<OrderDTO | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
+  // Outlet whose details are open — set by tapping the outlet name on an order card.
+  const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
 
   const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
@@ -198,7 +200,7 @@ export default function OrdersView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className={`flex gap-2 overflow-x-auto pb-1 transition ${billQuery ? "opacity-50" : ""}`}>
+        <div className={`tabs-scroll flex min-w-0 max-w-full gap-2 overflow-x-auto transition ${billQuery ? "opacity-50" : ""}`}>
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -208,7 +210,7 @@ export default function OrdersView({
               }}
               className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                 filter === f.id && !billQuery
-                  ? "border-primary bg-primary text-white"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "border-input bg-card text-muted-foreground hover:bg-secondary"
               }`}
             >
@@ -276,20 +278,27 @@ export default function OrdersView({
           <EmptyState>{billQuery ? `No bill matches “${billSearch.trim()}”.` : "No orders here."}</EmptyState>
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ordersPage.pageItems.map((o) => {
             const busy = busyId === o.id;
             const outlet = outletById.get(o.outletId);
             const outletGst = outlet?.gstNumber ?? null;
             const outletRoute = outlet?.routeName ?? null;
             return (
-              <article key={o.id} className="card order-card flex flex-col p-4" data-status={o.fulfilmentStatus}>
+              <article key={o.id} className="card order-card flex min-w-0 flex-col p-4" data-status={o.fulfilmentStatus}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
                       {o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "Not billed yet"}
                     </p>
-                    <p className="truncate font-medium">{o.outletName}</p>
+                    <button
+                      type="button"
+                      className="focus-ring mt-0.5 inline-flex max-w-full items-center gap-2 border border-input bg-secondary px-3 py-2 text-left font-[family-name:var(--app-font-display)] text-[26px] font-semibold uppercase leading-none tracking-[.04em] transition active:scale-[.97] hover:border-accent"
+                      onClick={() => setViewingOutlet({ name: o.outletName, outlet: outlet ?? null })}
+                      aria-label={`View details of ${o.outletName}`}
+                    >
+                      <span className="min-w-0 break-words">{o.outletName}</span>
+                    </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(o.createdAt)}
                       {user.role !== "agent" && <> · by {o.staffName}</>}
@@ -310,8 +319,8 @@ export default function OrdersView({
                     return (
                       <li key={i.productId}>
                         <div className="flex justify-between gap-2">
-                          <span className="min-w-0 truncate">
-                            {i.quantity} × {i.productName}
+                          <span className="min-w-0 break-words">
+                            <span className="text-accent">{i.quantity} ×</span> {i.productName}
                           </span>
                           <span className="shrink-0 tabular-nums font-medium">{formatMoney(i.subtotal)}</span>
                         </div>
@@ -343,7 +352,7 @@ export default function OrdersView({
                           >
                             <span
                               className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
-                                i.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                                i.hasScheme ? "bg-[#2fd0c0]" : "bg-border"
                               }`}
                             >
                               <span
@@ -491,6 +500,53 @@ export default function OrdersView({
         )}
       </Modal>
 
+      <Modal open={!!viewingOutlet} title="Outlet details" onClose={() => setViewingOutlet(null)}>
+        {viewingOutlet && (
+          <div className="space-y-4">
+            <p className="font-[family-name:var(--app-font-display)] text-4xl font-semibold uppercase leading-none tracking-[.04em]">{viewingOutlet.name}</p>
+            {viewingOutlet.outlet ? (
+              <dl className="space-y-3 border-y border-border py-3 text-sm">
+                <div>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Phone</dt>
+                  <dd>
+                    {viewingOutlet.outlet.phone ? (
+                      <a className="text-accent underline underline-offset-4" href={`tel:${viewingOutlet.outlet.phone}`}>
+                        {viewingOutlet.outlet.phone}
+                      </a>
+                    ) : (
+                      "Not on file"
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Address</dt>
+                  <dd className="whitespace-pre-line">{viewingOutlet.outlet.address || "Not on file"}</dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">GSTIN</dt>
+                  <dd className="font-mono">{viewingOutlet.outlet.gstNumber ?? "Not on file"}</dd>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Route</dt>
+                    <dd>{viewingOutlet.outlet.routeName ?? "No route assigned"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-[.2em] text-muted-foreground">Field agent</dt>
+                    <dd>{viewingOutlet.outlet.agentName ?? "No field agent assigned"}</dd>
+                  </div>
+                </div>
+              </dl>
+            ) : (
+              <EmptyState>Details for this outlet aren't available.</EmptyState>
+            )}
+            <button type="button" className="btn btn-secondary h-12 w-full text-base" onClick={() => setViewingOutlet(null)}>
+              Close
+            </button>
+          </div>
+        )}
+      </Modal>
+
       <Modal open={!!confirmingCancel} title="Cancel this order?" onClose={() => setConfirmingCancel(null)}>
         {confirmingCancel && (
           <div className="space-y-5">
@@ -509,7 +565,7 @@ export default function OrdersView({
                 Keep order
               </button>
               <button
-                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                className="btn h-12 bg-danger-foreground text-base text-background hover:bg-danger-foreground"
                 disabled={busyId === confirmingCancel.id}
                 onClick={() => {
                   const order = confirmingCancel;
@@ -678,7 +734,7 @@ function EditOrderForm({
               >
                 <span
                   className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors ${
-                    l.hasScheme ? "bg-[#1fc2a8]" : "bg-border"
+                    l.hasScheme ? "bg-[#2fd0c0]" : "bg-border"
                   }`}
                 >
                   <span

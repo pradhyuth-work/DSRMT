@@ -373,7 +373,7 @@ export default function InventoryManager({
                 Keep product
               </button>
               <button
-                className="btn h-12 bg-danger-foreground text-base text-white hover:bg-danger-foreground"
+                className="btn h-12 bg-danger-foreground text-base text-background hover:bg-danger-foreground"
                 disabled={deleting}
                 onClick={() => void confirmDeleteProduct()}
               >
@@ -435,7 +435,7 @@ function SchemeMasterToggle({ products, onSaved }: { products: ProductDTO[]; onS
         title={allActive ? "Turn off scheme pricing for every product" : "Turn on scheme pricing for every product"}
         className="disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${allActive ? "bg-[#1fc2a8]" : "bg-border"}`}>
+        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${allActive ? "bg-[#2fd0c0]" : "bg-border"}`}>
           <span
             className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${allActive ? "translate-x-[18px]" : "translate-x-0.5"}`}
           />
@@ -542,7 +542,7 @@ function SchemeToggleCell({ product, onSaved }: { product: ProductDTO; onSaved: 
         title={active ? "Turn off scheme pricing" : "Turn on scheme pricing"}
         className="disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${active ? "bg-[#1fc2a8]" : "bg-border"}`}>
+        <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${active ? "bg-[#2fd0c0]" : "bg-border"}`}>
           <span
             className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${active ? "translate-x-[18px]" : "translate-x-0.5"}`}
           />

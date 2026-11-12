@@ -6,8 +6,8 @@
    Imported AFTER globals.css and enhance.css. */
 
 :root {
-  --ink: hsl(var(--foreground));
-  --hair: hsl(var(--foreground) / .22);
+  --ink: hsl(var(--line));
+  --hair: hsl(var(--line) / .6);
   --shadow-card: none;
   --shadow-float: 0 0 0 1px hsl(var(--foreground));
 }
@@ -15,7 +15,7 @@
 /* ---------- Dark ink rule along the very top (fixed overlay, takes no space) ---------- */
 body::before {
   content: ""; position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 60;
-  background: var(--ink); pointer-events: none;
+  background: hsl(var(--accent)); pointer-events: none;
 }
 
 /* ---------- Square corners everywhere (round dots / avatars keep rounded-full) ---------- */
@@ -26,7 +26,7 @@ body::before {
 .chart-strip > div, .chart-pop, .chart-rung { border-radius: 2px; }
 
 /* ---------- Panels: flat, ink hairline ---------- */
-.card { border-color: hsl(var(--foreground) / .8); box-shadow: none; background: hsl(var(--card)); }
+.card { border-color: hsl(var(--line)); box-shadow: none; background: hsl(var(--card)); }
 @media (hover: hover) and (pointer: fine) {
   .card:hover { box-shadow: none; border-color: var(--ink); }
 }
@@ -34,35 +34,35 @@ body::before {
 
 /* ---------- Headings: heavy, tight, uppercase ---------- */
 h1, h2, h3, .stat-value { font-family: var(--app-font-display); }
-h1, h2, h3 { font-weight: 800; text-transform: uppercase; letter-spacing: -.01em; line-height: 1.05; }
+h1, h2, h3 { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; line-height: 1.05; }
 
 /* ---------- Mono UPPERCASE micro-labels ---------- */
 .label {
   font-family: var(--app-font-mono); font-size: 10px; font-weight: 500;
   letter-spacing: .12em; text-transform: uppercase;
 }
-.th { border-bottom: 1px solid var(--ink); }
+.th { border-bottom: 1px solid hsl(var(--accent)); }
 .td { border-bottom: 1px solid var(--hair); }
 thead { background: transparent; }
 tbody tr { border-bottom: 1px solid var(--hair); }
 table { border-collapse: collapse; }
 @media (hover: hover) and (pointer: fine) {
-  tbody tr:hover { box-shadow: inset 3px 0 0 var(--ink); background: hsl(var(--accent) / .18); }
+  tbody tr:hover { box-shadow: inset 3px 0 0 hsl(var(--accent)); background: hsl(var(--accent) / .10); }
 }
 
 /* ---------- Inputs: boxed, ink border ---------- */
-.input { border: 1px solid hsl(var(--foreground) / .7); background: hsl(var(--card)); }
-.input:focus { border-color: var(--ink); box-shadow: 0 0 0 2px hsl(var(--accent) / .55); }
+.input { border: 1px solid hsl(var(--input)); background: hsl(var(--background)); }
+.input:focus { border-color: hsl(var(--accent)); box-shadow: 0 0 0 2px hsl(var(--accent) / .55); }
 
 /* ---------- Buttons: mono uppercase, flat ink ---------- */
 .btn {
   font-family: var(--app-font-mono); font-size: 12px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
 }
-.btn-primary { background: var(--ink); color: hsl(var(--primary-foreground)); border: 1px solid var(--ink); }
-.btn-primary:hover:not(:disabled) { transform: none; background: hsl(var(--foreground) / .88); }
-.btn-secondary { background: hsl(var(--card)); border: 1px solid hsl(var(--foreground) / .8); }
-.btn-secondary:hover:not(:disabled) { background: hsl(var(--accent) / .35); border-color: var(--ink); }
+.btn-primary { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); border: 1px solid hsl(var(--accent)); }
+.btn-primary:hover:not(:disabled) { transform: none; background: hsl(var(--accent) / .88); }
+.btn-secondary { background: hsl(var(--card)); border: 1px solid hsl(var(--input)); }
+.btn-secondary:hover:not(:disabled) { background: hsl(var(--accent) / .14); border-color: hsl(var(--accent)); }
 
 /* ---------- Status tags: square mono chips instead of pills ---------- */
 .tag {
@@ -76,10 +76,10 @@ table { border-collapse: collapse; }
   font-family: var(--app-font-mono); font-size: 10px !important; font-weight: 500 !important;
   letter-spacing: .12em; text-transform: uppercase;
 }
-.stat-value { font-weight: 800; letter-spacing: -.01em; font-size: 1.35em; line-height: 1; }
+.stat-value { font-weight: 600; letter-spacing: .02em; font-size: 1.35em; line-height: 1; }
 
 /* ---------- Modals: ink-outlined sheet, ruled title bar ---------- */
-[role="dialog"] { border: 1px solid var(--ink); box-shadow: none; }
+[role="dialog"] { border: 1px solid hsl(var(--accent)); box-shadow: none; }
 [role="dialog"] > div:first-child { border-bottom: 1px solid var(--ink); }
 
 /* ---------- Header + sidebar: ruled, mono micro-labels ---------- */
@@ -90,4 +90,73 @@ aside nav button, aside nav a { border-radius: 2px; }
 /* ---------- Pagination / dividers ---------- */
 .border-border { border-color: var(--hair); }
 .card.border-border, .card .border-border { border-color: var(--hair); }
-.card { border-color: hsl(var(--foreground) / .8) !important; }
+.card { border-color: hsl(var(--line)) !important; }
+
+
+/* ================= Blade Runner finish: haze, scanlines, brackets, stamped tags, segmented meter =================
+   Same layout; this only restyles existing elements. */
+
+/* Panels: faint orange haze at the top over fine scanlines, orange corner brackets always shown */
+.card, .card.is-spot {
+  background-image:
+    linear-gradient(180deg, hsl(var(--accent) / .06), transparent 100px);
+}
+.card::before { opacity: 1; transform: none; top: -1px; left: -1px; width: 14px; height: 14px; border-top: 2px solid hsl(var(--accent)); border-left: 2px solid hsl(var(--accent)); }
+.card::after { opacity: 1; transform: none; bottom: -1px; right: -1px; width: 14px; height: 14px; border-bottom: 2px solid hsl(var(--accent)); border-right: 2px solid hsl(var(--accent)); }
+
+/* Dialogs: orange top rule, stronger haze, small spaced orange title */
+[role="dialog"] {
+  border-color: hsl(var(--line)); border-top: 2px solid hsl(var(--accent));
+  background-image:
+    linear-gradient(180deg, hsl(var(--accent) / .10), transparent 120px);
+}
+[role="dialog"] > div:first-child { border-bottom-color: hsl(var(--line)); }
+[role="dialog"] h2 { font-family: var(--app-font-mono); font-size: 11px; font-weight: 400; letter-spacing: .24em; color: hsl(var(--accent)); }
+
+/* Buttons: plain rectangles, wider tracking */
+.btn { clip-path: none; letter-spacing: .16em; }
+
+/* Status tags: outlined stamps */
+.tag { background: transparent !important; border: 1px solid currentColor !important; letter-spacing: .2em; padding: 4px 8px !important; border-radius: 0 !important; }
+.tag.bg-primary { color: hsl(var(--accent)) !important; }
+
+/* Order cards: spaced labels, orange condensed total, segmented paid bar */
+.order-card dt { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; }
+.order-card dd.font-semibold { font-family: var(--app-font-display); font-size: 22px; line-height: 1.1; color: hsl(var(--accent)); }
+.paid-meter { height: 6px; border-radius: 0; background: hsl(var(--muted)); -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 calc(4.1667% - 2px), transparent 0 4.1667%); mask-image: repeating-linear-gradient(90deg, #000 0 calc(4.1667% - 2px), transparent 0 4.1667%); }
+.paid-meter > i { border-radius: 0; }
+
+/* Readability: no scanlines or tight tracking behind text, steadier weights */
+body { letter-spacing: 0; }
+/* Card text in Barlow (a sturdier sans) at a larger size; bill numbers, GSTIN and buttons keep the mono face */
+.order-card { font-family: 'Barlow', system-ui, sans-serif; font-size: 16px; }
+.order-card .text-sm { font-size: 16px; }
+.order-card .text-xs, .order-card .text-\[11px\] { font-size: 13px; }
+.order-card .font-mono { font-family: var(--app-font-mono); }
+.order-card .tabular-nums { font-variant-numeric: tabular-nums; }
+.order-card .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+
+/* Background grid and glows live on the page canvas (body), not on <main>, so they cover the whole
+   scrollable area at any zoom level instead of stopping where <main> stops. */
+body {
+  background-image:
+    radial-gradient(60% 40% at 0% 0%, rgba(255,122,26,.10), transparent 70%),
+    radial-gradient(40% 30% at 100% 0%, rgba(47,208,192,.06), transparent 70%),
+    linear-gradient(hsl(var(--foreground) / .045) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / .045) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+}
+.ops-grid { background-image: none; }
+
+/* Zoom/alignment: grid and form children may shrink below their content width, so a wide table or
+   long label can never stretch a grid track (and with it the whole page) past the screen. Wide tables
+   scroll inside their own overflow-x-auto wrapper instead. */
+.grid > *, .flex > .min-w-0 { min-width: 0; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+/* Page glows stay pinned to the visible screen, so they never stop short at any zoom level */
+body { background-attachment: fixed, fixed, scroll, scroll; }
+/* Status tabs: a clean swipe row with no scrollbar strip */
+.tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll > button { flex: none; }
