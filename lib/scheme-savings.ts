@@ -122,15 +122,33 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
     const invSaved = round2(inv.totalAmount - schemeTotal);
     if (invSaved === 0) continue;
 
-    // Share of the bill's saving each line carries, proportional to its share of the
-    // scheme total — so the sum of line.saved across a bill matches invSaved exactly
-    // (modulo the last line absorbing rounding) rather than drifting from per-line round2.
-    const ratio = schemeTotal > 0 ? invSaved / schemeTotal : 0;
+    // The bill's saving is attributed only to lines that actually had a scheme price to
+    // miss — a line with no scheme at all has nothing to "miss" and shouldn't pick up a
+    // slice of the gap just because it's a big line by full-price weight. Only when *no*
+    // line in the bill has a scheme (a pure bill-level/manual adjustment, unrelated to any
+    // scheme) does the whole bill share it, by scheme-equivalent (= full-price) weight.
+    const eligible = items.filter((i) => i.schemeUnitPrice != null);
+    const basis = eligible.length > 0 ? eligible : items;
+    const basisTotal = round2(basis.reduce((sum, i) => sum + (i.schemeUnitPrice ?? i.listUnitPrice) * i.quantity, 0));
+    const ratio = basisTotal > 0 ? invSaved / basisTotal : 0;
+
+    // Share of the bill's saving each basis line carries, proportional to its share of the
+    // basis total — so the sum of line.saved across a bill matches invSaved exactly (modulo
+    // the last basis line absorbing rounding) rather than drifting from per-line round2. Keyed
+    // by object identity, not productId — an invoice can carry two separate lines for the
+    // same product (e.g. one scheme, one not), and productId alone would collide them.
+    const savedByItem = new Map<(typeof items)[number], number>();
     let allocated = 0;
-    const lines: SchemeSavingsBillLine[] = items.map((item, idx) => {
-      const lineSchemeTotal = round2((item.schemeUnitPrice ?? item.listUnitPrice) * item.quantity);
-      const lineSaved = idx === items.length - 1 ? round2(invSaved - allocated) : round2(lineSchemeTotal * ratio);
+    basis.forEach((item, idx) => {
+      const lineBasisAmount = round2((item.schemeUnitPrice ?? item.listUnitPrice) * item.quantity);
+      const lineSaved = idx === basis.length - 1 ? round2(invSaved - allocated) : round2(lineBasisAmount * ratio);
       allocated = round2(allocated + lineSaved);
+      savedByItem.set(item, lineSaved);
+    });
+
+    const lines: SchemeSavingsBillLine[] = items.map((item) => {
+      const lineSaved = savedByItem.get(item) ?? 0;
+      const lineSchemeTotal = round2((item.schemeUnitPrice ?? item.listUnitPrice) * item.quantity);
       if (item.listPriceEstimated || item.schemePriceEstimated) estimatedLines++;
       bump(byProduct, item.productId, item.productName, round2(item.listUnitPrice * item.quantity), lineSchemeTotal, lineSaved);
       return {

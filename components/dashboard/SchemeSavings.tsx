@@ -163,6 +163,7 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
         open={!!selectedBill}
         title={selectedBill ? `Bill ${selectedBill.invoiceNumber ?? "—"} — ${selectedBill.outletName}` : ""}
         onClose={() => setSelectedBill(null)}
+        wide
       >
         {selectedBill && <BillDetail bill={selectedBill} />}
       </Modal>
