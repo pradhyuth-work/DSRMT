@@ -440,8 +440,14 @@ export default function OrdersView({
                     </button>
                   )}
                   {canEdit(o) && (
-                    <button className="btn btn-secondary h-11 text-sm" disabled={busy} onClick={() => setEditing(o)}>
-                      <Pencil className="h-4 w-4" /> Edit
+                    <button
+                      className="btn btn-secondary h-11 w-11 shrink-0 !px-0"
+                      disabled={busy}
+                      onClick={() => setEditing(o)}
+                      aria-label={`Edit ${orderLabel(o)}`}
+                      title="Edit"
+                    >
+                      <Pencil className="h-4 w-4" />
                     </button>
                   )}
                   {canCancel(o) && (
