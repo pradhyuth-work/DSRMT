@@ -160,3 +160,7 @@ body { background-attachment: fixed, fixed, scroll, scroll; }
 .tabs-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 .tabs-scroll::-webkit-scrollbar { display: none; }
 .tabs-scroll > button { flex: none; }
+
+/* Order card actions: labels stay on one line (the row wraps instead), tighter spacing so they fit */
+.order-card .btn { white-space: nowrap; letter-spacing: .08em; }
+.order-card .btn.flex-1 { min-width: max-content; }
