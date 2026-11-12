@@ -215,6 +215,16 @@ model InvoiceItem {
   /// 0018 migration rather than captured live at billing time — the regular price at billing
   /// may have differed, so Scheme Savings flags these as estimates.
   listPriceEstimated Boolean @default(false)
+  /// The product's scheme (promotional) unit price at the moment this order was billed —
+  /// captured once, at billing, for every line regardless of hasScheme, same as listUnitPrice.
+  /// Null when the product had no active scheme price at billing time. Scheme Savings sums
+  /// this (falling back to listUnitPrice per line where null, i.e. no discount sanctioned)
+  /// and compares it against Invoice.totalAmount: how much more than the ideal scheme total
+  /// was actually entered on the bill.
+  schemeUnitPrice Float?
+  /// True when schemeUnitPrice was back-filled from the product's *current* scheme price by
+  /// the 0019 migration rather than captured live at billing time.
+  schemePriceEstimated Boolean @default(false)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])

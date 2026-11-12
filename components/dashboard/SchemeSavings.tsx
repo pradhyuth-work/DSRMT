@@ -77,7 +77,7 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
 
   const qualityNote =
     report && report.estimatedLines > 0
-      ? `${report.estimatedLines} line${report.estimatedLines === 1 ? " uses" : "s use"} an estimated full price (older bills).`
+      ? `${report.estimatedLines} line${report.estimatedLines === 1 ? " uses" : "s use"} an estimated full or scheme price (older bills).`
       : null;
 
   return (
@@ -276,6 +276,7 @@ function BillDetail({ bill }: { bill: SchemeSavingsBillRow }) {
               <th className="th text-right">Qty</th>
               <th className="th text-right">Billed Price</th>
               <th className="th text-right">Full Price</th>
+              <th className="th text-right">Scheme Price</th>
               <th className="th text-right">Saved</th>
             </tr>
           </thead>
@@ -289,13 +290,23 @@ function BillDetail({ bill }: { bill: SchemeSavingsBillRow }) {
                   {formatMoney(i.listUnitPrice)}
                   {i.listPriceEstimated && <span className="ml-1 text-[10px] text-muted-foreground">(est.)</span>}
                 </td>
+                <td className="td text-right tabular-nums">
+                  {i.schemeUnitPrice == null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <>
+                      {formatMoney(i.schemeUnitPrice)}
+                      {i.schemePriceEstimated && <span className="ml-1 text-[10px] text-muted-foreground">(est.)</span>}
+                    </>
+                  )}
+                </td>
                 <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(i.saved)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary font-semibold">
-              <td className="td" colSpan={4}>Total saved</td>
+              <td className="td" colSpan={5}>Total saved</td>
               <td className="td text-right tabular-nums text-success-foreground">{formatMoney(bill.saved)}</td>
             </tr>
           </tfoot>

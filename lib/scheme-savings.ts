@@ -17,12 +17,14 @@ function istMonth(d: Date): { key: string; label: string } {
 interface AggRow {
   name: string;
   billed: number;
+  atScheme: number;
   saved: number;
 }
 
-function bump(map: Map<string, AggRow>, id: string, name: string, billedDelta: number, savedDelta: number) {
-  const row = map.get(id) ?? { name, billed: 0, saved: 0 };
+function bump(map: Map<string, AggRow>, id: string, name: string, billedDelta: number, atSchemeDelta: number, savedDelta: number) {
+  const row = map.get(id) ?? { name, billed: 0, atScheme: 0, saved: 0 };
   row.billed = round2(row.billed + billedDelta);
+  row.atScheme = round2(row.atScheme + atSchemeDelta);
   row.saved = round2(row.saved + savedDelta);
   map.set(id, row);
 }
@@ -33,9 +35,9 @@ function toBreakdownRows(map: Map<string, AggRow>): SchemeSavingsBreakdownRow[] 
       id,
       name: r.name,
       billed: r.billed,
-      atScheme: round2(r.billed - r.saved),
+      atScheme: r.atScheme,
       saved: r.saved,
-      pctSaved: r.billed > 0 ? round2((r.saved / r.billed) * 100) : 0,
+      pctSaved: r.atScheme > 0 ? round2((r.saved / r.atScheme) * 100) : 0,
     }))
     .sort((a, b) => b.saved - a.saved);
 }
@@ -64,6 +66,12 @@ export interface SchemeSavingsInvoiceInput {
      * edited" down to scheme pricing for this line. Always present once billed. */
     listUnitPrice: number;
     listPriceEstimated: boolean;
+    /** The product's scheme (promotional) unit price at billing — "what it would be if given
+     * at scheme" for this line. Null when the product had no active scheme price at billing
+     * time; computeSchemeSavings falls back to listUnitPrice for such lines (no discount
+     * sanctioned, so nothing to be "missed" there). */
+    schemeUnitPrice: number | null;
+    schemePriceEstimated: boolean;
   }[];
 }
 
@@ -72,22 +80,27 @@ const COUNTED_STATUSES: readonly FulfilmentStatus[] = ["BILLED", "DISPATCHED"];
 /**
  * Pure calculation, modelled on buildSalesReport's shape. For each bill, compares what was
  * actually entered (Invoice.totalAmount — the bill book figure, which can be hand-overridden
- * independently of the line items) against what the bill would total at every line's regular,
- * non-scheme price (`listUnitPrice` summed across lines) — "what it would be if not edited"
- * down to scheme pricing. The gap is that bill's saving, whether it came from individual
- * lines being toggled to scheme pricing, a bill-level rounding/negotiated adjustment at
- * billing, or both; there's no need to separate those out.
+ * independently of the line items) against what the bill would total if every line were given
+ * at the product's scheme price (`schemeUnitPrice` summed across lines, falling back to that
+ * line's `listUnitPrice` where no scheme was available — nothing sanctioned to miss there).
+ * The gap is that bill's saving: how much more than the ideal scheme total was actually billed
+ * (or, if negative, how much of an ad hoc discount beyond what any scheme allows was given).
  *
- * A bill whose entered total exactly matches its full-price total (nothing was ever discounted
- * or hand-adjusted) contributes 0 and is dropped from the bills list/breakdowns entirely — it
- * has nothing to show. The within-bill saving is then prorated across lines by each line's
- * share of the bill's full-price total, so byOutlet/byProduct/byAgent/byMonth sum back to the
- * same headline `saved` the bills list does, line items with no scheme discount don't appear
- * to have one just because another line on the same bill was discounted, and lines also carry
- * `listPriceEstimated` so the UI can flag the historical-estimate caveat.
+ * `listUnitPrice` (full, non-scheme price) is also summed per bill and reported as `billed` —
+ * informational context for the "what this would be at full price" figure — but it's the
+ * scheme total, not the full-price total, that `saved` is measured against.
+ *
+ * A bill whose entered total exactly matches its scheme total (the scheme, where available,
+ * was applied exactly; where not available, billed at exactly full price) contributes 0 and is
+ * dropped from the bills list/breakdowns entirely — it has nothing to show. The within-bill
+ * saving is then prorated across lines by each line's share of the bill's scheme total, so
+ * byOutlet/byProduct/byAgent/byMonth sum back to the same headline `saved` the bills list does,
+ * and lines also carry `listPriceEstimated`/`schemePriceEstimated` so the UI can flag the
+ * historical-estimate caveat.
  */
 export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filters: { productId?: string } = {}): SchemeSavingsResponse {
   let billed = 0;
+  let atScheme = 0;
   let saved = 0;
   let estimatedLines = 0;
 
@@ -105,20 +118,21 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
     if (items.length === 0) continue;
 
     const fullPriceTotal = round2(items.reduce((sum, i) => sum + i.listUnitPrice * i.quantity, 0));
-    const invSaved = round2(fullPriceTotal - inv.totalAmount);
+    const schemeTotal = round2(items.reduce((sum, i) => sum + (i.schemeUnitPrice ?? i.listUnitPrice) * i.quantity, 0));
+    const invSaved = round2(inv.totalAmount - schemeTotal);
     if (invSaved === 0) continue;
 
     // Share of the bill's saving each line carries, proportional to its share of the
-    // full-price total — so the sum of line.saved across a bill matches invSaved exactly
+    // scheme total — so the sum of line.saved across a bill matches invSaved exactly
     // (modulo the last line absorbing rounding) rather than drifting from per-line round2.
-    const ratio = fullPriceTotal > 0 ? invSaved / fullPriceTotal : 0;
+    const ratio = schemeTotal > 0 ? invSaved / schemeTotal : 0;
     let allocated = 0;
     const lines: SchemeSavingsBillLine[] = items.map((item, idx) => {
-      const lineFullPrice = round2(item.listUnitPrice * item.quantity);
-      const lineSaved = idx === items.length - 1 ? round2(invSaved - allocated) : round2(lineFullPrice * ratio);
+      const lineSchemeTotal = round2((item.schemeUnitPrice ?? item.listUnitPrice) * item.quantity);
+      const lineSaved = idx === items.length - 1 ? round2(invSaved - allocated) : round2(lineSchemeTotal * ratio);
       allocated = round2(allocated + lineSaved);
-      if (item.listPriceEstimated) estimatedLines++;
-      bump(byProduct, item.productId, item.productName, lineFullPrice, lineSaved);
+      if (item.listPriceEstimated || item.schemePriceEstimated) estimatedLines++;
+      bump(byProduct, item.productId, item.productName, round2(item.listUnitPrice * item.quantity), lineSchemeTotal, lineSaved);
       return {
         productId: item.productId,
         productName: item.productName,
@@ -126,11 +140,14 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
         unitPrice: item.unitPrice,
         listUnitPrice: item.listUnitPrice,
         listPriceEstimated: item.listPriceEstimated,
+        schemeUnitPrice: item.schemeUnitPrice,
+        schemePriceEstimated: item.schemePriceEstimated,
         saved: lineSaved,
       };
     });
 
     billed = round2(billed + fullPriceTotal);
+    atScheme = round2(atScheme + schemeTotal);
     saved = round2(saved + invSaved);
     bills.push({
       invoiceId: inv.id,
@@ -139,15 +156,15 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
       agentName: inv.staffName,
       billedAt: inv.billedAt.toISOString(),
       billedAmount: fullPriceTotal,
-      atScheme: round2(fullPriceTotal - invSaved),
+      atScheme: schemeTotal,
       saved: invSaved,
       items: lines,
     });
 
-    bump(byOutlet, inv.outletId, inv.outletName, fullPriceTotal, invSaved);
-    bump(byAgent, inv.staffId, inv.staffName, fullPriceTotal, invSaved);
+    bump(byOutlet, inv.outletId, inv.outletName, fullPriceTotal, schemeTotal, invSaved);
+    bump(byAgent, inv.staffId, inv.staffName, fullPriceTotal, schemeTotal, invSaved);
     const { key, label } = istMonth(inv.billedAt);
-    bump(byMonth, key, label, fullPriceTotal, invSaved);
+    bump(byMonth, key, label, fullPriceTotal, schemeTotal, invSaved);
   }
 
   bills.sort((a, b) => b.billedAt.localeCompare(a.billedAt));
@@ -155,9 +172,9 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
 
   return {
     billed,
-    atScheme: round2(billed - saved),
+    atScheme,
     saved,
-    pctSaved: billed > 0 ? round2((saved / billed) * 100) : 0,
+    pctSaved: atScheme > 0 ? round2((saved / atScheme) * 100) : 0,
     billCount: bills.length,
     estimatedLines,
     byOutlet: toBreakdownRows(byOutlet),
@@ -208,6 +225,8 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
           unitPrice: true,
           listUnitPrice: true,
           listPriceEstimated: true,
+          schemeUnitPrice: true,
+          schemePriceEstimated: true,
           product: { select: { name: true } },
         },
       },
@@ -235,6 +254,8 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
       // in practice. Fall back to unitPrice defensively rather than letting a bad line throw.
       listUnitPrice: i.listUnitPrice ?? i.unitPrice,
       listPriceEstimated: i.listPriceEstimated,
+      schemeUnitPrice: i.schemeUnitPrice,
+      schemePriceEstimated: i.schemePriceEstimated,
     })),
   }));
 

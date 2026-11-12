@@ -6,6 +6,7 @@ import { authorize } from "@/lib/auth";
 import { billOrderSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
+import { effectiveSchemePrice } from "@/lib/products";
 import type { OrderDTO } from "@/lib/types";
 
 /**
@@ -15,10 +16,10 @@ import type { OrderDTO } from "@/lib/types";
  * figure payments get collected against from here on. Admin and stock only — whoever
  * prepares the paperwork before the physical dispatch.
  *
- * Also snapshots each line's regular (non-scheme) unit price (Scheme Savings sums this
- * across the bill and compares it against the entered amount above) — captured now, once,
- * because Product.unitPrice can change after billing and the live value at that later date
- * wouldn't reflect what applied here.
+ * Also snapshots each line's regular (non-scheme) unit price and its scheme price, if any
+ * (Scheme Savings sums these across the bill and compares them against the entered amount
+ * above) — captured now, once, because Product.unitPrice/schemePrice can change after
+ * billing and the live value at that later date wouldn't reflect what applied here.
  *
  * This is also where stock leaves the inventory: lock the order's products, refuse if any is
  * short, deduct stock and record BILL movements — all in the same transaction, so nothing
@@ -50,8 +51,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       if (productIds.length > 0) {
         // Lock in a consistent order so two bills sharing products can't deadlock.
-        const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number; unitPrice: number }[]>`
-          SELECT "id", "name", "stockQty", "unitPrice" FROM "Product"
+        const stock = await tx.$queryRaw<
+          { id: string; name: string; stockQty: number; unitPrice: number; schemePrice: number | null; schemeActive: boolean }[]
+        >`
+          SELECT "id", "name", "stockQty", "unitPrice", "schemePrice", "schemeActive" FROM "Product"
           WHERE "id" IN (${Prisma.join(productIds)})
           ORDER BY "id"
           FOR UPDATE`;
@@ -69,12 +72,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const productById = new Map(stock.map((p) => [p.id, p]));
         const listPriceRows = invoice.items.map((item) => {
           const product = productById.get(item.productId);
-          return Prisma.sql`(${item.id}::text, ${product ? product.unitPrice : null}::double precision)`;
+          const schemePrice = product ? effectiveSchemePrice(product) : null;
+          return Prisma.sql`(${item.id}::text, ${product ? product.unitPrice : null}::double precision, ${schemePrice}::double precision)`;
         });
         await tx.$executeRaw`
           UPDATE "InvoiceItem" AS ii
-          SET "listUnitPrice" = v.price
-          FROM (VALUES ${Prisma.join(listPriceRows)}) AS v(id, price)
+          SET "listUnitPrice" = v.price, "schemeUnitPrice" = v.scheme_price
+          FROM (VALUES ${Prisma.join(listPriceRows)}) AS v(id, price, scheme_price)
           WHERE ii."id" = v.id`;
 
         const stockRows = productIds.map((productId) => Prisma.sql`(${productId}::text, ${needed.get(productId)!}::int)`);

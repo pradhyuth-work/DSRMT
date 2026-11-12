@@ -664,7 +664,7 @@ export interface SchemeSavingsBreakdownRow {
 
 /** One line of a bill, for the Bills-tab drill-down modal. `saved` is this line's share of
  * the bill's overall saving (see SchemeSavingsResponse), prorated by its share of the bill's
- * full-price total — not simply `(listUnitPrice - unitPrice) * quantity` on its own. */
+ * scheme total — not simply `(schemeUnitPrice - unitPrice) * quantity` on its own. */
 export interface SchemeSavingsBillLine {
   productId: string;
   productName: string;
@@ -672,6 +672,9 @@ export interface SchemeSavingsBillLine {
   unitPrice: number;
   listUnitPrice: number;
   listPriceEstimated: boolean;
+  /** Null when the product had no active scheme price at billing time. */
+  schemeUnitPrice: number | null;
+  schemePriceEstimated: boolean;
   saved: number;
 }
 
@@ -688,21 +691,23 @@ export interface SchemeSavingsBillRow {
 }
 
 /**
- * Scheme Savings: per bill, what was actually entered (Invoice.totalAmount) vs. what it
- * would total at every line's regular, non-scheme price ("what it would be if not edited"
- * down to scheme pricing). `billed` is the full-price sum, `atScheme` is the entered-amount
- * sum, and `saved` is the difference — a bill that matches exactly (nothing discounted or
- * hand-adjusted) contributes nothing and doesn't appear in `bills` or the breakdowns.
+ * Scheme Savings: per bill, what was actually entered (Invoice.totalAmount) vs. what it would
+ * total if given at scheme ("what it would be if given at scheme" — each line's scheme price,
+ * falling back to its full/list price where no scheme was available). `billed` is the
+ * full-price sum (informational context), `atScheme` is the scheme-total sum, and `saved` is
+ * entered-minus-scheme — a bill that matches its scheme total exactly contributes nothing and
+ * doesn't appear in `bills` or the breakdowns.
  */
 export interface SchemeSavingsResponse {
   billed: number;
   atScheme: number;
   saved: number;
-  /** `saved` as a percentage of `billed` — 0 when `billed` is 0. */
+  /** `saved` as a percentage of `atScheme` — 0 when `atScheme` is 0. */
   pctSaved: number;
   /** Number of bills counted (i.e. `bills.length`). */
   billCount: number;
-  /** Lines whose full price was back-filled (migration 0018) rather than captured live at billing. */
+  /** Lines whose full or scheme price was back-filled (migrations 0018/0019) rather than
+   * captured live at billing. */
   estimatedLines: number;
   byOutlet: SchemeSavingsBreakdownRow[];
   byProduct: SchemeSavingsBreakdownRow[];
