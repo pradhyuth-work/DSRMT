@@ -92,11 +92,17 @@ const COUNTED_STATUSES: readonly FulfilmentStatus[] = ["BILLED", "DISPATCHED"];
  *
  * A bill whose entered total exactly matches its scheme total (the scheme, where available,
  * was applied exactly; where not available, billed at exactly full price) contributes 0 and is
- * dropped from the bills list/breakdowns entirely — it has nothing to show. The within-bill
- * saving is then prorated across lines by each line's share of the bill's scheme total, so
- * byOutlet/byProduct/byAgent/byMonth sum back to the same headline `saved` the bills list does,
- * and lines also carry `listPriceEstimated`/`schemePriceEstimated` so the UI can flag the
- * historical-estimate caveat.
+ * dropped from the bills list/breakdowns entirely — it has nothing to show.
+ *
+ * Within a bill, each line's own saving is known directly — `unitPrice` (set at order time,
+ * never touched by the bill-book override) minus `schemeUnitPrice` — rather than estimated by
+ * proration, so a line billed at exactly full price with a scheme available shows exactly
+ * that gap, not a share inflated or deflated by what happened elsewhere on the same bill. Only
+ * the leftover (the bill-level total differing from what the lines' own prices explain — a
+ * rounding or a negotiated discount at billing, not tied to any one line) is prorated, across
+ * lines that had a scheme to miss where any did. This still sums back to the same headline
+ * `saved` the bills list does, for byOutlet/byProduct/byAgent/byMonth, and lines also carry
+ * `listPriceEstimated`/`schemePriceEstimated` so the UI can flag the historical-estimate caveat.
  */
 export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filters: { productId?: string } = {}): SchemeSavingsResponse {
   let billed = 0;
@@ -122,28 +128,36 @@ export function computeSchemeSavings(invoices: SchemeSavingsInvoiceInput[], filt
     const invSaved = round2(inv.totalAmount - schemeTotal);
     if (invSaved === 0) continue;
 
-    // The bill's saving is attributed only to lines that actually had a scheme price to
-    // miss — a line with no scheme at all has nothing to "miss" and shouldn't pick up a
-    // slice of the gap just because it's a big line by full-price weight. Only when *no*
-    // line in the bill has a scheme (a pure bill-level/manual adjustment, unrelated to any
-    // scheme) does the whole bill share it, by scheme-equivalent (= full-price) weight.
+    // Each line's own saving is directly knowable — how much its own billed unitPrice (set at
+    // order time, never hand-overridden the way the bill-book total is) exceeds its scheme
+    // price — so that's used as-is rather than estimated by proration, whenever a scheme price
+    // exists for the line. A line with no scheme has nothing of its own to miss (0).
     const eligible = items.filter((i) => i.schemeUnitPrice != null);
+    const ownGapByItem = new Map<(typeof items)[number], number>();
+    for (const item of items) {
+      ownGapByItem.set(item, item.schemeUnitPrice != null ? round2((item.unitPrice - item.schemeUnitPrice) * item.quantity) : 0);
+    }
+    const sumOwnGap = round2([...ownGapByItem.values()].reduce((sum, g) => sum + g, 0));
+
+    // What's left over is a bill-level adjustment no single line's own pricing explains — the
+    // hand-written bill-book total differing from what the lines would naturally sum to (a
+    // rounding, a negotiated discount at billing, etc.) — attributed only to lines that had a
+    // scheme price to miss (or, if none did, spread across the whole bill by full-price
+    // weight), proportional to each line's share of that basis total.
     const basis = eligible.length > 0 ? eligible : items;
     const basisTotal = round2(basis.reduce((sum, i) => sum + (i.schemeUnitPrice ?? i.listUnitPrice) * i.quantity, 0));
-    const ratio = basisTotal > 0 ? invSaved / basisTotal : 0;
+    const remainder = round2(invSaved - sumOwnGap);
+    const ratio = basisTotal > 0 ? remainder / basisTotal : 0;
 
-    // Share of the bill's saving each basis line carries, proportional to its share of the
-    // basis total — so the sum of line.saved across a bill matches invSaved exactly (modulo
-    // the last basis line absorbing rounding) rather than drifting from per-line round2. Keyed
-    // by object identity, not productId — an invoice can carry two separate lines for the
-    // same product (e.g. one scheme, one not), and productId alone would collide them.
+    // Keyed by object identity, not productId — an invoice can carry two separate lines for
+    // the same product (e.g. one scheme, one not), and productId alone would collide them.
     const savedByItem = new Map<(typeof items)[number], number>();
-    let allocated = 0;
+    let allocatedRemainder = 0;
     basis.forEach((item, idx) => {
       const lineBasisAmount = round2((item.schemeUnitPrice ?? item.listUnitPrice) * item.quantity);
-      const lineSaved = idx === basis.length - 1 ? round2(invSaved - allocated) : round2(lineBasisAmount * ratio);
-      allocated = round2(allocated + lineSaved);
-      savedByItem.set(item, lineSaved);
+      const lineRemainder = idx === basis.length - 1 ? round2(remainder - allocatedRemainder) : round2(lineBasisAmount * ratio);
+      allocatedRemainder = round2(allocatedRemainder + lineRemainder);
+      savedByItem.set(item, round2((ownGapByItem.get(item) ?? 0) + lineRemainder));
     });
 
     const lines: SchemeSavingsBillLine[] = items.map((item) => {

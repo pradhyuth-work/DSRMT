@@ -82,10 +82,12 @@ function mixedBill(id: string): SchemeSavingsInvoiceInput {
 }
 
 // The real-world bug report: every line billed at exactly its own full price (no per-line
-// discount anywhere, hasScheme never toggled), but two of the four products currently have an
-// active scheme the bill never used. The gap (68) belongs entirely to those two lines, split
-// by their own scheme-gap weight — the two lines with no scheme at all (200 and 150, bigger
-// than either scheme line on their own) must show 0, not a slice of 68 just for being large.
+// discount anywhere, hasScheme never toggled, no bill-level override — totalAmount is exactly
+// the natural sum), but two of the four products have an active scheme the bill never used.
+// Since there's no bill-level adjustment to explain, each line's own gap is exact and needs no
+// proration at all: C shows exactly (444-436)=8, D exactly (360-300)=60. The two lines with no
+// scheme at all (200 and 150, bigger than either scheme line on their own) must show 0, not a
+// slice of 68 just for being large.
 function fourLineBill(id: string): SchemeSavingsInvoiceInput {
   return {
     id,
@@ -102,6 +104,28 @@ function fourLineBill(id: string): SchemeSavingsInvoiceInput {
       { productId: "p-b", productName: "No-scheme B", quantity: 1, unitPrice: 150, listUnitPrice: 150, listPriceEstimated: false, schemeUnitPrice: null, schemePriceEstimated: false },
       { productId: "p-c", productName: "Scheme C", quantity: 1, unitPrice: 444, listUnitPrice: 444, listPriceEstimated: false, schemeUnitPrice: 436, schemePriceEstimated: true },
       { productId: "p-d", productName: "Scheme D", quantity: 1, unitPrice: 360, listUnitPrice: 360, listPriceEstimated: false, schemeUnitPrice: 300, schemePriceEstimated: true },
+    ],
+  };
+}
+
+// Two scheme-eligible lines, each at a different discount rate, billed at full price on both
+// — but the bill book total is hand-overridden 20 above the natural sum (700 -> 720). Each
+// line's own gap (E: 500-450=50, F: 200-180=20) is used directly; only the extra 20 the lines
+// don't explain is prorated across them by scheme weight (450/630 and 180/630 of 20).
+function remainderBill(id: string): SchemeSavingsInvoiceInput {
+  return {
+    id,
+    invoiceNumber: id,
+    billedAt: new Date("2026-01-15T10:00:00.000Z"),
+    fulfilmentStatus: "BILLED",
+    outletId: "outlet-1",
+    outletName: "Test Outlet",
+    staffId: "agent-1",
+    staffName: "Test Agent",
+    totalAmount: 720,
+    items: [
+      { productId: "p-e", productName: "Scheme E", quantity: 1, unitPrice: 500, listUnitPrice: 500, listPriceEstimated: false, schemeUnitPrice: 450, schemePriceEstimated: false },
+      { productId: "p-f", productName: "Scheme F", quantity: 1, unitPrice: 200, listUnitPrice: 200, listPriceEstimated: false, schemeUnitPrice: 180, schemePriceEstimated: false },
     ],
   };
 }
@@ -151,6 +175,7 @@ const pending = bill("bill-pending", { fulfilmentStatus: "PENDING", unitPrice: 4
 
 const mixed = mixedBill("bill-mixed");
 const fourLine = fourLineBill("bill-four-line");
+const remainder = remainderBill("bill-remainder");
 
 const result = computeSchemeSavings([
   billNoSaving,
@@ -163,6 +188,7 @@ const result = computeSchemeSavings([
   pending,
   mixed,
   fourLine,
+  remainder,
 ]);
 
 let failures = 0;
@@ -176,9 +202,9 @@ function check(label: string, actual: unknown, expected: unknown) {
 
 // billed = sum of full-price totals; atScheme = sum of scheme totals (falling back to list
 // price for no-scheme lines) — both only for bills with a nonzero saving.
-const BILLED = 100 + 6_500 + 4_000 + 1_000 + 3_000 + 1_154; // bill1, bill2, bill3, below-scheme, mixed, four-line
-const AT_SCHEME = 70 + 5_800 + 3_600 + 900 + 2_700 + 1_086;
-const SAVED = 20 + 200 + 150 + -50 + 300 + 68;
+const BILLED = 100 + 6_500 + 4_000 + 1_000 + 3_000 + 1_154 + 700; // bill1, bill2, bill3, below-scheme, mixed, four-line, remainder
+const AT_SCHEME = 70 + 5_800 + 3_600 + 900 + 2_700 + 1_086 + 630;
+const SAVED = 20 + 200 + 150 + -50 + 300 + 68 + 90;
 
 check("saved", result.saved, SAVED);
 check("billed", result.billed, BILLED);
@@ -187,13 +213,13 @@ check("pctSaved (saved / atScheme * 100, rounded)", result.pctSaved, Math.round(
 check(
   "billCount (honoured/no-saving/cancelled/pending excluded)",
   result.billCount,
-  6,
+  7,
 );
 check("estimatedLines (bill-2's line, plus bill-four-line's two scheme lines)", result.estimatedLines, 3);
 check(
   "bills list excludes the honoured, zero-saving, cancelled and pending bills",
   result.bills.map((b) => b.invoiceId).sort(),
-  ["bill-1", "bill-2", "bill-3", "bill-below-scheme", "bill-mixed", "bill-four-line"].sort(),
+  ["bill-1", "bill-2", "bill-3", "bill-below-scheme", "bill-mixed", "bill-four-line", "bill-remainder"].sort(),
 );
 
 const worked = result.bills.find((b) => b.invoiceId === "bill-1");
@@ -218,9 +244,17 @@ check("mixed bill: no-scheme line's schemeUnitPrice stays null", mixedResult?.it
 const fourLineResult = result.bills.find((b) => b.invoiceId === "bill-four-line");
 check("four-line bill: saved is the full bill-level gap", fourLineResult?.saved, 68);
 check(
-  "four-line bill: the two no-scheme lines (A, B) get 0 even though they're the biggest lines; C/D split 68 by their own scheme weight (436/736 and 300/736)",
+  "four-line bill: no bill-level override, so each line's own exact gap is used (C: 444-436=8, D: 360-300=60) — not weight-prorated (which would wrongly give C/D 40.28/27.72)",
   fourLineResult?.items.map((i) => i.saved),
-  [0, 0, 40.28, 27.72],
+  [0, 0, 8, 60],
+);
+
+const remainderResult = result.bills.find((b) => b.invoiceId === "bill-remainder");
+check("remainder bill: saved is the full bill-level gap (700 natural -> 720 entered, 90 vs scheme)", remainderResult?.saved, 90);
+check(
+  "remainder bill: each line keeps its own exact gap (E: 50, F: 20) plus its share of the unexplained 20 (450/630 and 180/630)",
+  remainderResult?.items.map((i) => i.saved),
+  [64.29, 25.71],
 );
 
 if (failures > 0) {
