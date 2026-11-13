@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Download, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { Download, FileScan, Loader2, Plus, Trash2, Upload } from "lucide-react";
 import type { BulkReceiveRow, BulkReceiveResultRow, ProductDTO } from "@/lib/types";
 import { ApiRequestError, api } from "./api-client";
 import { Alert } from "./ui";
@@ -61,6 +61,24 @@ function rowsFromCsv(text: string): GridRow[] {
   }));
 }
 
+/** Phone photos are huge; shrink them so the upload is quick and fits the server's request limit. PDFs pass through. */
+async function prepareBillFile(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 1_500_000) return file;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    return blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+  } catch {
+    return file;
+  }
+}
+
 /** Sentinel <select> value meaning "type a brand-new product name instead of picking one". */
 const NEW_PRODUCT = "__new__";
 
@@ -77,6 +95,10 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map());
   const [summary, setSummary] = useState<BulkReceiveResultRow[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const billInput = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanNotes, setScanNotes] = useState<string[]>([]);
+  const [scanDuplicate, setScanDuplicate] = useState<string | null>(null);
 
   function loadRows(text: string) {
     const parsed = rowsFromCsv(text);
@@ -101,6 +123,44 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
     const reader = new FileReader();
     reader.onload = () => loadRows(String(reader.result ?? ""));
     reader.readAsText(file);
+  }
+
+  /** Reads a bill with the server and fills the grid below for review. Nothing is posted until Submit. */
+  async function scanBill(picked: File) {
+    setScanning(true);
+    setError(null);
+    setScanNotes([]);
+    setScanDuplicate(null);
+    try {
+      const file = await prepareBillFile(picked);
+      const result = await api.extractBill(file);
+      if (result.lines.length === 0) {
+        setScanNotes(result.warnings.length ? result.warnings : ["No product lines were found on this bill."]);
+        return;
+      }
+      const newKeys = new Set<number>();
+      const notes = [...result.warnings];
+      const filled: GridRow[] = result.lines.map((l) => {
+        const row: GridRow = { key: nextKey++, name: l.productName ?? l.billText, unitPrice: "", quantity: String(l.quantity) };
+        if (!l.productName) {
+          newKeys.add(row.key);
+          notes.push(`"${l.billText}" didn't match an existing product — pick the right product in its row, or give it a price to add it as new.`);
+        }
+        if (l.note) notes.push(`"${l.billText}": ${l.note}`);
+        return row;
+      });
+      setNewProductKeys(newKeys);
+      setRows(filled);
+      if (result.supplierRef) setSupplierRef(result.supplierRef);
+      setScanNotes(notes);
+      setScanDuplicate(result.duplicateOf);
+      setSummary(null);
+      setRowErrors(new Map());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't read the bill");
+    } finally {
+      setScanning(false);
+    }
   }
 
   function downloadTemplate() {
@@ -150,6 +210,21 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn btn-primary" disabled={scanning} onClick={() => billInput.current?.click()}>
+          {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
+          {scanning ? "Reading bill…" : "Upload bill (PDF / photo)"}
+        </button>
+        <input
+          ref={billInput}
+          type="file"
+          accept="application/pdf,image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void scanBill(file);
+            e.target.value = "";
+          }}
+        />
         <button type="button" className="btn btn-secondary" onClick={() => fileInput.current?.click()}>
           <Upload className="h-4 w-4" /> Upload CSV
         </button>
@@ -168,6 +243,20 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
           <Download className="h-4 w-4" /> Download template
         </button>
       </div>
+
+      {scanDuplicate && (
+        <Alert kind="warning">This bill number looks already inwarded: {scanDuplicate}. Check before posting it again.</Alert>
+      )}
+      {scanNotes.length > 0 && (
+        <Alert kind="warning">
+          <p className="font-semibold">Check before posting — read from the bill:</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 font-normal">
+            {scanNotes.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
 
       <div>
         <label className="label" htmlFor="paste-rows">Or paste rows (CSV, or straight from Excel/Sheets)</label>

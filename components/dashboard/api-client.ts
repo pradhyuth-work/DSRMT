@@ -19,6 +19,7 @@ import type {
   BulkOutletResponse,
   BulkRateInput,
   BulkRateResponse,
+  BillExtractResponse,
   BulkReceiveInput,
   BulkReceiveResponse,
   ChangeProductCodeInput,
@@ -101,6 +102,18 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+/** Multipart upload — no JSON content-type, the browser sets the boundary itself. */
+async function upload<T>(url: string, form: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(url, { method: "POST", body: form, headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401 && token) onUnauthorized?.();
+    throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`, (data as ApiError | null)?.details);
+  }
+  return data as T;
+}
+
 const send = <T>(method: "POST" | "PATCH", url: string, body: unknown) =>
   request<T>(url, { method, body: JSON.stringify(body) });
 const post = <T>(url: string, body: unknown = {}) => send<T>("POST", url, body);
@@ -145,6 +158,11 @@ export const api = {
   restock: (productId: string, input: RestockInput) => post<ProductDTO>(`/api/products/${enc(productId)}/restock`, input),
   adjustStock: (productId: string, input: AdjustStockInput) =>
     post<ProductDTO>(`/api/products/${enc(productId)}/adjust`, input),
+  extractBill: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<BillExtractResponse>("/api/products/bill-extract", form);
+  },
   bulkReceive: (input: BulkReceiveInput) => post<BulkReceiveResponse>("/api/products/bulk-receive", input),
   bulkUpdateRates: (input: BulkRateInput) => post<BulkRateResponse>("/api/products/bulk-rate", input),
   bulkAdjustStock: (input: BulkAdjustInput) => post<BulkAdjustResponse>("/api/products/bulk-adjust", input),
