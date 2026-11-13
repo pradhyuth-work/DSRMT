@@ -2,6 +2,8 @@
 // here, so it is easy to test. Products are matched by NAME against the catalogue; anything it is
 // not sure about is left unmatched or flagged, and a person always checks the result before posting.
 
+import { BILL_ALIASES, type BillAlias } from "./bill-aliases";
+
 export interface ParsedBillLine {
   /** The bill line as read (without its serial number). */
   billText: string;
@@ -112,7 +114,19 @@ function pickQuantity(nums: Num[]): { qty: number; guessed: boolean } | null {
   return first ? { qty: first.value, guessed: true } : null;
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
 function parseDate(text: string): string | null {
+  // 03-NOV-26 (how many supplier invoices print it)
+  const t = text.match(/\b(\d{1,2})[-\s]([A-Za-z]{3})[A-Za-z]*[-\s,]*(\d{2}|\d{4})\b/);
+  if (t) {
+    const mo = MONTHS.indexOf(t[2].toLowerCase()) + 1;
+    let y = +t[3];
+    if (mo > 0 && +t[1] >= 1 && +t[1] <= 31) {
+      if (y < 100) y += 2000;
+      return `${String(+t[1]).padStart(2, "0")}-${String(mo).padStart(2, "0")}-${y}`;
+    }
+  }
   const m = text.match(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2}|\d{4})\b/);
   if (!m) return null;
   let y = +m[3];
@@ -131,7 +145,32 @@ function parseInvoiceNumber(lines: string[]): string | null {
   return null;
 }
 
-export function parseBill(text: string, catalogue: string[]): ParsedBill {
+
+// Supplier item code, tolerant of the usual OCR slips (CIG0002001 read as GIG0002001, CIGOOO2001, …).
+const CODE_RE = /(?<![A-Za-z0-9])[CGE][I1l|][GCQ69][0OD]{3}[0-9OD]{4}(?![A-Za-z0-9])/i;
+
+function codeIn(line: string): string | null {
+  const m = line.match(CODE_RE);
+  return m ? "CIG" + m[0].slice(3).replace(/[OD]/gi, "0") : null;
+}
+
+/** Quantity on a supplier bill is in M (thousands of sticks): the figure before the "M" unit, else the one after the HSN code. */
+function millesIn(line: string): number | null {
+  const m = line.match(/(?<![\d.])(\d{1,4}(?:\.\d{1,3})?)\s+M(?![A-Za-z0-9])/);
+  if (m) return Number(m[1]);
+  const h = line.match(/\b\d{8}\b\s+(\d{1,4}(?:\.\d{1,3})?)(?![\d.])/);
+  return h ? Number(h[1]) : null;
+}
+
+function resolveAlias(alias: BillAlias, cands: Candidate[]): string | null {
+  const exact = cands.find((c) => c.name.trim().toLowerCase() === alias.product.trim().toLowerCase());
+  if (exact) return exact.name;
+  const pt = tokenize(alias.product);
+  const near = cands.filter((c) => c.tokens.length === pt.length && pt.every((t) => c.tokens.some((x) => tokenMatch(t, x))));
+  return near.length === 1 ? near[0].name : null;
+}
+
+export function parseBill(text: string, catalogue: string[], aliases: Record<string, BillAlias> = BILL_ALIASES): ParsedBill {
   const out: ParsedBill = { invoiceNumber: null, invoiceDate: null, lines: [], warnings: [] };
   const lines = String(text || "")
     .split(/\r?\n/)
@@ -145,6 +184,37 @@ export function parseBill(text: string, catalogue: string[]): ParsedBill {
   for (const raw of lines) {
     const line = raw.replace(/^\d{1,3}[.)]?\s+(?=[A-Za-z])/, "");
     const lt = tokenize(line);
+
+    // Supplier item code on the line: that is the product, exactly — no guessing from the description.
+    const code = codeIn(line);
+    if (code) {
+      const alias = aliases[code];
+      const milles = millesIn(line);
+      if (!alias) {
+        out.warnings.push(`Item code ${code}${milles !== null ? ` (${milles} M)` : ""} isn't in the bill mapping, so it is NOT in the list — add the code to the mapping, or enter this line by hand.`);
+        continue;
+      }
+      if (milles === null) {
+        out.warnings.push(`${alias.product} (${code}): couldn't read the quantity — add it by hand.`);
+        continue;
+      }
+      const exact = (milles * 1000) / alias.sticksPerPack;
+      const packs = Math.round(exact);
+      if (packs < 1) {
+        out.warnings.push(`${alias.product} (${code}): ${milles} M comes to less than one pack — check the bill.`);
+        continue;
+      }
+      const notes: string[] = [];
+      if (Math.abs(exact - packs) > 0.01) notes.push(`${milles} M is ${exact.toFixed(2)} packs — rounded to ${packs}; check the quantity.`);
+      if (alias.check) notes.push(alias.check);
+      out.lines.push({
+        billText: `${alias.product} · ${code} · ${milles} M`,
+        productName: resolveAlias(alias, cands),
+        quantity: packs,
+        note: notes.length ? notes.join(" ") : undefined,
+      });
+      continue;
+    }
 
     // Best catalogue product for this line: highest coverage, then the more specific (longer) name.
     let best: { c: Candidate; coverage: number; matched: number } | null = null;
