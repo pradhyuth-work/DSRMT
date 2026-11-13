@@ -127,10 +127,21 @@ export default function BulkReceiveModal({
     setScanDuplicate(null);
     try {
       const { readBillText } = await import("@/lib/bill-scan");
-      const text = await readBillText(picked, (status, p) =>
-        setScanStatus(status === "recognizing text" ? `Reading the bill… ${Math.round(p * 100)}%` : "Loading the reader… the first time takes a moment."),
+      const { text, confidence } = await readBillText(picked, (status, p) =>
+        setScanStatus(
+          status === "recognizing text"
+            ? `Reading the bill… ${Math.round(p * 100)}%`
+            : status === "orienting"
+              ? "Checking the photo's direction…"
+              : "Loading the reader… the first time takes a moment.",
+        ),
       );
       const result = parseBill(text, products.map((p) => p.name));
+      if (confidence !== null && confidence < 70) {
+        result.warnings.unshift(
+          "This photo is hard to read (small, blurry or too dense), so quantities may be wrong or missing. A PDF of the bill, or a closer straight-on photo, reads much better.",
+        );
+      }
       if (result.lines.length === 0) {
         setScanNotes(result.warnings);
         return;

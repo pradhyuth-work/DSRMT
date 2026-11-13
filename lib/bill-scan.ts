@@ -11,7 +11,7 @@ type Progress = (status: string, fraction: number) => void;
 
 interface TesseractWorker {
   setParameters(p: Record<string, string>): Promise<unknown>;
-  recognize(image: HTMLCanvasElement): Promise<{ data: { text: string } }>;
+  recognize(image: HTMLCanvasElement): Promise<{ data: { text: string; confidence?: number } }>;
   terminate(): Promise<unknown>;
 }
 interface TesseractLib {
@@ -118,7 +118,56 @@ async function photoToCanvas(file: Blob): Promise<HTMLCanvasElement> {
   return enhance(c);
 }
 
-async function ocr(canvases: HTMLCanvasElement[], onProgress?: Progress): Promise<string> {
+function rotated(c: HTMLCanvasElement, deg: number): HTMLCanvasElement {
+  if (deg === 0) return c;
+  const swap = deg === 90 || deg === 270;
+  const o = document.createElement("canvas");
+  o.width = swap ? c.height : c.width;
+  o.height = swap ? c.width : c.height;
+  const x = o.getContext("2d", { willReadFrequently: true });
+  if (!x) return c;
+  x.translate(o.width / 2, o.height / 2);
+  x.rotate((deg * Math.PI) / 180);
+  x.drawImage(c, -c.width / 2, -c.height / 2);
+  return o;
+}
+
+function shrunk(c: HTMLCanvasElement, max: number): HTMLCanvasElement {
+  const k = Math.min(1, max / Math.max(c.width, c.height));
+  if (k === 1) return c;
+  const o = document.createElement("canvas");
+  o.width = Math.round(c.width * k);
+  o.height = Math.round(c.height * k);
+  o.getContext("2d")?.drawImage(c, 0, 0, o.width, o.height);
+  return o;
+}
+
+/**
+ * Photos of bills are often taken sideways or upside down (and a phone doesn't always say so). Read a
+ * small copy in each direction and keep the one the reader is most confident about; stop early when
+ * the photo is already the right way up.
+ */
+async function uprightCanvas(worker: TesseractWorker, c: HTMLCanvasElement, onProgress?: Progress): Promise<HTMLCanvasElement> {
+  const small = shrunk(c, 900);
+  const conf = async (deg: number) => (await worker.recognize(rotated(small, deg))).data.confidence ?? 0;
+  onProgress?.("orienting", 0);
+  const first = await conf(0);
+  if (first >= 70) return c;
+  let best = { deg: 0, conf: first };
+  for (const deg of [90, 270, 180]) {
+    const cf = await conf(deg);
+    if (cf > best.conf) best = { deg, conf: cf };
+  }
+  return best.deg === 0 || best.conf < first + 8 ? c : rotated(c, best.deg);
+}
+
+export interface BillText {
+  text: string;
+  /** Reader's average confidence 0-100; null for a digital PDF, whose text is exact. */
+  confidence: number | null;
+}
+
+async function ocr(canvases: HTMLCanvasElement[], onProgress?: Progress): Promise<BillText> {
   const T = await loadTesseract();
   const worker = await T.createWorker("eng", 1, {
     logger: (m) => onProgress?.(m.status, m.progress || 0),
@@ -128,8 +177,14 @@ async function ocr(canvases: HTMLCanvasElement[], onProgress?: Progress): Promis
     // words stops "Parle-G 800g   24   10.50" from running together.
     await worker.setParameters({ tessedit_pageseg_mode: "6", preserve_interword_spaces: "1" });
     const parts: string[] = [];
-    for (const c of canvases) parts.push((await worker.recognize(c)).data.text || "");
-    return parts.join("\n");
+    const confs: number[] = [];
+    for (const c of canvases) {
+      const upright = await uprightCanvas(worker, c, onProgress);
+      const { data } = await worker.recognize(upright);
+      parts.push(data.text || "");
+      confs.push(data.confidence ?? 0);
+    }
+    return { text: parts.join("\n"), confidence: confs.reduce((a, b) => a + b, 0) / Math.max(1, confs.length) };
   } finally {
     try { await worker.terminate(); } catch { /* ignore */ }
   }
@@ -154,7 +209,7 @@ async function pdfText(page: PdfPage): Promise<string> {
 const MAX_PDF_PAGES = 4;
 
 /** Resolves to the text found on the bill. onProgress(status, 0..1) is called while the readers load and read. */
-export async function readBillText(file: File, onProgress?: Progress): Promise<string> {
+export async function readBillText(file: File, onProgress?: Progress): Promise<BillText> {
   if (file.type !== "application/pdf") return ocr([await photoToCanvas(file)], onProgress);
 
   const pdfjs = await loadPdfJs();
@@ -163,7 +218,7 @@ export async function readBillText(file: File, onProgress?: Progress): Promise<s
   const texts: string[] = [];
   for (let n = 1; n <= pages; n++) texts.push(await pdfText(await doc.getPage(n)));
   const digital = texts.join("\n");
-  if (digital.replace(/\s/g, "").length >= 40) return digital;
+  if (digital.replace(/\s/g, "").length >= 40) return { text: digital, confidence: null };
 
   // A scanned PDF has no text inside it: draw each page and read it like a photo.
   const canvases: HTMLCanvasElement[] = [];
