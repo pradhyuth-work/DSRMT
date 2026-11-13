@@ -474,24 +474,6 @@ export interface BulkReceiveResponse {
   results: BulkReceiveResultRow[];
 }
 
-export interface BillExtractLine {
-  /** The product description as printed on the bill. */
-  billText: string;
-  /** Exact name of the matching catalogue product, or null when none clearly matches. */
-  productName: string | null;
-  quantity: number;
-  note?: string;
-}
-
-export interface BillExtractResponse {
-  /** Supplier · bill number · date, ready for the supplier-reference box. */
-  supplierRef: string;
-  lines: BillExtractLine[];
-  warnings: string[];
-  /** Set when an earlier inward already carries this bill number — likely the same bill uploaded twice. */
-  duplicateOf: string | null;
-}
-
 export interface BulkRateRow {
   /** Existing product name (matched case-insensitively). */
   name: string;

@@ -5,6 +5,7 @@ import { Download, FileScan, Loader2, Plus, Trash2, Upload } from "lucide-react"
 import type { BulkReceiveRow, BulkReceiveResultRow, ProductDTO } from "@/lib/types";
 import { ApiRequestError, api } from "./api-client";
 import { Alert } from "./ui";
+import { parseBill } from "@/lib/bill-parse";
 
 interface GridRow {
   key: number;
@@ -61,28 +62,19 @@ function rowsFromCsv(text: string): GridRow[] {
   }));
 }
 
-/** Phone photos are huge; shrink them so the upload is quick and fits the server's request limit. PDFs pass through. */
-async function prepareBillFile(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size < 1_500_000) return file;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-    return blob ? new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
-  } catch {
-    return file;
-  }
-}
-
 /** Sentinel <select> value meaning "type a brand-new product name instead of picking one". */
 const NEW_PRODUCT = "__new__";
 
-export default function BulkReceiveModal({ products, onDone }: { products: ProductDTO[]; onDone: (message: string) => Promise<void> }) {
+export default function BulkReceiveModal({
+  products,
+  onDone,
+  knownRefs = [],
+}: {
+  products: ProductDTO[];
+  onDone: (message: string) => Promise<void>;
+  /** Supplier references of earlier inwards, used to warn when an uploaded bill number was already received. */
+  knownRefs?: string[];
+}) {
   const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
   /** Case-insensitive lookup so CSV/pasted names still map onto the dropdown's exact product names. */
   const productByName = useMemo(() => new Map(products.map((p) => [p.name.trim().toLowerCase(), p])), [products]);
@@ -97,6 +89,7 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
   const fileInput = useRef<HTMLInputElement>(null);
   const billInput = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState("");
   const [scanNotes, setScanNotes] = useState<string[]>([]);
   const [scanDuplicate, setScanDuplicate] = useState<string | null>(null);
 
@@ -125,17 +118,21 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
     reader.readAsText(file);
   }
 
-  /** Reads a bill with the server and fills the grid below for review. Nothing is posted until Submit. */
+  /** Reads a bill on this device and fills the grid below for review. Nothing is posted until Submit. */
   async function scanBill(picked: File) {
     setScanning(true);
+    setScanStatus("Getting ready…");
     setError(null);
     setScanNotes([]);
     setScanDuplicate(null);
     try {
-      const file = await prepareBillFile(picked);
-      const result = await api.extractBill(file);
+      const { readBillText } = await import("@/lib/bill-scan");
+      const text = await readBillText(picked, (status, p) =>
+        setScanStatus(status === "recognizing text" ? `Reading the bill… ${Math.round(p * 100)}%` : "Loading the reader… the first time takes a moment."),
+      );
+      const result = parseBill(text, products.map((p) => p.name));
       if (result.lines.length === 0) {
-        setScanNotes(result.warnings.length ? result.warnings : ["No product lines were found on this bill."]);
+        setScanNotes(result.warnings);
         return;
       }
       const newKeys = new Set<number>();
@@ -145,21 +142,27 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
         if (!l.productName) {
           newKeys.add(row.key);
           notes.push(`"${l.billText}" didn't match an existing product — pick the right product in its row, or give it a price to add it as new.`);
-        }
-        if (l.note) notes.push(`"${l.billText}": ${l.note}`);
+        } else if (l.note) notes.push(`${l.productName}: ${l.note}`);
         return row;
       });
       setNewProductKeys(newKeys);
       setRows(filled);
-      if (result.supplierRef) setSupplierRef(result.supplierRef);
+      const ref = [result.invoiceNumber, result.invoiceDate].filter(Boolean).join(" · ");
+      if (ref) setSupplierRef(ref);
+      if (result.invoiceNumber) {
+        const inv = result.invoiceNumber.toLowerCase();
+        const dup = knownRefs.find((r) => r.toLowerCase().includes(inv));
+        setScanDuplicate(dup ?? null);
+      }
+      notes.push("Scanned text can have mistakes — compare every product and quantity with the bill.");
       setScanNotes(notes);
-      setScanDuplicate(result.duplicateOf);
       setSummary(null);
       setRowErrors(new Map());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read the bill");
     } finally {
       setScanning(false);
+      setScanStatus("");
     }
   }
 
@@ -212,7 +215,7 @@ export default function BulkReceiveModal({ products, onDone }: { products: Produ
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn btn-primary" disabled={scanning} onClick={() => billInput.current?.click()}>
           {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
-          {scanning ? "Reading bill…" : "Upload bill (PDF / photo)"}
+          {scanning ? scanStatus : "Upload bill (PDF / photo)"}
         </button>
         <input
           ref={billInput}

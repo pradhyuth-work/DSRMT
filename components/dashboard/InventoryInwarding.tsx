@@ -66,7 +66,7 @@ export default function InventoryInwarding({
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">Post an incoming bill and increase warehouse stock immediately.</p>
         </div>
-        <BulkReceiveModal products={products} onDone={done} />
+        <BulkReceiveModal products={products} onDone={done} knownRefs={movements.filter((m) => m.type === "RECEIVE" && m.supplierRef).map((m) => m.supplierRef as string)} />
       </div>
 
       <div className="card">
