@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AdjustStockInput,
   CreateAgentIssueInput,
+  RecordAgentPaymentInput,
   SettleAgentInput,
   BillOrderInput,
   BounceChequeInput,
@@ -333,6 +334,12 @@ export const settleAgentSchema = z
     path: ["reason"],
     message: "A write-off needs a reason",
   }) satisfies z.ZodType<SettleAgentInput, z.ZodTypeDef, unknown>;
+
+/** Any amount received from an agent. Not calculated against items. */
+export const recordAgentPaymentSchema = z.object({
+  amount: z.coerce.number({ invalid_type_error: "Enter an amount" }).positive("Amount must be more than 0").max(100_000_000, "Amount is too large"),
+  note: z.string().trim().max(200, "Note is too long").optional(),
+}) satisfies z.ZodType<RecordAgentPaymentInput, z.ZodTypeDef, unknown>;
 
 // Query-string schemas: every value arrives as a string (or is absent).
 export const paymentsQuerySchema = z.object({

@@ -3,6 +3,7 @@ import type {
   AgentBalanceDTO,
   AgentIssueDTO,
   AgentLedgerEntryDTO,
+  RecordAgentPaymentResponse,
   CreateAgentIssueInput,
   SettleAgentInput,
   SettleAgentResponse,
@@ -187,6 +188,9 @@ export const api = {
   agentLedger: (agentId: string) => request<AgentLedgerEntryDTO[]>(`/api/agent-balances/${enc(agentId)}/ledger`),
   agentIssues: () => request<AgentIssueDTO[]>("/api/agent-issues"),
   createAgentIssue: (input: CreateAgentIssueInput) => post<AgentIssueDTO>("/api/agent-issues", input),
+  /** Any amount received from an agent, not calculated against items. */
+  recordAgentPayment: (agentId: string, input: { amount: number; note?: string }) =>
+    post<RecordAgentPaymentResponse>(`/api/agent-balances/${enc(agentId)}/payment`, input),
   settleAgent: (agentId: string, input: SettleAgentInput) =>
     post<SettleAgentResponse>(`/api/agent-balances/${enc(agentId)}/settle`, input),
 

@@ -9,6 +9,8 @@ import type {
   AgentLedgerEntryDTO,
   AuthUser,
   CreateAgentIssueInput,
+  RecordAgentPaymentInput,
+  RecordAgentPaymentResponse,
   SettleAgentInput,
   SettleAgentResponse,
 } from "./types";
@@ -168,14 +170,17 @@ export async function getAgentBalances(db: Db, onlyAgentId?: string): Promise<Ag
     WHERE i."settledQty" < i."quantity" ${scope}
     GROUP BY a."agentId", i."productId"`;
 
-  const [agents, products] = await Promise.all([
+  const [agents, products, paidSums] = await Promise.all([
     db.staff.findMany({
       where: { role: "agent", ...(onlyAgentId ? { id: onlyAgentId } : {}) },
       select: { id: true, name: true, active: true },
       orderBy: { name: "asc" },
     }),
     db.product.findMany({ select: { id: true, name: true } }),
+    // Free-amount payments (not tied to units) come off the balance.
+    db.agentPayment.groupBy({ by: ["agentId"], _sum: { amount: true }, where: onlyAgentId ? { agentId: onlyAgentId } : undefined }),
   ]);
+  const paidBy = new Map(paidSums.map((p) => [p.agentId, p._sum.amount ?? 0]));
   const productName = new Map(products.map((p) => [p.id, p.name]));
   const now = new Date();
 
@@ -198,13 +203,13 @@ export async function getAgentBalances(db: Db, onlyAgentId?: string): Promise<Ag
         agentId: a.id,
         agentName: a.name,
         active: a.active,
-        balance: round2(holdings.reduce((s, h) => s + h.value, 0)),
+        balance: round2(holdings.reduce((s, h) => s + h.value, 0) - (paidBy.get(a.id) ?? 0)),
         unitsInHand: holdings.reduce((s, h) => s + h.quantity, 0),
         oldestDays: holdings.length ? Math.max(...holdings.map((h) => h.oldestDays)) : null,
         holdings,
       };
     })
-    .filter((b) => b.active || b.balance > 0);
+    .filter((b) => b.active || b.balance !== 0);
 }
 
 /**
@@ -259,14 +264,35 @@ export async function settleAgent(tx: Tx, user: AuthUser, agentId: string, input
   return { amount, balance: after?.balance ?? 0 };
 }
 
+/**
+ * Records money received from an agent as ANY amount, not calculated against items. It only
+ * reduces the balance; no units are cleared. The balance may go below zero (paid in advance).
+ */
+export async function recordAgentPayment(
+  tx: Tx,
+  user: AuthUser,
+  agentId: string,
+  input: RecordAgentPaymentInput,
+): Promise<RecordAgentPaymentResponse> {
+  // Same lock the unit-clearing path takes, so the two can't interleave on one agent.
+  await tx.$queryRaw`SELECT "id" FROM "Staff" WHERE "id" = ${agentId} FOR UPDATE`;
+  await requireAgent(tx, agentId, false);
+  const amount = round2(input.amount);
+  if (!(amount > 0)) throw new HttpError(400, "Amount must be more than 0");
+  await tx.agentPayment.create({ data: { agentId, amount, note: input.note || null, createdById: user.id } });
+  const [after] = await getAgentBalances(tx, agentId);
+  return { amount, balance: after?.balance ?? 0 };
+}
+
 /** Oldest first, with a running balance. Issues come before settlements recorded at the same instant. */
 export async function getAgentLedger(db: Db, agentId: string, limit = 300): Promise<AgentLedgerEntryDTO[]> {
-  const [issues, settlements] = await Promise.all([
+  const [issues, settlements, payments] = await Promise.all([
     db.agentIssue.findMany({
       where: { agentId },
       include: { items: { include: { product: { select: { name: true } } }, orderBy: { id: "asc" } } },
     }),
     db.agentSettlement.findMany({ where: { agentId }, include: { product: { select: { name: true } } } }),
+    db.agentPayment.findMany({ where: { agentId } }),
   ]);
 
   type Raw = Omit<AgentLedgerEntryDTO, "balance"> & { at: number; order: number };
@@ -301,6 +327,21 @@ export async function getAgentLedger(db: Db, agentId: string, limit = 300): Prom
       debit: 0,
       credit: s.amount,
       note: s.reason,
+    });
+  }
+  for (const p of payments) {
+    raw.push({
+      id: p.id,
+      date: p.createdAt.toISOString(),
+      at: p.createdAt.getTime(),
+      order: 1,
+      type: "PAYMENT",
+      ref: null,
+      productName: "Payment",
+      quantity: 0,
+      debit: 0,
+      credit: p.amount,
+      note: p.note,
     });
   }
   raw.sort((a, b) => a.at - b.at || a.order - b.order || a.id.localeCompare(b.id));
