@@ -1,20 +1,11 @@
-import { prisma } from "@/lib/prisma";
-import { HttpError, errorResponse } from "@/lib/api";
+import { errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { SELLER } from "@/lib/seller";
-import { computeLine, STATES } from "@/lib/gst";
-import { einvoiceInclude } from "@/lib/einvoice";
+import { loadInvoiceView, f2, ist } from "@/lib/invoice-view";
 
 export const dynamic = "force-dynamic";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const round2n = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const f2 = (n: number) => (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
-const ist = (d: Date, withTime: boolean) => {
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
-  const g = (t: string) => p.find((x) => x.type === t)!.value;
-  return `${g("day")}-${g("month")}-${g("year")}${withTime ? ` ${g("hour")}:${g("minute")}` : ""}`;
-};
 
 /**
  * Printable A5 tax invoice (HTML) for a bill made in the app. The client fetches it with the
@@ -25,39 +16,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const inv = await prisma.invoice.findUnique({ where: { id }, include: { ...einvoiceInclude, staff: true } });
-    if (!inv) throw new HttpError(404, "Order not found");
-    if (!inv.invoiceNumber || inv.billedOutside) throw new HttpError(409, "No GST invoice for this order (billed outside the app or not billed yet)");
-
-    const o = inv.outlet;
-    const pos = inv.placeOfSupply || "29";
-    const intra = pos === SELLER.stateCode;
-    const stateName = STATES.find((x) => x.code === pos)?.name ?? "";
-    // Same layout as the Target bill: line Amount = what the buyer pays for the line less its tax (no discount
-    // column — any scheme is already in the rate); the GST summary's SALE VAL is the MRP-based taxable value.
-    const rows = inv.items.map((it, i) => {
-      const rate = it.gstRate ?? it.product.gstRate;
-      const mrp = it.mrp ?? it.product.mrp ?? 0;
-      const calc = it.taxable != null && it.taxAmt != null ? { taxable: it.taxable, tax: it.taxAmt } : (() => { const c = computeLine("MRP", it.unitPrice, it.quantity, rate, mrp); return { taxable: c?.taxable ?? it.subtotal, tax: c?.tax ?? 0 }; })();
-      const pk = /(\d+)\s*s\b/i.exec(it.product.name)?.[1] ?? "";
-      const amt = round2n(calc.taxable);
-      return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: amt / it.quantity, taxable: calc.taxable, tax: calc.tax, amt, gst: rate };
-    });
-    const saleVal = rows.reduce((s, r) => s + r.taxable, 0);
-    const sumTax = rows.reduce((s, r) => s + r.tax, 0);
-    const subTotal = rows.reduce((s, r) => s + r.amt, 0);
-    const sumQty = rows.reduce((s, r) => s + r.qty, 0);
-    const mrpValue = rows.reduce((s, r) => s + r.mrp * r.qty, 0);
-    const net = inv.totalAmount;
-    // Lines and SALE VAL are on MRP; what the buyer pays is lower, and the gap (scheme / trade margin) is one
-    // deduction before the net amount. The e-invoice JSON carries the same gap as ValDtls.Discount.
-    const discount = inv.taxMode === "MRP" && subTotal + sumTax - net > 0.005 ? round2n(subTotal + sumTax - net) : 0;
-    const round = round2n(net - (subTotal + sumTax - discount));
-    const rate0 = rows[0]?.gst ?? 40;
-    const addr = [o.address, [o.city, o.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-    const when = inv.billedAt ?? inv.createdAt;
+    const { inv, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, addr, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
-    const half = round2n(sumTax / 2);
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
       : `<div>IGST %</div><div>IGST AMT</div><div></div><div></div>`;

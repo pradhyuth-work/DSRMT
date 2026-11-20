@@ -453,9 +453,9 @@ export default function OrdersView({
                   {canBill && o.invoiceNumber && !o.billedOutside && o.fulfilmentStatus !== "CANCELLED" && (
                     <button
                       className="btn btn-secondary h-11 shrink-0 gap-1 !px-3 text-xs"
-                      onClick={() => { api.printInvoice(o.id).catch((e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : "Could not open the invoice" })); }}
+                      onClick={() => { api.downloadInvoicePdf(o.id).catch((e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : "Could not download the invoice" })); }}
                       aria-label={`Invoice PDF for ${orderLabel(o)}`}
-                      title="Opens the A5 invoice — choose Save as PDF in the print window"
+                      title="Download the invoice as a PDF"
                     >
                       <Download className="h-4 w-4" /> PDF
                     </button>

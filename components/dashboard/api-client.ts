@@ -143,6 +143,11 @@ async function downloadFile(path: string, fallbackName: string): Promise<Headers
   return res.headers;
 }
 
+/** Downloads the invoice as a PDF file named after the invoice number (e.g. MTR-312.pdf). */
+async function downloadInvoicePdf(orderId: string): Promise<void> {
+  await downloadFile(`/api/orders/${encodeURIComponent(orderId)}/pdf`, "invoice.pdf");
+}
+
 /** Opens the printable A5 invoice for a bill made in the app in a new window and starts printing. */
 async function printInvoice(orderId: string): Promise<void> {
   const token = getToken();
@@ -167,6 +172,7 @@ async function printInvoice(orderId: string): Promise<void> {
 
 export const api = {
   printInvoice,
+  downloadInvoicePdf,
   login: (input: LoginInput) => post<LoginResponse>("/api/auth/login", input),
   me: () => request<AuthUser>("/api/auth/me"),
 

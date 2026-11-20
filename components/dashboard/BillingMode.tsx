@@ -306,8 +306,8 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
                       <span className="text-xs font-semibold uppercase">{label(o)}</span>
                     </button>
                     <div className="flex w-[104px] gap-1">
-                      {inApp && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="Open the A5 invoice — choose Save as PDF"
-                        onClick={() => { api.printInvoice(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not open the invoice")); }}>PDF</button>}
+                      {inApp && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="Download the invoice as a PDF"
+                        onClick={() => { setDlErr(null); api.downloadInvoicePdf(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not download the invoice")); }}>PDF</button>}
                       {inApp && isAdmin && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="E-invoice JSON for this bill"
                         onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
                     </div>
