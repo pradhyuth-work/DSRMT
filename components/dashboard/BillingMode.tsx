@@ -30,8 +30,8 @@ function lineTax(item: OrderDTO["items"][number], product: ProductDTO | undefine
   const rate = product?.gstRate ?? 40;
   const mrp = product?.mrp ?? null;
   if (!mrp) return { gross, mrp: null, tax: null as number | null, net: null as number | null, rate };
-  const tax = round2((mrp * item.quantity * rate) / (100 + rate));
-  return { gross, mrp, tax, net: round2(gross - tax), rate };
+  const net = round2((mrp * item.quantity * 100) / (100 + rate));
+  return { gross, mrp, tax: round2(mrp * item.quantity - net), net, rate };
 }
 
 /**
@@ -115,6 +115,7 @@ function Desk({
   const missingMrp = lines.filter((l) => l.mrp === null).map((l) => l.i.productName);
   const gross = lines.reduce((s, l) => s + l.gross, 0);
   const taxSum = lines.reduce((s, l) => s + (l.tax ?? 0), 0);
+  const netSum = lines.reduce((s, l) => s + (l.net ?? 0), 0);
   const total = Math.round(gross);
 
   async function generate() {
@@ -190,8 +191,9 @@ function Desk({
               ))}
             </div></div>
             <div className="mt-3 flex justify-end"><div className="w-64 text-xs">
-              <div className="flex justify-between py-0.5"><span>Net sale value</span><span>{missingMrp.length ? "—" : (gross - taxSum).toFixed(2)}</span></div>
+              <div className="flex justify-between py-0.5"><span>Taxable value (on MRP)</span><span>{missingMrp.length ? "—" : netSum.toFixed(2)}</span></div>
               <div className="flex justify-between py-0.5"><span>GST (RSP based)</span><span>{missingMrp.length ? "—" : taxSum.toFixed(2)}</span></div>
+              <div className="flex justify-between py-0.5"><span>Less: trade discount</span><span>{missingMrp.length ? "—" : `-${(netSum + taxSum - total).toFixed(2)}`}</span></div>
               <div className="mt-1 flex justify-between border-t-2 border-[#0F2B2A] pt-1 text-sm font-bold"><span>NET AMOUNT</span><span>{formatMoney(total)}</span></div>
             </div></div>
           </div>

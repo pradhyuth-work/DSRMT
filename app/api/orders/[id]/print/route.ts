@@ -8,6 +8,7 @@ import { einvoiceInclude } from "@/lib/einvoice";
 export const dynamic = "force-dynamic";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const round2n = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const f2 = (n: number) => (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
 const ist = (d: Date, withTime: boolean) => {
   const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
@@ -37,7 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const mrp = it.mrp ?? it.product.mrp ?? 0;
       const calc = it.taxable != null && it.taxAmt != null ? { taxable: it.taxable, tax: it.taxAmt } : (() => { const c = computeLine("MRP", it.unitPrice, it.quantity, rate, mrp); return { taxable: c?.taxable ?? it.subtotal, tax: c?.tax ?? 0 }; })();
       const pk = /(\d+)\s*s\b/i.exec(it.product.name)?.[1] ?? "";
-      return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: it.unitPrice, taxable: calc.taxable, tax: calc.tax, amt: it.subtotal, gst: rate };
+      return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: it.unitPrice, taxable: calc.taxable, tax: calc.tax, amt: round2n(calc.taxable + calc.tax), gst: rate };
     });
     const sumTaxable = rows.reduce((s, r) => s + r.taxable, 0);
     const sumTax = rows.reduce((s, r) => s + r.tax, 0);
@@ -45,7 +46,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const sumQty = rows.reduce((s, r) => s + r.qty, 0);
     const mrpValue = rows.reduce((s, r) => s + r.mrp * r.qty, 0);
     const net = inv.totalAmount;
-    const round = net - sumAmt;
+    // MRP mode: lines add up to the MRP value; the gap to what the buyer pays is the trade discount.
+    const discount = inv.taxMode === "MRP" && sumAmt - net > 0 ? round2n(sumAmt - net) : 0;
+    const round = round2n(net - (sumAmt - discount));
     const rate0 = rows[0]?.gst ?? 40;
     const addr = [o.address, [o.city, o.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     const when = inv.billedAt ?? inv.createdAt;
@@ -89,6 +92,7 @@ ${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-sp
 <div style="flex:1;min-height:0;font-size:8.5px">
 ${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${f2(r.taxable)}</div><div style="text-align:right">${f2(r.tax)}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`).join("")}
 <div class="row" style="padding:6px 0 1px;font-weight:700"><div></div><div style="grid-column:span 4;text-align:right">GROSS TAXABLE VALUE</div><div style="text-align:right">${sumQty}</div><div></div><div></div><div style="text-align:right">${f2(sumTaxable)}</div><div></div><div></div></div>
+${discount > 0 ? `<div class="row" style="padding:1px 0"><div></div><div style="grid-column:span 4;text-align:right">LESS: TRADE DISCOUNT</div><div></div><div></div><div></div><div></div><div></div><div style="text-align:right">-${f2(discount)}</div></div>` : ""}
 <div class="row" style="padding:1px 0"><div></div><div style="grid-column:span 4;text-align:right">ROUND OFF</div><div></div><div></div><div></div><div style="text-align:right">${f2(round)}</div><div></div><div></div></div></div>
 <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;border-top:1.5px solid #0F2B2A;padding-top:8px">
 <div style="font-size:8px">

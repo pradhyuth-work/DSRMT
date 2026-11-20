@@ -7,7 +7,7 @@ export const HOME_STATE = "29";
 export interface LineTax {
   /** What the customer pays for the line, tax included. */
   gross: number;
-  /** Value on which tax is charged / reported. */
+  /** Value on which tax is charged / reported (in MRP mode: MRP-based, not the billed price). */
   taxable: number;
   tax: number;
 }
@@ -31,8 +31,12 @@ export function computeLine(mode: TaxMode, price: number, qty: number, rate: num
     return { gross, taxable, tax: round2(gross - taxable) };
   }
   if (!mrp || mrp <= 0) return null;
-  const tax = round2((mrp * qty * rate) / (100 + rate));
-  return { gross, taxable: round2(gross - tax), tax };
+  // MRP (RSP-based) valuation: tax is charged on the MRP, so taxable = MRP x qty x 100/(100+rate) and
+  // tax = rate% of that. The customer still pays the billed price (gross); the gap between taxable + tax
+  // and gross is the trade discount, shown on the invoice as a deduction.
+  const mrpValue = mrp * qty;
+  const taxable = round2((mrpValue * 100) / (100 + rate));
+  return { gross, taxable, tax: round2(mrpValue - taxable) };
 }
 
 /** Intra-state supplies split tax into CGST + SGST, everything else is IGST. */

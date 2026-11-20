@@ -113,11 +113,15 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
   });
 
   // The billed total is the figure customers pay; any paisa difference goes in round-off.
+  // In MRP mode taxable + tax is the MRP value; what the buyer pays is lower, and the gap goes in as the
+  // invoice-level discount (ValDtls.Discount). Other modes only have a paisa-level round-off.
   const billed = inv.totalAmount;
   const sumItems = round2(items.reduce((s, x) => s + x.TotItemVal, 0));
-  const roundOff = round2(billed - sumItems);
-  if (Math.abs(roundOff) > 1) warnings.push(`Billed total ${billed} differs from the item total ${sumItems} by more than ₹1`);
-  if (mode === "MRP") warnings.push("Tax is worked on MRP (Rule 31D), so it is not exactly 40% of the taxable value — confirm the IRP accepts it in the sandbox");
+  const gap = round2(sumItems - billed);
+  const discount = mode === "MRP" && gap > 0 ? gap : 0;
+  const roundOff = round2(billed - (sumItems - discount));
+  if (Math.abs(roundOff) > 1) warnings.push(`Billed total ${billed} differs from the item total ${round2(sumItems - discount)} by more than ₹1`);
+  if (mode === "MRP") warnings.push("Taxable value is on MRP (Rule 31D) with the trade discount shown at invoice level — confirm the IRP accepts it in the sandbox");
 
   const veh = (inv.vehicleNo ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   const needsEwb = billed > EWB_THRESHOLD;
@@ -150,10 +154,10 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
       SgstVal: round2(sgstTotal),
       IgstVal: round2(igstTotal),
       CesVal: 0,
-      Discount: 0,
+      Discount: discount,
       OthChrg: 0,
       RndOffAmt: roundOff,
-      TotInvVal: round2(sumItems + roundOff),
+      TotInvVal: round2(sumItems - discount + roundOff),
     },
   };
 

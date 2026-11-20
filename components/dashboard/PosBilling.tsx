@@ -146,6 +146,9 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
           ) : (
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">IGST 40%</span><span>{formatMoney(sp.igst)}</span></div>
           )}
+          {mode === "MRP" && taxable + tax - total > 0.005 && (
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Less: trade discount</span><span>-{formatMoney(taxable + tax - total)}</span></div>
+          )}
           <div className="flex justify-between border-t border-border pt-2 text-lg font-bold"><span>Total</span><span>{formatMoney(total)}</span></div>
           {anyRow && !complete && <Alert kind="warning">Fill quantity and price on every item{mode === "MRP" ? " (and MRP)" : ""}.</Alert>}
           <button type="button" className="btn btn-primary w-full" disabled={busy || !complete || !outletOk} onClick={() => void create()}>
