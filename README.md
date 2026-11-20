@@ -95,7 +95,8 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 | `GET /api/reports` | ✓ | ✗ | ✗ | dashboard totals (all-time), outlet ledgers (all-time), staff performance (`?from=&to=` filters sales/collections to that date range) |
 | `GET /api/reports/sales` | ✓ | ✗ | ✗ | date + outlet filtered sales report: by-product, by-outlet and SKU-matrix breakdowns |
 | `GET /api/reports/sales/csv` | ✓ | ✗ | ✗ | the by-product and by-outlet breakdowns for the same filters, as one CSV download |
-| `GET /api/backup` | ✓ | ✗ | ✗ | downloads every core table as one JSON file (staff rows exclude passwordHash/tokenVersion) |
+| `GET /api/backup` | ✓ | ✗ | ✗ | downloads EVERY table (read from the Prisma model, so new tables are included automatically) as one JSON file, including staff password hashes |
+| `POST /api/backup/restore` | ✓ | ✗ | ✗ | replaces the whole database from a backup file; body `{confirm:"RESTORE", backup}`; all-or-nothing |
 
 ## Business logic
 

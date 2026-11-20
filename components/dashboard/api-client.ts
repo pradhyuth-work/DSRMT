@@ -212,4 +212,7 @@ export const api = {
     post<ResetPinResponse>(`/api/staff/${enc(id)}/pin`, { pin }),
 
   downloadBackup: () => downloadFile("/api/backup", "dsrmt-backup.json"),
+  /** Replaces the whole database with a backup file made by downloadBackup. Admin only. */
+  restoreBackup: (backup: unknown) =>
+    post<{ restoredRows: Record<string, number>; emptied: string[] }>("/api/backup/restore", { confirm: "RESTORE", backup }),
 };

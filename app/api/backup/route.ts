@@ -1,54 +1,28 @@
-import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
+import { buildBackup } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
- * Downloads every core table as one JSON file. Admin only. Staff rows exclude
- * passwordHash and tokenVersion — a backup file is something that gets emailed around and
- * saved to a laptop, and a password hash has no business leaving the database for that.
+ * The one full backup. Downloads EVERY table in the database as a single JSON file (the list
+ * comes from the Prisma data model, so new tables are included automatically) and can be put
+ * back with POST /api/backup/restore. Admin only.
+ *
+ * The file includes staff password hashes so a restore brings the logins back. Treat it like
+ * a password list: keep it private and do not email it around.
  */
 export async function GET(req: Request) {
   try {
     await authorize(req, ["admin"]);
-
-    const [staff, products, routes, outlets, invoices, invoiceItems, payments, stockMovements] = await Promise.all([
-      prisma.staff.findMany({
-        orderBy: { createdAt: "asc" },
-        select: { id: true, name: true, phone: true, username: true, role: true, active: true, createdAt: true },
-      }),
-      prisma.product.findMany({ orderBy: { productCode: "asc" } }),
-      prisma.route.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.outlet.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.invoice.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.invoiceItem.findMany({ orderBy: { id: "asc" } }),
-      prisma.paymentCollection.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.stockMovement.findMany({ orderBy: { createdAt: "asc" } }),
-    ]);
-
-    const backup = {
-      format: "dsrmt-backup",
-      version: 1,
-      generatedAt: new Date().toISOString(),
-      rowCounts: {
-        staff: staff.length,
-        products: products.length,
-        routes: routes.length,
-        outlets: outlets.length,
-        invoices: invoices.length,
-        invoiceItems: invoiceItems.length,
-        payments: payments.length,
-        stockMovements: stockMovements.length,
-      },
-      tables: { staff, products, routes, outlets, invoices, invoiceItems, payments, stockMovements },
-    };
+    const backup = await buildBackup();
 
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
 
-    return new Response(JSON.stringify(backup, null, 2), {
+    return new Response(JSON.stringify(backup), {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Content-Disposition": `attachment; filename="dsrmt-backup-${stamp}.json"`,
