@@ -140,6 +140,9 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
     dispatchedByName: o.dispatchedBy?.name ?? null,
     cancelledAt: o.cancelledAt?.toISOString() ?? null,
     cancelledByName: o.cancelledBy?.name ?? null,
+    billedOutside: o.billedOutside,
+    vehicleNo: o.vehicleNo,
+    einvExportedAt: o.einvExportedAt?.toISOString() ?? null,
     items: o.items.map((i) => ({
       productId: i.productId,
       productName: i.product.name,

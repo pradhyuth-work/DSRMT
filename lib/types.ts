@@ -265,14 +265,72 @@ export interface OrderDTO {
   dispatchedByName: string | null;
   cancelledAt: string | null;
   cancelledByName: string | null;
+  /** Written in the bill book / Target and only copied in — no GST invoice made here. */
+  billedOutside: boolean;
+  vehicleNo: string | null;
+  einvExportedAt: string | null;
   items: OrderItemDTO[];
 }
 
 export interface BillOrderInput {
-  invoiceNumber: string;
+  /** Hand-entered bill-book number = "billed outside the app" (flagged, no e-invoice).
+   * Leave out to bill in the app: the next number in the MTR series is used. */
+  invoiceNumber?: string;
   /** The bill-book amount, copied in by hand alongside the number — becomes the order's
-   * totalAmount/balanceDue from here on, the figure payments are collected against. */
-  amount: number;
+   * totalAmount/balanceDue from here on, the figure payments are collected against.
+   * Required with invoiceNumber; ignored when billing in the app (the item total is used). */
+  amount?: number;
+  /** Vehicle for the e-way bill part of the e-invoice (in-app billing only). */
+  vehicleNo?: string;
+}
+
+export interface InvoiceSeriesDTO {
+  prefix: string;
+  next: number | null;
+  /** Highest number already used under the prefix. */
+  highestUsed: number;
+}
+export interface SetInvoiceSeriesInput {
+  next: number;
+}
+
+export interface EinvoiceSetupProduct {
+  id: string;
+  name: string;
+  unitPrice: number;
+  hsnCode: string | null;
+  gstRate: number;
+  mrp: number | null;
+  uqc: string;
+}
+export interface EinvoiceSetupOutlet {
+  id: string;
+  name: string;
+  gstNumber: string;
+  address: string;
+  pincode: string | null;
+  city: string | null;
+}
+export interface EinvoiceSetupDTO {
+  products: EinvoiceSetupProduct[];
+  /** Only outlets that have a GSTIN — the rest are B2C and need no e-invoice. */
+  outlets: EinvoiceSetupOutlet[];
+}
+export interface EinvoiceSetupInput {
+  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string }[];
+  outlets?: { id: string; pincode: string | null; city: string | null }[];
+}
+
+export interface EinvoiceReportRow {
+  invoiceNumber: string;
+  ready: boolean;
+  errors: string[];
+  warnings: string[];
+}
+export interface EinvoiceReportDTO {
+  ready: number;
+  blocked: number;
+  rows: EinvoiceReportRow[];
 }
 
 export interface UpdateOrderInput {

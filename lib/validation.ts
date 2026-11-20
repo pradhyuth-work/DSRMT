@@ -14,6 +14,8 @@ import type {
   CorrectBalanceInput,
   CreatePaymentInput,
   CreateProductInput,
+  EinvoiceSetupInput,
+  SetInvoiceSeriesInput,
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
@@ -96,10 +98,53 @@ export const updateOrderSchema = z
 // The physical bill-book number, copied in by hand — free text (not every book uses plain
 // digits), but bounded so it can't be pasted-in garbage. `amount` is the bill-book total,
 // also copied in by hand — becomes the order's totalAmount from here on (see the route).
-export const billOrderSchema = z.object({
-  invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40),
-  amount: money.positive("Enter the bill amount"),
-}) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+export const billOrderSchema = z
+  .object({
+    invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40).optional(),
+    amount: money.positive("Enter the bill amount").optional(),
+    vehicleNo: z.string().trim().max(20).optional(),
+  })
+  .refine((v) => v.invoiceNumber === undefined || v.amount !== undefined, {
+    message: "Enter the bill amount",
+    path: ["amount"],
+  }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
+export const setInvoiceSeriesSchema = z.object({
+  next: z.coerce.number().int("Whole number").positive("Enter a number above 0").max(99_999_999),
+}) satisfies z.ZodType<SetInvoiceSeriesInput, z.ZodTypeDef, unknown>;
+
+const optText = (max: number) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), z.string().trim().max(max).nullable());
+export const einvoiceSetupSchema = z.object({
+  products: z
+    .array(
+      z.object({
+        id,
+        hsnCode: z.preprocess(
+          (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+          z.string().trim().regex(/^[0-9]{4,8}$/, "HSN must be 4–8 digits").nullable(),
+        ),
+        gstRate: z.coerce.number().min(0).max(100),
+        mrp: z.preprocess((v) => (v === "" ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()),
+        uqc: z.string().trim().toUpperCase().min(2).max(8),
+      }),
+    )
+    .max(500)
+    .optional(),
+  outlets: z
+    .array(
+      z.object({
+        id,
+        pincode: z.preprocess(
+          (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+          z.string().trim().regex(/^[0-9]{6}$/, "Pincode must be 6 digits").nullable(),
+        ),
+        city: optText(50),
+      }),
+    )
+    .max(1000)
+    .optional(),
+}) satisfies z.ZodType<EinvoiceSetupInput, z.ZodTypeDef, unknown>;
 
 export const dispatchBulkSchema = z.object({
   orderIds: z.array(id).min(1, "Select at least one order").max(100, "At most 100 orders at once"),

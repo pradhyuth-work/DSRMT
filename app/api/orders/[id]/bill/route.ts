@@ -6,6 +6,7 @@ import { authorize } from "@/lib/auth";
 import { billOrderSchema } from "@/lib/validation";
 import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
+import { allocateNumber } from "@/lib/invoice-series";
 import { effectiveSchemePrice } from "@/lib/products";
 import type { OrderDTO } from "@/lib/types";
 
@@ -15,6 +16,9 @@ import type { OrderDTO } from "@/lib/types";
  * totalAmount/balanceDue/status — the bill book, not the system-computed line total, is the
  * figure payments get collected against from here on. Admin and stock only — whoever
  * prepares the paperwork before the physical dispatch.
+ *
+ * Two ways in: a hand-entered bill number (billed outside the app, flagged, no e-invoice) or no
+ * number (billed in the app: next MTR number, amount from the items, e-invoice JSON possible).
  *
  * Also snapshots each line's regular (non-scheme) unit price and its scheme price, if any
  * (Scheme Savings sums these across the bill and compares them against the entered amount
@@ -29,17 +33,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { invoiceNumber, amount } = await parseBody(req, billOrderSchema);
+    const input = await parseBody(req, billOrderSchema);
+    // A hand-entered number means the bill was made outside the app (bill book / Target): it is
+    // recorded and flagged, and no GST invoice or e-invoice is made for it. Without a number,
+    // the app bills it: next number from the MTR series, amount = the item total.
+    const billedOutside = input.invoiceNumber !== undefined;
 
     const order = await prisma.$transaction(async (tx) => {
       const invoice = await lockInvoice(tx, id);
       if (invoice.fulfilmentStatus !== "PENDING") {
         throw new HttpError(409, `Order ${id} is already ${invoice.fulfilmentStatus.toLowerCase()}`);
       }
+      const amount = billedOutside
+        ? input.amount!
+        : Math.round(invoice.items.reduce((sum, i) => sum + i.subtotal, 0));
       if (amount < invoice.paidAmount) {
         throw new HttpError(400, `Bill amount (${amount}) is less than the amount already paid (${invoice.paidAmount})`);
       }
 
+      const invoiceNumber = billedOutside ? input.invoiceNumber! : await allocateNumber(tx);
       const clash = await tx.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } });
       if (clash) throw new HttpError(409, `Bill number "${invoiceNumber}" is already used by another order`);
 
@@ -103,6 +115,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         where: { id },
         data: {
           invoiceNumber,
+          billedOutside,
+          vehicleNo: billedOutside ? null : input.vehicleNo?.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null,
           fulfilmentStatus: "BILLED",
           billedAt: new Date(),
           billedById: user.id,

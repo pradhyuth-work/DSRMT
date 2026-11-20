@@ -11,6 +11,10 @@ import type {
   AuthUser,
   BalanceAdjustmentDTO,
   BillOrderInput,
+  EinvoiceReportDTO,
+  EinvoiceSetupDTO,
+  EinvoiceSetupInput,
+  InvoiceSeriesDTO,
   BounceChequeInput,
   BounceChequeResponse,
   ChequeEventDTO,
@@ -202,6 +206,17 @@ export const api = {
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
   downloadOrdersCsv: (status?: FulfilmentStatus) => downloadFile(`/api/orders/csv${status ? `?status=${status}` : ""}`, "orders.csv"),
   updateOrder: (id: string, input: UpdateOrderInput) => patch<OrderDTO>(`/api/orders/${enc(id)}`, input),
+  getInvoiceSeries: () => request<InvoiceSeriesDTO>("/api/einvoice/series"),
+  setInvoiceSeries: (next: number) => patch<InvoiceSeriesDTO>("/api/einvoice/series", { next }),
+  getEinvoiceSetup: () => request<EinvoiceSetupDTO>("/api/einvoice/setup"),
+  saveEinvoiceSetup: (input: EinvoiceSetupInput) => patch<EinvoiceSetupDTO>("/api/einvoice/setup", input),
+  einvoiceReport: (q: { from: string; to: string; only?: "new" }) =>
+    request<EinvoiceReportDTO>(`/api/einvoice/export?${new URLSearchParams({ format: "report", from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`),
+  /** Downloads the e-invoice JSON array; resolves with how many bills were left out as blocked. */
+  downloadEinvoiceJson: async (q: { from: string; to: string; only?: "new" }) => {
+    const h = await downloadFile(`/api/einvoice/export?${new URLSearchParams({ from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`, "einvoice.json");
+    return Number(h.get("X-Einvoice-Blocked") ?? 0);
+  },
   billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   toggleScheme: (id: string, productId: string, hasScheme: boolean) =>
     patch<OrderDTO>(`/api/orders/${enc(id)}/scheme`, { productId, hasScheme }),

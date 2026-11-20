@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, FileJson, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
+import { EinvoicePanel } from "./EinvoicePanel";
 import type { DashboardData } from "./Dashboard";
 
 type Filter = FulfilmentStatus | "ALL";
@@ -41,6 +42,7 @@ export default function OrdersView({
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
   const [billing, setBilling] = useState<OrderDTO | null>(null);
+  const [showEinvoice, setShowEinvoice] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   // Outlet whose details are open — set by tapping the outlet name on an order card.
   const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
@@ -245,6 +247,12 @@ export default function OrdersView({
               Billed summary
             </button>
           )}
+          {user.role === "admin" && (
+            <button type="button" className="btn btn-secondary shrink-0" onClick={() => setShowEinvoice(true)}>
+              <FileJson className="h-4 w-4" />
+              E-invoice &amp; numbering
+            </button>
+          )}
           <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download CSV
@@ -291,6 +299,9 @@ export default function OrdersView({
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
                       {o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "Not billed yet"}
                     </p>
+                    {o.invoiceNumber && o.billedOutside && (
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Billed outside app — no GST invoice here</p>
+                    )}
                     <button
                       type="button"
                       className="focus-ring mt-0.5 inline-flex max-w-full items-center gap-2 border border-input bg-secondary px-3 py-2 text-left font-[family-name:var(--app-font-display)] text-[26px] font-semibold uppercase leading-none tracking-[.04em] transition active:scale-[.97] hover:border-accent"
@@ -477,6 +488,10 @@ export default function OrdersView({
           />
         </div>
       )}
+
+      <Modal open={showEinvoice} title="E-invoice & numbering" onClose={() => setShowEinvoice(false)}>
+        {showEinvoice && <EinvoicePanel />}
+      </Modal>
 
       <Modal open={!!billing} title="Bill this order" onClose={() => setBilling(null)}>
         {billing && (
@@ -819,21 +834,28 @@ function EditOrderForm({
 }
 
 /**
- * Copies in the physical bill-book number and amount by hand — neither is auto-generated.
- * The amount pre-fills with the system-computed total (the common case — nothing to
- * change) but is editable: whatever's entered here becomes the order's totalAmount and the
- * figure payments are collected against from now on, since the bill book is the paperwork
- * of record, not the line-item sum.
+ * Two ways to bill. "In the app" (default) takes the next MTR number, bills the item total and
+ * makes a GST invoice that can go out as e-invoice JSON. "Outside the app" is for bills already
+ * written in the bill book / Target: the number and amount are copied in by hand, the order is
+ * flagged as billed outside the app, and no GST invoice is made for it here. The amount in that
+ * case becomes the order total payments are collected against, since the bill book is the paperwork of record.
  */
 function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
+  const [outside, setOutside] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState(String(order.totalAmount));
+  const [vehicleNo, setVehicleNo] = useState("");
+  const [nextLabel, setNextLabel] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    api.getInvoiceSeries().then((s) => setNextLabel(s.next ? `${s.prefix} ${s.next}` : null)).catch(() => setNextLabel(null));
+  }, []);
+
   const amountNum = Number.parseFloat(amount);
-  const tooLow = Number.isFinite(amountNum) && amountNum < order.paidAmount;
-  const valid = invoiceNumber.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0 && !tooLow;
+  const tooLow = outside && Number.isFinite(amountNum) && amountNum < order.paidAmount;
+  const valid = outside ? invoiceNumber.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0 && !tooLow : nextLabel !== null && nextLabel !== undefined;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -841,8 +863,13 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
     setBusy(true);
     setError(null);
     try {
-      await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
-      await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} — ready to dispatch`);
+      if (outside) {
+        await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
+        await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} (billed outside the app) — ready to dispatch`);
+      } else {
+        const billed = await api.billOrder(order.id, { vehicleNo: vehicleNo.trim() || undefined });
+        await onDone(`Invoice ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)} — ready to dispatch`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to bill order");
       setBusy(false);
@@ -855,39 +882,45 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
         <p className="font-medium">{order.outletName}</p>
         <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
       </div>
-      <div>
-        <label className="label" htmlFor="bill-number">Bill book number</label>
-        <input
-          id="bill-number"
-          className="input"
-          value={invoiceNumber}
-          onChange={(e) => setInvoiceNumber(e.target.value)}
-          placeholder="e.g. 1042"
-          autoFocus
-        />
-        <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
+      <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="How to bill">
+        <button type="button" role="tab" aria-selected={!outside} className={`btn ${outside ? "btn-secondary" : "btn-primary"}`} onClick={() => setOutside(false)}>Bill in the app</button>
+        <button type="button" role="tab" aria-selected={outside} className={`btn ${outside ? "btn-primary" : "btn-secondary"}`} onClick={() => setOutside(true)}>Billed outside the app</button>
       </div>
-      <div>
-        <label className="label" htmlFor="bill-amount">Bill amount</label>
-        <input
-          id="bill-amount"
-          type="number"
-          inputMode="decimal"
-          min={0}
-          step="0.01"
-          className="input"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Copy this from the physical bill book too — it becomes the order total payments are collected against.
-        </p>
-      </div>
-      {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
+
+      {!outside ? (
+        <>
+          <div className="rounded-lg border border-input px-3 py-2 text-sm">
+            <p className="text-xs text-muted-foreground">Invoice number</p>
+            <p className="font-mono text-lg font-semibold">{nextLabel === undefined ? "…" : nextLabel ?? "Not set yet"}</p>
+          </div>
+          {nextLabel === null && <Alert kind="warning">Set the starting invoice number first: "E-invoice &amp; numbering" (admin).</Alert>}
+          <div>
+            <label className="label" htmlFor="bill-vehicle">Vehicle number (optional)</label>
+            <input id="bill-vehicle" className="input" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="KA01AB1234" />
+            <p className="mt-1 text-xs text-muted-foreground">Used for the e-way bill when the invoice is over ₹50,000.</p>
+          </div>
+          <p className="text-xs text-muted-foreground">The invoice amount is the item total. The number is taken now and can't be changed later.</p>
+        </>
+      ) : (
+        <>
+          <Alert kind="warning">This bill was made outside the app. It is recorded and flagged, and no GST invoice or e-invoice is made for it here.</Alert>
+          <div>
+            <label className="label" htmlFor="bill-number">Bill book number</label>
+            <input id="bill-number" className="input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="e.g. SAC 1042" autoFocus />
+            <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="bill-amount">Bill amount</label>
+            <input id="bill-amount" type="number" inputMode="decimal" min={0} step="0.01" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill too — it becomes the order total payments are collected against.</p>
+          </div>
+          {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
+        </>
+      )}
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={busy || !valid}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
-        Save bill
+        {outside ? "Save bill" : "Make invoice"}
       </button>
     </form>
   );

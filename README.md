@@ -135,3 +135,11 @@ supabase/migrations/        SQL to run in the Supabase SQL editor
 scripts/seed-admin.ts       creates/resets the admin from ADMIN_USERNAME / ADMIN_PIN
 scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgres
 ```
+
+## GST invoices and e-invoice JSON (no GSP yet)
+
+- Run `supabase/migrations/0021_einvoice_fields.sql` in the Supabase SQL editor first.
+- Billing an order now has two paths: **Bill in the app** (next MTR number, item total, e-invoice JSON possible) and **Billed outside the app** (hand-entered number and amount, flagged, no GST invoice or e-invoice made here).
+- `GET /api/einvoice/export?from&to[&only=new][&format=report]` — admin; bulk e-invoice JSON (IRP schema 1.1 array) or a ready/blocked report.
+- `GET|PATCH /api/einvoice/series` — MTR number series (editable start; never lower than a used number).
+- `GET|PATCH /api/einvoice/setup` — HSN/MRP/GST % per product, pincode/city per outlet with a GSTIN.

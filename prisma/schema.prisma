@@ -82,6 +82,12 @@ model Product {
   schemeActive Boolean @default(true)
   /// Never negative: enforced by a CHECK constraint in the migration.
   stockQty    Int      @default(0)
+  /// E-invoice fields. hsnCode is required to build an e-invoice; mrp drives the Rule 31D
+  /// taxable value (MRP x 100 / (100 + gstRate)); uqc is the IRP unit code (NOS, PAC, ...).
+  hsnCode     String?
+  gstRate     Float    @default(40)
+  mrp         Float?
+  uqc         String   @default("NOS")
   createdAt   DateTime @default(now())
 
   invoiceItems     InvoiceItem[]
@@ -113,6 +119,9 @@ model Outlet {
   phone     String
   address   String   @default("")
   gstNumber String?
+  /// Needed for the e-invoice buyer block (the IRP rejects a buyer without them).
+  pincode   String?
+  city      String?
   routeId   String?
   /**
    * Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected.
@@ -183,6 +192,13 @@ model Invoice {
   dispatchedById   String?
   cancelledAt      DateTime?
   cancelledById    String?
+  /// True when the bill was written in the physical bill book / Target and only copied in here
+  /// (the hand-entered number path). No GST invoice or e-invoice JSON is made for these.
+  billedOutside    Boolean          @default(false)
+  /// Vehicle for the e-way bill part of the e-invoice JSON (from the field agent). Optional.
+  vehicleNo        String?
+  /// Last time this bill went out in an e-invoice JSON file; null = never exported.
+  einvExportedAt   DateTime?
   createdAt        DateTime         @default(now())
 
   outlet         Outlet              @relation(fields: [outletId], references: [id])
@@ -410,4 +426,11 @@ model AgentPayment {
   createdBy Staff @relation("AgentPaymentCreator", fields: [createdById], references: [id])
 
   @@index([agentId, createdAt])
+}
+
+/// Small key/value store for app settings. Holds the in-app invoice number series
+/// ("invoice_prefix" = MTR, "invoice_next" = next number to hand out).
+model AppSetting {
+  key   String @id
+  value String
 }
