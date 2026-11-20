@@ -74,6 +74,13 @@ export default function BillingMode({
   );
 }
 
+/** Whether an order is priced with scheme rates: every line, some lines, or none. */
+function schemeState(o: OrderDTO): "all" | "some" | "none" {
+  const n = o.items.filter((i) => i.hasScheme).length;
+  return n === 0 ? "none" : n === o.items.length ? "all" : "some";
+}
+const SCHEME_LABEL = { all: "Scheme ON", some: "Scheme on some lines", none: "No scheme" } as const;
+
 /* ------------------------------------------------------------------ desk */
 
 function Desk({
@@ -151,6 +158,7 @@ function Desk({
               className={`focus-ring w-full rounded-lg border px-3 py-2 text-left ${order?.id === o.id ? "border-accent bg-accent/10" : "border-border"}`}>
               <div className="flex justify-between gap-2"><span className="truncate text-sm font-semibold">{o.outletName}</span><span className="text-sm font-bold">{formatMoney(o.totalAmount)}</span></div>
               <div className="text-xs opacity-75">{o.staffName} · {o.items.length} item{o.items.length === 1 ? "" : "s"} · {formatDate(o.createdAt)}</div>
+              <div className={`mt-0.5 text-[10px] font-bold uppercase tracking-wider ${schemeState(o) === "none" ? "opacity-50" : "text-accent"}`}>{SCHEME_LABEL[schemeState(o)]}</div>
             </button>
           ))}
         </div>
@@ -167,7 +175,7 @@ function Desk({
             <div className="mt-3 flex justify-between gap-4">
               <div><div className="text-[10px] tracking-widest opacity-70">BILLED TO</div><div className="font-bold">{order.outletName}</div>
                 <div className="text-xs">{outlet?.gstNumber ? `GSTIN: ${outlet.gstNumber}` : "No GSTIN — B2C, no e-invoice"}</div></div>
-              <div className="text-right"><div className="text-[10px] tracking-widest opacity-70">INVOICE NO</div><div className="text-xl font-bold">{nextLabel ?? "—"}</div><div className="text-xs">Supply: Karnataka</div></div>
+              <div className="text-right"><div className="text-[10px] tracking-widest opacity-70">INVOICE NO</div><div className="text-xl font-bold">{nextLabel ?? "—"}</div><div className="text-xs">Supply: Karnataka</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#0F2B2A]">{SCHEME_LABEL[schemeState(order)]}</div></div>
             </div>
             <div className="mt-3 overflow-x-auto"><div className="min-w-[460px] text-xs">
               <div className="grid grid-cols-[2fr_.6fr_.8fr_.8fr_1fr_1fr] gap-1 border-b border-[#0F2B2A]/40 pb-1 font-bold">
@@ -175,7 +183,7 @@ function Desk({
               </div>
               {lines.map((l) => (
                 <div key={l.i.productId} className="grid grid-cols-[2fr_.6fr_.8fr_.8fr_1fr_1fr] gap-1 border-b border-[#0F2B2A]/10 py-1">
-                  <div>{l.i.productName}</div><div className="text-right">{l.i.quantity}</div>
+                  <div>{l.i.productName}{l.i.hasScheme && <span className="ml-1 rounded bg-[#0F2B2A] px-1 text-[9px] font-bold text-white">SCHEME</span>}</div><div className="text-right">{l.i.quantity}</div>
                   <div className="text-right">{l.mrp ?? "—"}</div><div className="text-right">{l.i.unitPrice}</div>
                   <div className="text-right">{l.net === null ? "—" : l.net.toFixed(2)}</div><div className="text-right">{l.tax === null ? "—" : l.tax.toFixed(2)}</div>
                 </div>
