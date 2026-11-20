@@ -143,7 +143,30 @@ async function downloadFile(path: string, fallbackName: string): Promise<Headers
   return res.headers;
 }
 
+/** Opens the printable A5 invoice for a bill made in the app in a new window and starts printing. */
+async function printInvoice(orderId: string): Promise<void> {
+  const token = getToken();
+  const w = window.open("", "_blank");
+  if (!w) throw new ApiRequestError("Allow pop-ups to print the invoice");
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/print`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+    if (!res.ok) {
+      const data: unknown = await res.json().catch(() => null);
+      throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`);
+    }
+    const html = (await res.text()).replace("<head>", `<head><base href="${window.location.origin}/">`);
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.addEventListener("load", () => setTimeout(() => w.print(), 300));
+  } catch (e) {
+    w.close();
+    throw e;
+  }
+}
+
 export const api = {
+  printInvoice,
   login: (input: LoginInput) => post<LoginResponse>("/api/auth/login", input),
   me: () => request<AuthUser>("/api/auth/me"),
 

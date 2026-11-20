@@ -166,7 +166,7 @@ function Desk({
         {order && (
           <div className="rounded-md bg-[#F4EFE3] p-5 text-[#1B2B2A] shadow">
             <div className="flex items-start justify-between border-b-2 border-[#0F2B2A] pb-2">
-              <div><div className="text-lg font-bold tracking-wider">{SELLER_NAME}</div><div className="text-xs">GSTIN {SELLER_GSTIN}</div></div>
+              <div className="flex items-center gap-2"><img src="/varasidhi-logo.png" alt="" className="h-10 w-10 rounded-lg" /><div><div className="text-lg font-bold tracking-wider">{SELLER_NAME}</div><div className="text-xs">GSTIN {SELLER_GSTIN}</div></div></div>
               <div className="text-right"><div className="text-sm font-bold tracking-[.18em]">TAX INVOICE</div><div className="text-[10px] tracking-widest text-[#8a5a00]">DRAFT · NOT YET ISSUED</div></div>
             </div>
             <div className="mt-3 flex justify-between gap-4">
@@ -278,6 +278,11 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
       <div className="flex flex-wrap gap-3">
         <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Next invoice number</div><div className="text-xl font-bold text-accent">{series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : "Not set"}</div></div>
         <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Numbers waiting to be reused</div><div className="text-xl font-bold">{series?.reusable.length ?? 0}</div></div>
+        {sel && !sel.billedOutside && sel.fulfilmentStatus !== "CANCELLED" && (
+          <button type="button" className="btn btn-primary self-center" onClick={() => { api.printInvoice(sel.id).catch((e) => setErr(e instanceof Error ? e.message : "Could not print")); }}>
+            Print {sel.invoiceNumber}
+          </button>
+        )}
         {isAdmin && <button type="button" className="btn btn-secondary self-center" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
       </div>
 
