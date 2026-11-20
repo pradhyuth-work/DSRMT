@@ -234,6 +234,8 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
   const invoices = await prisma.invoice.findMany({
     where: {
       fulfilmentStatus: { in: ["BILLED", "DISPATCHED"] },
+      // POS bills are priced by hand, not off the scheme list, so they don't belong in scheme savings.
+      posBill: false,
       billedAt: dateFilter,
       outletId: filters.outletId,
       staffId: filters.staffId,

@@ -141,6 +141,8 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
     cancelledAt: o.cancelledAt?.toISOString() ?? null,
     cancelledByName: o.cancelledBy?.name ?? null,
     billedOutside: o.billedOutside,
+    posBill: o.posBill,
+    taxMode: o.taxMode as OrderDTO["taxMode"],
     vehicleNo: o.vehicleNo,
     einvExportedAt: o.einvExportedAt?.toISOString() ?? null,
     items: o.items.map((i) => ({

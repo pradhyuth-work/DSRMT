@@ -8,9 +8,11 @@ import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
 import { EinvoicePanel } from "./EinvoicePanel";
 import { EditOrderForm } from "./OrdersView";
+import PosBilling from "./PosBilling";
+import TaxReports from "./TaxReports";
 import type { DashboardData } from "./Dashboard";
 
-type BillTab = "desk" | "invoices";
+type BillTab = "desk" | "invoices" | "pos" | "reports";
 
 const SELLER_NAME = "VARASIDHI ENTERPRISES";
 const SELLER_GSTIN = "29AEXPR8267H1ZC";
@@ -44,6 +46,7 @@ export default function BillingMode({
   const tabs: { id: BillTab; label: string }[] = [
     { id: "desk", label: "Orders to bill" },
     { id: "invoices", label: "Invoices" },
+    ...(isAdmin ? [{ id: "pos" as const, label: "POS billing" }, { id: "reports" as const, label: "Tax reports" }] : []),
   ];
   return (
     <div className="space-y-4">
@@ -65,6 +68,12 @@ export default function BillingMode({
           onDone={async (text) => { setMessage({ kind: "success", text }); await onSaved(); await loadSeries(); }}
           onError={(text) => setMessage({ kind: "error", text })} />
       )}
+      {tab === "pos" && isAdmin && (
+        <PosBilling data={data}
+          onDone={async (text) => { setMessage({ kind: "success", text }); await onSaved(); await loadSeries(); }}
+          onError={(text) => setMessage({ kind: "error", text })} />
+      )}
+      {tab === "reports" && isAdmin && <TaxReports />}
       {tab === "invoices" && (
         <Invoices data={data} series={series} isAdmin={isAdmin}
           onDone={async (text) => { setMessage({ kind: "success", text }); await onSaved(); await loadSeries(); }} />
@@ -251,13 +260,13 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
 
   const reuseBlock = !sel ? "" : sel.billedOutside ? "Written outside the app — can't be reused here." : sel.einvExportedAt ? "Already in an e-invoice file — can't be reused." : "Hands the number back so the next invoice takes it.";
   const canReuse = !!sel && !sel.billedOutside && !sel.einvExportedAt;
-  const label = (o: OrderDTO) => (o.fulfilmentStatus === "CANCELLED" ? "Cancelled" : o.billedOutside ? "Outside app" : o.einvExportedAt ? "JSON exported" : "In app");
+  const label = (o: OrderDTO) => (o.fulfilmentStatus === "CANCELLED" ? "Cancelled" : o.billedOutside ? "Outside app" : o.posBill ? "POS" : o.einvExportedAt ? "JSON exported" : "In app");
 
   async function submit() {
     if (!sel) return;
     setBusy(true); setErr(null);
     try {
-      await api.reverseBill(sel.id, { reason, returnToPending: back, reuseNumber: reuse && canReuse, confirm: confirm.trim() });
+      await api.reverseBill(sel.id, { reason, returnToPending: back && !sel.posBill, reuseNumber: reuse && canReuse, confirm: confirm.trim() });
       setSelId(null);
       await onDone(`${sel.invoiceNumber} ${back ? "returned to Pending" : "cancelled"}`);
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not cancel"); }
@@ -300,13 +309,13 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
                   {REASONS.map((r) => (<button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(r)} className={`btn h-8 px-3 text-xs ${reason === r ? "btn-primary" : "btn-secondary"}`}>{r}</button>))}
                 </div>
                 <label className="flex items-start justify-between gap-3 text-sm"><span><b>Return order to Pending</b><br /><span className="text-xs text-muted-foreground">Stock goes back and the order can be billed again.</span></span>
-                  <input type="checkbox" role="switch" checked={back} onChange={(e) => setBack(e.target.checked)} aria-label="Return order to Pending" /></label>
+                  <input type="checkbox" role="switch" checked={back && !sel.posBill} disabled={sel.posBill} onChange={(e) => setBack(e.target.checked)} aria-label="Return order to Pending" /></label>
                 <label className="flex items-start justify-between gap-3 text-sm"><span><b>Reuse this invoice number</b><br /><span className="text-xs text-muted-foreground">{reuseBlock}</span></span>
                   <input type="checkbox" role="switch" checked={reuse && canReuse} disabled={!canReuse} onChange={(e) => setReuse(e.target.checked)} aria-label="Reuse this invoice number" /></label>
                 <div><label className="label" htmlFor="cfm">Type {sel.invoiceNumber} to confirm</label><input id="cfm" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={sel.invoiceNumber ?? ""} /></div>
                 {err && <Alert kind="error">{err}</Alert>}
                 <button type="button" className="btn btn-primary w-full" disabled={busy || confirm.trim() !== sel.invoiceNumber} onClick={() => void submit()}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{back ? "Cancel and return to Pending" : "Cancel invoice"}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{back && !sel.posBill ? "Cancel and return to Pending" : "Cancel invoice"}
                 </button>
               </>
             )}

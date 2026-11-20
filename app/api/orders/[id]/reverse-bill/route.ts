@@ -31,6 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!number) throw new HttpError(409, "This order has no invoice number");
       if (input.confirm !== number) throw new HttpError(400, `Type ${number} exactly to confirm`);
 
+      if (invoice.posBill && input.returnToPending) throw new HttpError(400, "A POS bill can only be cancelled, not returned to Pending");
+
       const payments = await tx.paymentCollection.count({ where: { invoiceId: id } });
       if (payments > 0) throw new HttpError(409, "Payments are recorded against this invoice — reverse them first");
 

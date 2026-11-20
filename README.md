@@ -143,3 +143,8 @@ scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgre
 - `GET /api/einvoice/export?from&to[&only=new][&format=report]` — admin; bulk e-invoice JSON (IRP schema 1.1 array) or a ready/blocked report.
 - `GET|PATCH /api/einvoice/series` — MTR number series (editable start; never lower than a used number).
 - `GET|PATCH /api/einvoice/setup` — HSN/MRP/GST % per product, pincode/city per outlet with a GSTIN.
+- Run `supabase/migrations/0022_pos_and_tax_snapshots.sql` after 0021 (POS, tax snapshots, tax reports).
+- `POST /api/pos/bill` — admin POS bill (3 tax options, new outlets stay pending review).
+- `POST /api/orders/[id]/reverse-bill` — admin cancel / return to Pending, optional number reuse, audit logged.
+- `GET /api/tax/report?type=gstr1|gstr3b|sales-register|hsn|einvoice-status|cancelled&month=YYYY-MM[&format=json]` — admin.
+

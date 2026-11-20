@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { SELLER } from "@/lib/seller";
 import { irpDocNumber } from "@/lib/invoice-series";
 import { round2 } from "@/lib/money";
+import { computeLine, splitTax, type TaxMode } from "@/lib/gst";
 
 /** What the e-invoice builder needs from the database. */
 export const einvoiceInclude = {
@@ -59,11 +60,14 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
   if (clip(o.city ?? "", 50).length < 3) errors.push(`Outlet "${o.name}": add the city`);
   if (clip(o.address ?? "", 100).length < 1) errors.push(`Outlet "${o.name}": add the address`);
 
+  const mode = (inv.taxMode as TaxMode) ?? "MRP";
   const missingProducts = new Set<string>();
   for (const it of inv.items) {
     const p = it.product;
-    if (!p.hsnCode || !/^[0-9]{4,8}$/.test(p.hsnCode.trim())) missingProducts.add(`${p.name} (HSN)`);
-    if (!p.mrp || p.mrp <= 0) missingProducts.add(`${p.name} (MRP)`);
+    const hsn = (it.hsnCode ?? p.hsnCode ?? "").trim();
+    if (!/^[0-9]{4,8}$/.test(hsn)) missingProducts.add(`${p.name} (HSN)`);
+    const hasSnapshot = it.taxable != null && it.taxAmt != null;
+    if (!hasSnapshot && mode === "MRP" && !(it.mrp ?? p.mrp)) missingProducts.add(`${p.name} (MRP)`);
   }
   if (missingProducts.size > 0) errors.push(`Product set-up missing: ${[...missingProducts].join(", ")}`);
   if (inv.items.length === 0) errors.push("No items");
@@ -75,21 +79,21 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
 
   const items = inv.items.map((it, i) => {
     const p = it.product;
-    const rate = p.gstRate;
-    const gross = it.unitPrice * it.quantity;
-    const tax = round2((p.mrp! * it.quantity * rate) / (100 + rate));
-    const ass = round2(gross - tax);
-    const half = round2(tax / 2);
-    const cgst = intra ? half : 0;
-    const sgst = intra ? round2(tax - half) : 0;
-    const igst = intra ? 0 : tax;
-    assTotal += ass; cgstTotal += cgst; sgstTotal += sgst; igstTotal += igst;
-    if (it.unitPrice > p.mrp!) warnings.push(`${p.name}: billed price ${it.unitPrice} is above MRP ${p.mrp}`);
+    const rate = it.gstRate ?? p.gstRate;
+    const t =
+      it.taxable != null && it.taxAmt != null
+        ? { gross: round2(it.taxable + it.taxAmt), taxable: it.taxable, tax: it.taxAmt }
+        : computeLine(mode, it.unitPrice, it.quantity, rate, it.mrp ?? p.mrp)!;
+    const ass = t.taxable;
+    const sp = splitTax(t.tax, intra ? "29" : buyerState);
+    assTotal += ass; cgstTotal += sp.cgst; sgstTotal += sp.sgst; igstTotal += sp.igst;
+    const mrp = it.mrp ?? p.mrp;
+    if (mode === "MRP" && mrp && it.unitPrice > mrp) warnings.push(`${p.name}: billed price ${it.unitPrice} is above MRP ${mrp}`);
     return {
       SlNo: String(i + 1),
       PrdDesc: clip(p.name, 300).padEnd(3, " "),
       IsServc: "N",
-      HsnCd: p.hsnCode!.trim(),
+      HsnCd: (it.hsnCode ?? p.hsnCode)!.trim(),
       Qty: it.quantity,
       FreeQty: 0,
       Unit: p.uqc || "NOS",
@@ -98,12 +102,12 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
       Discount: 0,
       AssAmt: ass,
       GstRt: rate,
-      IgstAmt: igst,
-      CgstAmt: cgst,
-      SgstAmt: sgst,
+      IgstAmt: sp.igst,
+      CgstAmt: sp.cgst,
+      SgstAmt: sp.sgst,
       CesRt: 0,
       CesAmt: 0,
-      TotItemVal: round2(ass + cgst + sgst + igst),
+      TotItemVal: round2(ass + sp.cgst + sp.sgst + sp.igst),
     };
   });
 
@@ -112,7 +116,7 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
   const sumItems = round2(items.reduce((s, x) => s + x.TotItemVal, 0));
   const roundOff = round2(billed - sumItems);
   if (Math.abs(roundOff) > 1) warnings.push(`Billed total ${billed} differs from the item total ${sumItems} by more than ₹1`);
-  warnings.push("Tax is worked on MRP (Rule 31D), so it is not exactly 40% of the taxable value — confirm the IRP accepts it in the sandbox");
+  if (mode === "MRP") warnings.push("Tax is worked on MRP (Rule 31D), so it is not exactly 40% of the taxable value — confirm the IRP accepts it in the sandbox");
 
   const veh = (inv.vehicleNo ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   const needsEwb = billed > EWB_THRESHOLD;

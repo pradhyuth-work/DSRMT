@@ -60,6 +60,8 @@ export interface OutletDTO {
   phone: string;
   address: string;
   gstNumber: string | null;
+  /** Made at the POS and not yet approved by an admin. */
+  pendingReview?: boolean;
   routeId: string | null;
   routeName: string | null;
   /** Derived from the outlet's route, if any. */
@@ -271,6 +273,9 @@ export interface OrderDTO {
   cancelledByName: string | null;
   /** Written in the bill book / Target and only copied in — no GST invoice made here. */
   billedOutside: boolean;
+  /** Made at the admin-only POS. */
+  posBill: boolean;
+  taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
   vehicleNo: string | null;
   einvExportedAt: string | null;
   items: OrderItemDTO[];
@@ -296,6 +301,21 @@ export interface InvoiceSeriesDTO {
   /** Highest number already used under the prefix. */
   highestUsed: number;
 }
+export interface TaxReportTable {
+  name: string;
+  header: string[];
+  rows: (string | number | null)[][];
+}
+export interface PosBillInput {
+  /** An existing outlet, or a new one made on the spot (it stays "pending review"). Exactly one. */
+  outletId?: string;
+  newOutlet?: { name: string; gstNumber?: string | null; address?: string; city?: string; pincode?: string; phone?: string };
+  /** State code for a B2C bill / new outlet without a GSTIN; a GSTIN's own state wins. Default 29. */
+  placeOfSupply?: string;
+  taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
+  items: { productId: string; quantity: number; price: number; mrp?: number | null }[];
+}
+
 export interface ReverseBillInput {
   reason: string;
   /** true: back to Pending so it can be billed again; false: cancelled. */

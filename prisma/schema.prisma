@@ -122,6 +122,8 @@ model Outlet {
   /// Needed for the e-invoice buyer block (the IRP rejects a buyer without them).
   pincode   String?
   city      String?
+  /// Created at the POS; stays flagged until an admin reviews it.
+  pendingReview Boolean @default(false)
   routeId   String?
   /**
    * Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected.
@@ -199,6 +201,12 @@ model Invoice {
   vehicleNo        String?
   /// Last time this bill went out in an e-invoice JSON file; null = never exported.
   einvExportedAt   DateTime?
+  /// How tax was worked out: MRP (inclusive, Rule 31D), INCLUSIVE (price has tax) or EXCLUSIVE (tax on top).
+  taxMode          String           @default("MRP")
+  /// Made at the admin-only POS (walk-in / new outlet) rather than from an order.
+  posBill          Boolean          @default(false)
+  /// State code of the place of supply; 29 = Karnataka (CGST + SGST), anything else is IGST.
+  placeOfSupply    String           @default("29")
   createdAt        DateTime         @default(now())
 
   outlet         Outlet              @relation(fields: [outletId], references: [id])
@@ -244,6 +252,12 @@ model InvoiceItem {
   /// True when schemeUnitPrice was back-filled from the product's *current* scheme price by
   /// the 0019 migration rather than captured live at billing time.
   schemePriceEstimated Boolean @default(false)
+  /// Tax snapshot taken when an invoice is made in the app (null for bills written outside it).
+  mrp      Float?
+  hsnCode  String?
+  gstRate  Float?
+  taxable  Float?
+  taxAmt   Float?
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])

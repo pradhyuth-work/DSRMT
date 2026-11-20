@@ -17,6 +17,7 @@ import type {
   EinvoiceSetupInput,
   SetInvoiceSeriesInput,
   ReverseBillInput,
+  PosBillInput,
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
@@ -109,6 +110,39 @@ export const billOrderSchema = z
     message: "Enter the bill amount",
     path: ["amount"],
   }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
+export const posBillSchema = z
+  .object({
+    outletId: id.optional(),
+    newOutlet: z
+      .object({
+        name: z.string().trim().min(1, "Enter the outlet name").max(120),
+        gstNumber,
+        address: address.optional(),
+        city: z.string().trim().max(50).optional(),
+        pincode: z.string().trim().regex(/^[0-9]{6}$/, "Pincode must be 6 digits").optional(),
+        phone: phone.optional(),
+      })
+      .optional(),
+    placeOfSupply: z.string().trim().regex(/^[0-9]{2}$/, "Choose a state").optional(),
+    taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]),
+    items: z
+      .array(
+        z.object({
+          productId: id,
+          quantity: z.coerce.number().int().positive("Quantity must be above 0"),
+          price: money,
+          mrp: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()).optional(),
+        }),
+      )
+      .min(1, "Add at least one item")
+      .max(100),
+  })
+  .refine((v) => (v.outletId ? 1 : 0) + (v.newOutlet ? 1 : 0) === 1, { message: "Choose an outlet or enter a new one", path: ["outletId"] }) satisfies z.ZodType<
+  PosBillInput,
+  z.ZodTypeDef,
+  unknown
+>;
 
 export const reverseBillSchema = z.object({
   reason: z.string().trim().min(1, "Choose a reason").max(120),

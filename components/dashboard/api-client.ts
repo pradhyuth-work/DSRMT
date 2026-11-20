@@ -16,6 +16,8 @@ import type {
   EinvoiceSetupInput,
   InvoiceSeriesDTO,
   ReverseBillInput,
+  TaxReportTable,
+  PosBillInput,
   BounceChequeInput,
   BounceChequeResponse,
   ChequeEventDTO,
@@ -218,6 +220,10 @@ export const api = {
     const h = await downloadFile(`/api/einvoice/export?${new URLSearchParams({ from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`, "einvoice.json");
     return Number(h.get("X-Einvoice-Blocked") ?? 0);
   },
+  posBill: (input: PosBillInput) => post<OrderDTO>("/api/pos/bill", input),
+  approveOutlet: (id: string) => post<OutletDTO>(`/api/outlets/${enc(id)}/approve`, {}),
+  taxReportView: (type: string, month: string) => request<{ tables: TaxReportTable[] }>(`/api/tax/report?type=${enc(type)}&month=${enc(month)}&format=json`),
+  taxReportDownload: (type: string, month: string) => downloadFile(`/api/tax/report?type=${enc(type)}&month=${enc(month)}`, `${type}-${month}`),
   reverseBill: (id: string, input: ReverseBillInput) => post<OrderDTO>(`/api/orders/${enc(id)}/reverse-bill`, input),
   billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   toggleScheme: (id: string, productId: string, hasScheme: boolean) =>

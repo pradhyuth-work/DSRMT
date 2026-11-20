@@ -8,6 +8,7 @@ import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { allocateNumber } from "@/lib/invoice-series";
 import { effectiveSchemePrice } from "@/lib/products";
+import { computeLine } from "@/lib/gst";
 import type { OrderDTO } from "@/lib/types";
 
 /**
@@ -64,9 +65,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (productIds.length > 0) {
         // Lock in a consistent order so two bills sharing products can't deadlock.
         const stock = await tx.$queryRaw<
-          { id: string; name: string; stockQty: number; unitPrice: number; schemePrice: number | null; schemeActive: boolean }[]
+          { id: string; name: string; stockQty: number; unitPrice: number; schemePrice: number | null; schemeActive: boolean; mrp: number | null; hsnCode: string | null; gstRate: number }[]
         >`
-          SELECT "id", "name", "stockQty", "unitPrice", "schemePrice", "schemeActive" FROM "Product"
+          SELECT "id", "name", "stockQty", "unitPrice", "schemePrice", "schemeActive", "mrp", "hsnCode", "gstRate" FROM "Product"
           WHERE "id" IN (${Prisma.join(productIds)})
           ORDER BY "id"
           FOR UPDATE`;
@@ -93,6 +94,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           FROM (VALUES ${Prisma.join(listPriceRows)}) AS v(id, price, scheme_price)
           WHERE ii."id" = v.id`;
 
+        // In-app invoices keep a tax snapshot per line so reports and e-invoices never shift if a
+        // product's MRP, HSN or rate is edited later. Lines with no MRP stay null (shown as missing).
+        if (!billedOutside) {
+          const taxRows = invoice.items.map((item) => {
+            const product = productById.get(item.productId)!;
+            const t = computeLine("MRP", item.unitPrice, item.quantity, product.gstRate, product.mrp);
+            return Prisma.sql`(${item.id}::text, ${product.mrp}::double precision, ${product.hsnCode}::text, ${product.gstRate}::double precision, ${t ? t.taxable : null}::double precision, ${t ? t.tax : null}::double precision)`;
+          });
+          await tx.$executeRaw`
+            UPDATE "InvoiceItem" AS ii
+            SET "mrp" = v.mrp, "hsnCode" = v.hsn, "gstRate" = v.rate, "taxable" = v.taxable, "taxAmt" = v.tax
+            FROM (VALUES ${Prisma.join(taxRows)}) AS v(id, mrp, hsn, rate, taxable, tax)
+            WHERE ii."id" = v.id`;
+        }
+
         const stockRows = productIds.map((productId) => Prisma.sql`(${productId}::text, ${needed.get(productId)!}::int)`);
         await tx.$executeRaw`
           UPDATE "Product" AS p
@@ -111,11 +127,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         });
       }
 
+      const outletRow = await tx.outlet.findUnique({ where: { id: invoice.outletId }, select: { gstNumber: true } });
+      const placeOfSupply = /^[0-9]{2}/.test(outletRow?.gstNumber ?? "") ? outletRow!.gstNumber!.slice(0, 2) : "29";
       return tx.invoice.update({
         where: { id },
         data: {
           invoiceNumber,
           billedOutside,
+          taxMode: "MRP",
+          placeOfSupply,
           vehicleNo: billedOutside ? null : input.vehicleNo?.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null,
           fulfilmentStatus: "BILLED",
           billedAt: new Date(),
