@@ -273,6 +273,12 @@ export default function Dashboard() {
   const adminTabs = useMemo(() => tabs.filter((t) => ADMIN_CONTROL_TAB_IDS.has(t.id)), [tabs]);
   const isAdminGroupOpen = adminGroupOpen || adminTabs.some((t) => t.id === tab);
 
+  const inBillingMode = mode === "bill" && user?.role !== "agent" && !!user;
+  useEffect(() => {
+    document.documentElement.classList.toggle("billing-mode", inBillingMode);
+    return () => document.documentElement.classList.remove("billing-mode");
+  }, [inBillingMode]);
+
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
   }, [tabs, tab]);

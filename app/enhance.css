@@ -243,3 +243,9 @@ aside nav .nav-tab { border-radius: 6px; }
   .stat-spark .ln { animation: none; stroke-dashoffset: 0; }
   .nav-tab:hover, .order-card:hover { transform: none; }
 }
+
+/* Billing mode: blue in place of the orange gradients and tints. */
+html.billing-mode .nav-tab[data-active="true"] { background: linear-gradient(95deg, #5db0ff, #2f8cf0); box-shadow: 0 4px 10px rgba(47,140,240,.28); }
+html.billing-mode .avatar-ring { background-image: linear-gradient(135deg, #5db0ff, #2f8cf0); }
+html.billing-mode .card.stat-cell[data-tone="gold"] { --tone: #2f8cf0; }
+html.billing-mode .card.order-card[data-status="BILLED"] { --sc: #2f8cf0; }

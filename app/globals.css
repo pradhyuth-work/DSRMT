@@ -85,6 +85,14 @@
   --shadow-float: 0 18px 45px hsl(0 0% 8% / .14);
 }
 
+/* Billing mode swaps the orange accent for blue; the class sits on <html> so dialogs (rendered outside the app shell) follow too. */
+html.billing-mode {
+  --sidebar-primary: 212 100% 62%;
+  --primary: 212 100% 62%;
+  --accent: 212 100% 62%;
+  --ring: 212 100% 62%;
+}
+
 body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--app-font-sans);
