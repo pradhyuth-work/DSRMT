@@ -258,6 +258,7 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [dlErr, setDlErr] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => { setConfirm(""); setErr(null); setReuse(false); setBack(true); }, [selId]);
@@ -290,17 +291,29 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
         {isAdmin && <button type="button" className="btn btn-secondary self-center" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
       </div>
 
+      {dlErr && <Alert kind="error">{dlErr}</Alert>}
       <div className="flex flex-wrap items-start gap-4">
         <div className="card min-w-0 flex-1 basis-[420px] overflow-x-auto">
           {list.length === 0 ? <EmptyState>No invoices yet.</EmptyState> : (
-            <div className="min-w-[520px]">
-              <div className="grid grid-cols-[1fr_2fr_1fr_1fr] gap-2 border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div></div>
-              {list.map((o) => (
-                <button key={o.id} onClick={() => setSelId(o.id)} className={`focus-ring grid w-full grid-cols-[1fr_2fr_1fr_1fr] gap-2 px-3 py-2 text-left text-sm ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
-                  <span className="font-mono font-bold">{o.invoiceNumber}</span><span className="truncate">{o.outletName}</span><span>{formatMoney(o.totalAmount)}</span>
-                  <span className="text-xs font-semibold uppercase">{label(o)}</span>
-                </button>
-              ))}
+            <div className="min-w-[620px]">
+              <div className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[104px]">Download</div></div>
+              {list.map((o) => {
+                const inApp = !o.billedOutside && o.fulfilmentStatus !== "CANCELLED";
+                return (
+                  <div key={o.id} className={`grid grid-cols-[1fr_2fr_1fr_1fr_auto] items-center gap-2 px-3 py-2 text-sm ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
+                    <button onClick={() => setSelId(o.id)} className="focus-ring col-span-4 grid grid-cols-[1fr_2fr_1fr_1fr] gap-2 text-left">
+                      <span className="font-mono font-bold">{o.invoiceNumber}</span><span className="truncate">{o.outletName}</span><span>{formatMoney(o.totalAmount)}</span>
+                      <span className="text-xs font-semibold uppercase">{label(o)}</span>
+                    </button>
+                    <div className="flex w-[104px] gap-1">
+                      {inApp && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="Open the A5 invoice — choose Save as PDF"
+                        onClick={() => { api.printInvoice(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not open the invoice")); }}>PDF</button>}
+                      {inApp && isAdmin && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="E-invoice JSON for this bill"
+                        onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

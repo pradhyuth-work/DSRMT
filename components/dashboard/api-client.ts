@@ -243,6 +243,16 @@ export const api = {
     const h = await downloadFile(`/api/einvoice/export?${new URLSearchParams({ from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`, "einvoice.json");
     return Number(h.get("X-Einvoice-Blocked") ?? 0);
   },
+  /** One bill's e-invoice JSON. If it can't be made, says why (what the report lists as missing). */
+  downloadEinvoiceForBill: async (id: string) => {
+    try {
+      await downloadFile(`/api/einvoice/export?ids=${enc(id)}`, "einvoice.json");
+    } catch (e) {
+      const r = await request<EinvoiceReportDTO>(`/api/einvoice/export?ids=${enc(id)}&format=report`).catch(() => null);
+      const why = r?.rows[0]?.errors.join("; ");
+      throw new ApiRequestError(why || (e instanceof Error ? e.message : "Could not make the JSON"));
+    }
+  },
   posBill: (input: PosBillInput) => post<OrderDTO>("/api/pos/bill", input),
   approveOutlet: (id: string) => post<OutletDTO>(`/api/outlets/${enc(id)}/approve`, {}),
   taxReportView: (type: string, month: string) => request<{ tables: TaxReportTable[] }>(`/api/tax/report?type=${enc(type)}&month=${enc(month)}&format=json`),
