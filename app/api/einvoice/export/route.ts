@@ -36,12 +36,14 @@ export async function GET(req: Request) {
     };
     if (ids.length > 0) where.id = { in: ids.slice(0, 500) };
     if (from || to) {
-      const range: Prisma.DateTimeNullableFilter = {};
-      if (from) range.gte = new Date(`${from}T00:00:00+05:30`);
-      if (to) range.lt = new Date(new Date(`${to}T00:00:00+05:30`).getTime() + 86_400_000);
-      if ((range.gte && Number.isNaN(range.gte.getTime())) || (range.lt instanceof Date && Number.isNaN(range.lt.getTime()))) {
+      const gte = from ? new Date(`${from}T00:00:00+05:30`) : undefined;
+      const lt = to ? new Date(new Date(`${to}T00:00:00+05:30`).getTime() + 86_400_000) : undefined;
+      if ((gte && Number.isNaN(gte.getTime())) || (lt && Number.isNaN(lt.getTime()))) {
         throw new HttpError(400, "Dates must be YYYY-MM-DD");
       }
+      const range: Prisma.DateTimeNullableFilter = {};
+      if (gte) range.gte = gte;
+      if (lt) range.lt = lt;
       where.billedAt = range;
     }
     if (onlyNew) where.einvExportedAt = null;
