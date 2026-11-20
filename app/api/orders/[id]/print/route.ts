@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { inv, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, addr, when, half } = await loadInvoiceView(id);
+    const { inv, invoiceNumber, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, addr, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const tline = (l: string, v: string, bold = false) => `<div style="display:flex;justify-content:space-between;padding:1px 0${bold ? ";font-weight:700" : ""}"><span>${l}</span><span>${v}</span></div>`;
     const taxLines = intra ? tline("SGST AMT", f2(half)) + tline("CGST AMT", f2(sumTax - half)) : tline("IGST AMT", f2(sumTax));
 
-    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(inv.invoiceNumber)}</title>
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(invoiceNumber)}</title>
 <style>
 @page{size:A5 portrait;margin:0}
 *{box-sizing:border-box}body{margin:0;background:#fff;color:#1B2B2A;font-family:Barlow,Segoe UI,Arial,sans-serif;font-size:9px;line-height:1.35}
@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 <div style="text-align:right"><div style="font-weight:700;font-size:15px;letter-spacing:.2em;color:#0F2B2A">TAX INVOICE</div>
 <div style="font-size:7.5px;letter-spacing:.12em;color:#5A6D6C;margin-top:3px">ORIGINAL FOR RECIPIENT</div></div></div>
 <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #C9D3D2">
-<div style="padding:6px 8px 6px 0"><div class="lbl">INVOICE NO</div><div style="font-weight:700;font-size:13px">${esc(inv.invoiceNumber)}</div></div>
+<div style="padding:6px 8px 6px 0"><div class="lbl">INVOICE NO</div><div style="font-weight:700;font-size:13px">${esc(invoiceNumber)}</div></div>
 <div style="padding:6px 8px"><div class="lbl">INVOICE DATE</div><div style="font-weight:700;font-size:11px">${ist(when, false)}</div></div>
 <div style="padding:6px 8px"><div class="lbl">PLACE OF SUPPLY</div><div style="font-weight:600;font-size:10px">${esc(pos)}${stateName ? ` - ${esc(stateName)}` : ""}</div></div></div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #C9D3D2">
