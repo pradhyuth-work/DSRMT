@@ -157,6 +157,9 @@ model Staff {
   /// Issues and settlements this person recorded.
   agentIssuesMade       AgentIssue[]      @relation("AgentIssueCreator")
   agentSettlementsMade  AgentSettlement[] @relation("AgentSettlementCreator")
+  /// Free-amount payments received from this agent, and ones this person recorded.
+  agentPayments         AgentPayment[]    @relation("AgentPaymentAgent")
+  agentPaymentsMade     AgentPayment[]    @relation("AgentPaymentCreator")
 }
 
 /// id is an internal cuid; invoiceNumber is the human-facing bill-book number, entered by
@@ -388,6 +391,23 @@ model AgentSettlement {
   agent     Staff   @relation("AgentSettlementAgent", fields: [agentId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
   createdBy Staff   @relation("AgentSettlementCreator", fields: [createdById], references: [id])
+
+  @@index([agentId, createdAt])
+}
+
+/// Money received from a field agent, entered as ANY amount and not tied to products or units.
+/// It simply reduces what the agent owes (units held x issue rates, minus every payment), so
+/// the balance can go below zero if more is paid than is owed. Rows are never edited or deleted.
+model AgentPayment {
+  id          String   @id @default(cuid())
+  agentId     String
+  amount      Float
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  agent     Staff @relation("AgentPaymentAgent", fields: [agentId], references: [id])
+  createdBy Staff @relation("AgentPaymentCreator", fields: [createdById], references: [id])
 
   @@index([agentId, createdAt])
 }

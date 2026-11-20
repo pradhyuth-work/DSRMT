@@ -28,6 +28,12 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Free-amount payment: any number, not tied to items.
+  const [payAmount, setPayAmount] = useState("");
+  const [payNote, setPayNote] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payDone, setPayDone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,7 +62,7 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
     void loadLedger(selectedId);
   }, [selectedId, loadLedger]);
 
-  const withBalance = useMemo(() => (agents ?? []).filter((a) => a.balance > 0 || a.unitsInHand > 0), [agents]);
+  const withBalance = useMemo(() => (agents ?? []).filter((a) => a.balance !== 0 || a.unitsInHand > 0), [agents]);
   const selected = (agents ?? []).find((a) => a.agentId === selectedId) ?? null;
   const holding = selected?.holdings.find((h) => h.productId === productId) ?? null;
 
@@ -94,6 +100,28 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
       setError(err instanceof Error ? err.message : "Failed to record");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  const payValue = Number(payAmount);
+  const payValid = payAmount.trim() !== "" && Number.isFinite(payValue) && payValue > 0;
+
+  async function recordPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected || !payValid) return;
+    setPaying(true);
+    setPayError(null);
+    setPayDone(null);
+    try {
+      const res = await api.recordAgentPayment(selected.agentId, { amount: payValue, note: payNote.trim() || undefined });
+      setPayDone(`Received ${formatMoney(res.amount)}. Balance is now ${formatMoney(res.balance)}.`);
+      setPayAmount("");
+      setPayNote("");
+      await Promise.all([load(), loadLedger(selected.agentId), onSaved()]);
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : "Failed to record payment");
+    } finally {
+      setPaying(false);
     }
   }
 
@@ -160,7 +188,7 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
       {selected && (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="Owes" value={formatMoney(selected.balance)} icon={IndianRupee} tone="gold" />
+            <StatCard label={selected.balance < 0 ? "Paid in advance" : "Owes"} value={formatMoney(Math.abs(selected.balance))} icon={IndianRupee} tone="gold" />
             <StatCard label="Units in hand" value={String(selected.unitsInHand)} icon={Boxes} tone="teal" />
             <StatCard
               label="Oldest issue"
@@ -204,6 +232,41 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
             </div>
 
             {!isAgent && (
+              <div className="space-y-6">
+              <form onSubmit={recordPayment} className="card space-y-4 p-5">
+                <h2 className="font-semibold">Record payment</h2>
+                <p className="text-xs text-muted-foreground">Type any amount received. It is not worked out from items and does not clear any units.</p>
+                <div>
+                  <label className="label" htmlFor="pay-amount">Amount received (₹)</label>
+                  <input
+                    id="pay-amount"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    className="input"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    placeholder="Any amount"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="pay-note">Note (optional)</label>
+                  <input id="pay-note" className="input" value={payNote} onChange={(e) => setPayNote(e.target.value)} maxLength={200} placeholder="Cash, UPI, part payment…" />
+                </div>
+                {payValid && (
+                  <div className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-sm">
+                    <span className="text-muted-foreground">Balance after</span>
+                    <span className="font-semibold tabular-nums">{formatMoney(round2(selected.balance - payValue))}</span>
+                  </div>
+                )}
+                {payError && <Alert kind="error">{payError}</Alert>}
+                {payDone && <Alert kind="success">{payDone}</Alert>}
+                <button type="submit" className="btn btn-primary w-full" disabled={paying || !payValid}>
+                  {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Record payment
+                </button>
+              </form>
               <form onSubmit={settle} className="card space-y-4 p-5">
                 <h2 className="font-semibold">Clear units</h2>
                 <div>
@@ -272,9 +335,10 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
                 {done && <Alert kind="success">{done}</Alert>}
                 <button type="submit" className="btn btn-primary w-full" disabled={submitting || blockers.length > 0}>
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {method === "PAID" ? "Record payment" : "Write off"}
+                  {method === "PAID" ? "Clear units, paid" : "Write off"}
                 </button>
               </form>
+              </div>
             )}
           </div>
 
@@ -308,11 +372,11 @@ export default function AgentBalancesView({ user, onSaved }: { user: AuthUser; o
                         <tr key={l.id} className="hover:bg-secondary">
                           <td className="td whitespace-nowrap">{formatDate(l.date)}</td>
                           <td className="td">
-                            {l.type === "ISSUE" ? l.ref : l.type === "PAID" ? "Cash received" : "Written off"}
+                            {l.type === "ISSUE" ? l.ref : l.type === "PAYMENT" ? "Payment received" : l.type === "PAID" ? "Cash received" : "Written off"}
                             {l.note && <span className="block text-xs text-muted-foreground">{l.note}</span>}
                           </td>
                           <td className="td">{l.productName}</td>
-                          <td className="td text-right tabular-nums">{l.quantity}</td>
+                          <td className="td text-right tabular-nums">{l.type === "PAYMENT" ? "" : l.quantity}</td>
                           <td className="td text-right tabular-nums">{l.debit ? formatMoney(l.debit) : ""}</td>
                           <td className="td text-right tabular-nums">{l.credit ? formatMoney(l.credit) : ""}</td>
                           <td className="td text-right font-semibold tabular-nums">{formatMoney(l.balance)}</td>

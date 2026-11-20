@@ -783,7 +783,7 @@ export interface AgentBalanceDTO {
 export interface AgentLedgerEntryDTO {
   id: string;
   date: string;
-  type: "ISSUE" | AgentSettlementType;
+  type: "ISSUE" | AgentSettlementType | "PAYMENT";
   /** The issue number for an ISSUE row, otherwise null. */
   ref: string | null;
   productName: string;
@@ -803,6 +803,17 @@ export interface SettleAgentInput {
   method: AgentSettlementType;
   /** Required for WRITE_OFF. */
   reason?: string;
+}
+
+/** Money received from an agent, any amount, not tied to products or units. */
+export interface RecordAgentPaymentInput {
+  amount: number;
+  note?: string;
+}
+
+export interface RecordAgentPaymentResponse {
+  amount: number;
+  balance: number;
 }
 
 export interface SettleAgentResponse {
