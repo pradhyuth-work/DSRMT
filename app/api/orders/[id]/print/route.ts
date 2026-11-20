@@ -40,7 +40,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const mrp = it.mrp ?? it.product.mrp ?? 0;
       const calc = it.taxable != null && it.taxAmt != null ? { taxable: it.taxable, tax: it.taxAmt } : (() => { const c = computeLine("MRP", it.unitPrice, it.quantity, rate, mrp); return { taxable: c?.taxable ?? it.subtotal, tax: c?.tax ?? 0 }; })();
       const pk = /(\d+)\s*s\b/i.exec(it.product.name)?.[1] ?? "";
-      const amt = round2n(it.subtotal - calc.tax);
+      const amt = round2n(calc.taxable);
       return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: amt / it.quantity, taxable: calc.taxable, tax: calc.tax, amt, gst: rate };
     });
     const saleVal = rows.reduce((s, r) => s + r.taxable, 0);
@@ -49,7 +49,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const sumQty = rows.reduce((s, r) => s + r.qty, 0);
     const mrpValue = rows.reduce((s, r) => s + r.mrp * r.qty, 0);
     const net = inv.totalAmount;
-    const round = round2n(net - (subTotal + sumTax));
+    // Lines and SALE VAL are on MRP; what the buyer pays is lower, and the gap (scheme / trade margin) is one
+    // deduction before the net amount. The e-invoice JSON carries the same gap as ValDtls.Discount.
+    const discount = inv.taxMode === "MRP" && subTotal + sumTax - net > 0.005 ? round2n(subTotal + sumTax - net) : 0;
+    const round = round2n(net - (subTotal + sumTax - discount));
     const rate0 = rows[0]?.gst ?? 40;
     const addr = [o.address, [o.city, o.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     const when = inv.billedAt ?? inv.createdAt;
@@ -103,7 +106,7 @@ ${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid
 <div style="margin-top:7px">TOT ITEMS: <b>${rows.length}</b> &nbsp; TOT QTY: <b>${sumQty}</b> &nbsp; MRP VALUE: <b>${f2(mrpValue)}</b></div>
 <div class="lbl" style="margin-top:7px">TERMS</div><div>Goods once sold will not be returned.</div></div>
 <div style="display:flex;flex-direction:column;justify-content:space-between">
-<div style="font-size:8.5px">${tline("SUB TOTAL", f2(subTotal))}${taxLines}${tline("ROUND OFF", f2(round))}</div>
+<div style="font-size:8.5px">${tline("SUB TOTAL", f2(subTotal))}${taxLines}${discount > 0 ? tline("LESS: DISCOUNT", "-" + f2(discount)) : ""}${tline("ROUND OFF", f2(round))}</div>
 <div style="border:1.5px solid #0F2B2A;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:8px;letter-spacing:.12em;font-weight:700">NET AMT</span><span style="font-weight:700;font-size:20px">₹ ${f2(net)}</span></div>
 <div style="text-align:right;margin-top:24px"><div style="font-weight:700;font-size:8.5px">For VARASIDHI ENTERPRISES</div><div style="border-top:1px solid #8A9B9A;margin-top:18px;padding-top:2px;font-size:7px;letter-spacing:.1em;color:#5A6D6C">AUTHORISED SIGNATORY</div></div></div></div>
 </div></body></html>`;
