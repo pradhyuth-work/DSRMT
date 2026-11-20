@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 async function state(tx: Parameters<typeof readSeries>[0]): Promise<InvoiceSeriesDTO> {
   const s = await readSeries(tx);
-  return { prefix: s.prefix, next: s.next, highestUsed: await highestUsed(tx, s.prefix) };
+  return { prefix: s.prefix, next: s.next, reusable: s.reusable, highestUsed: await highestUsed(tx, s.prefix) };
 }
 
 /** The in-app invoice number series (MTR). Admin and stock can read it (the bill form shows the next number); only admin changes it. */

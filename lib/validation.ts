@@ -16,6 +16,7 @@ import type {
   CreateProductInput,
   EinvoiceSetupInput,
   SetInvoiceSeriesInput,
+  ReverseBillInput,
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
@@ -108,6 +109,13 @@ export const billOrderSchema = z
     message: "Enter the bill amount",
     path: ["amount"],
   }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
+export const reverseBillSchema = z.object({
+  reason: z.string().trim().min(1, "Choose a reason").max(120),
+  returnToPending: z.boolean(),
+  reuseNumber: z.boolean(),
+  confirm: z.string().trim().min(1, "Type the invoice number to confirm").max(40),
+}) satisfies z.ZodType<ReverseBillInput, z.ZodTypeDef, unknown>;
 
 export const setInvoiceSeriesSchema = z.object({
   next: z.coerce.number().int("Whole number").positive("Enter a number above 0").max(99_999_999),

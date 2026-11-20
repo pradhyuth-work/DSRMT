@@ -60,6 +60,7 @@ import SalesReports from "./SalesReports";
 import SchemeSavings from "./SchemeSavings";
 import AgentBalancesView from "./AgentBalancesView";
 import AgentStockView from "./AgentStockView";
+import BillingMode from "./BillingMode";
 
 type TabId =
   | "sale"
@@ -206,6 +207,9 @@ export default function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<TabId>("sale");
+  // Operations = the day-to-day views; Billing = the GST invoice desk (admin/stock only).
+  const [mode, setMode] = useState<"ops" | "bill">("ops");
+  const [billFocusId, setBillFocusId] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -314,6 +318,31 @@ export default function Dashboard() {
 
   const metrics = data?.reports?.dashboard;
   const isAgent = user.role === "agent";
+  const billingMode = mode === "bill" && !isAgent;
+  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "");
+  const billedToday = (data?.orders ?? []).filter((o) => o.invoiceNumber && o.fulfilmentStatus !== "CANCELLED" && dayOf(o.billedAt) === todayKey);
+  const todayStats = [
+    { label: "To bill", value: String((data?.orders ?? []).filter((o) => o.fulfilmentStatus === "PENDING").length) },
+    { label: "Invoices today", value: String(billedToday.filter((o) => !o.billedOutside).length) },
+    { label: "Outside app today", value: String(billedToday.filter((o) => o.billedOutside).length) },
+    { label: "Billed today", value: formatMoney(billedToday.reduce((s, o) => s + o.totalAmount, 0)) },
+  ];
+  const modeSwitch = (
+    <div role="group" aria-label="Switch mode" className="grid grid-cols-2 gap-1 rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-1">
+      {(["ops", "bill"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={mode === m}
+          onClick={() => { setMode(m); setMobileNav(false); }}
+          className={`focus-ring rounded-lg px-2 py-2 text-xs font-bold ${mode === m ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/70"}`}
+        >
+          {m === "ops" ? "Operations" : "Billing"}
+        </button>
+      ))}
+    </div>
+  );
   const initials = user.name
     .split(/\s+/)
     .map((p) => p[0])
@@ -346,6 +375,27 @@ export default function Dashboard() {
             <Brand />
           )}
 
+          {!sidebarCollapsed && !isAgent && (
+            <div className="mt-6 w-full">
+              <p className="mb-2 px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Mode</p>
+              {modeSwitch}
+              <p className="mt-2 px-1 text-[11px] leading-snug text-sidebar-foreground/50">
+                {billingMode ? "Turn orders into GST invoices." : "Orders, stock, payments and reports."}
+              </p>
+            </div>
+          )}
+
+          {billingMode && !sidebarCollapsed ? (
+            <div className="mt-8 w-full flex-1 space-y-2">
+              <p className="px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Today</p>
+              {todayStats.map((t) => (
+                <div key={t.label} className="flex items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/50 px-3 py-2">
+                  <span className="text-xs text-sidebar-foreground/70">{t.label}</span>
+                  <span className="text-sm font-bold">{t.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="mt-10 w-full flex-1">
             {!sidebarCollapsed && (
               <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
@@ -396,6 +446,7 @@ export default function Dashboard() {
               )}
             </nav>
           </div>
+          )}
 
           {sidebarCollapsed ? (
             <span className="led h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" title="Connected" />
@@ -556,7 +607,11 @@ export default function Dashboard() {
             </div>
           )}
 
-          {user.role === "admin" && (
+          {!isAgent && (
+            <div className="pt-4 md:hidden">{modeSwitch}</div>
+          )}
+
+          {user.role === "admin" && !billingMode && (
             <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
               <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" trend={metrics?.trends?.billed} />
               <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" trend={metrics?.trends?.collected} />
@@ -606,6 +661,8 @@ export default function Dashboard() {
                   <Loader2 className="h-5 w-5 animate-spin" /> Loading…
                 </div>
               )
+            ) : billingMode ? (
+              <BillingMode data={data} user={user} onSaved={refresh} focusOrderId={billFocusId} />
             ) : (
               <>
                 {tab === "sale" &&
@@ -614,7 +671,7 @@ export default function Dashboard() {
                   ) : (
                     <SaleForm data={data} user={user} onSaved={refresh} />
                   ))}
-                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
+                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} onOpenBilling={(id) => { setBillFocusId(id); setMode("bill"); }} />}
                 {tab === "ledgers" && data.reports && (
                   <OutletLedgers
                     data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}

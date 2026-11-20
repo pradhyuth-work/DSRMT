@@ -47,6 +47,10 @@ export interface ProductDTO {
   /** Omitted for field agents, who only see whether an item is in stock. */
   stockQty?: number;
   inStock: boolean;
+  /** Admin and stock: e-invoice details used for the draft invoice. */
+  mrp?: number | null;
+  gstRate?: number;
+  hsnCode?: string | null;
   createdAt: string;
 }
 
@@ -287,8 +291,19 @@ export interface BillOrderInput {
 export interface InvoiceSeriesDTO {
   prefix: string;
   next: number | null;
+  /** Freed numbers waiting to be handed out again. */
+  reusable: number[];
   /** Highest number already used under the prefix. */
   highestUsed: number;
+}
+export interface ReverseBillInput {
+  reason: string;
+  /** true: back to Pending so it can be billed again; false: cancelled. */
+  returnToPending: boolean;
+  /** Hand the invoice number back to the series (never for an exported or outside-series number). */
+  reuseNumber: boolean;
+  /** The invoice number typed again to confirm. */
+  confirm: string;
 }
 export interface SetInvoiceSeriesInput {
   next: number;

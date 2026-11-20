@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, FileJson, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
-import { EinvoicePanel } from "./EinvoicePanel";
 import type { DashboardData } from "./Dashboard";
 
 type Filter = FulfilmentStatus | "ALL";
@@ -27,10 +26,13 @@ export default function OrdersView({
   data,
   user,
   onSaved,
+  onOpenBilling,
 }: {
   data: DashboardData;
   user: AuthUser;
   onSaved: () => Promise<void>;
+  /** Switches the app to Billing mode on this order. */
+  onOpenBilling?: (orderId: string) => void;
 }) {
   // Stock incharge works the pending queue; everyone else starts with the full list.
   const [filter, setFilter] = useState<Filter>(user.role === "stock" ? "PENDING" : "ALL");
@@ -41,24 +43,10 @@ export default function OrdersView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
-  const [billing, setBilling] = useState<OrderDTO | null>(null);
-  const [showEinvoice, setShowEinvoice] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   // Outlet whose details are open — set by tapping the outlet name on an order card.
   const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
-  // Editing from inside the billing step: after the edit is saved or closed, billing reopens on the refreshed order.
-  const [editFromBillId, setEditFromBillId] = useState<string | null>(null);
-  const [reopenBillId, setReopenBillId] = useState<string | null>(null);
-  const closeEdit = useCallback(() => {
-    setEditing(null);
-    if (editFromBillId) { setReopenBillId(editFromBillId); setEditFromBillId(null); }
-  }, [editFromBillId]);
-  useEffect(() => {
-    if (!reopenBillId) return;
-    const o = data.orders.find((x) => x.id === reopenBillId);
-    if (o && o.fulfilmentStatus === "PENDING") setBilling(o);
-    setReopenBillId(null);
-  }, [reopenBillId, data.orders]);
+  const closeEdit = useCallback(() => setEditing(null), []);
 
   const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
@@ -259,12 +247,6 @@ export default function OrdersView({
               Billed summary
             </button>
           )}
-          {user.role === "admin" && (
-            <button type="button" className="btn btn-secondary shrink-0" onClick={() => setShowEinvoice(true)}>
-              <FileJson className="h-4 w-4" />
-              E-invoice &amp; numbering
-            </button>
-          )}
           <button type="button" className="btn btn-secondary shrink-0" disabled={downloading || orders.length === 0} onClick={() => void downloadCsv()}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download CSV
@@ -448,8 +430,8 @@ export default function OrdersView({
 
                 <div className="mt-auto flex flex-wrap gap-2 pt-3">
                   {canBill && o.fulfilmentStatus === "PENDING" && (
-                    <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => setBilling(o)}>
-                      <FileCheck className="h-4 w-4" /> Bill order
+                    <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => onOpenBilling?.(o.id)}>
+                      <FileCheck className="h-4 w-4" /> Bill in Billing mode
                     </button>
                   )}
                   {canDispatch && o.fulfilmentStatus === "BILLED" && (
@@ -501,25 +483,6 @@ export default function OrdersView({
         </div>
       )}
 
-      <Modal open={showEinvoice} title="E-invoice & numbering" onClose={() => setShowEinvoice(false)}>
-        {showEinvoice && <EinvoicePanel />}
-      </Modal>
-
-      <Modal open={!!billing} title="Bill this order" onClose={() => setBilling(null)}>
-        {billing && (
-          <BillOrderForm
-            key={`${billing.id}-${billing.totalAmount}-${billing.items.length}`}
-            order={billing}
-            onEdit={canEdit(billing) ? () => { setEditFromBillId(billing.id); setEditing(billing); setBilling(null); } : undefined}
-            onDone={async (text) => {
-              setBilling(null);
-              setMessage({ kind: "success", text });
-              await onSaved();
-            }}
-          />
-        )}
-      </Modal>
-
       <Modal open={!!editing} title={`Edit order — ${editing?.outletName ?? ""}`} onClose={closeEdit}>
         {editing && (
           <EditOrderForm
@@ -527,12 +490,9 @@ export default function OrdersView({
             order={editing}
             data={data}
             onDone={async (text) => {
-              const back = editFromBillId;
               setEditing(null);
-              setEditFromBillId(null);
               setMessage({ kind: "success", text });
               await onSaved();
-              if (back) setReopenBillId(back);
             }}
           />
         )}
@@ -696,7 +656,7 @@ interface EditLine {
   hasScheme: boolean;
 }
 
-function EditOrderForm({
+export function EditOrderForm({
   order,
   data,
   onDone,
@@ -845,104 +805,6 @@ function EditOrderForm({
       <button type="submit" className="btn btn-primary w-full" disabled={busy || tooLow}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
         Save changes
-      </button>
-    </form>
-  );
-}
-
-/**
- * Two ways to bill. "In the app" (default) takes the next MTR number, bills the item total and
- * makes a GST invoice that can go out as e-invoice JSON. "Outside the app" is for bills already
- * written in the bill book / Target: the number and amount are copied in by hand, the order is
- * flagged as billed outside the app, and no GST invoice is made for it here. The amount in that
- * case becomes the order total payments are collected against, since the bill book is the paperwork of record.
- */
-function BillOrderForm({ order, onDone, onEdit }: { order: OrderDTO; onDone: (message: string) => Promise<void>; onEdit?: () => void }) {
-  const [outside, setOutside] = useState(false);
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [amount, setAmount] = useState(String(order.totalAmount));
-  const [vehicleNo, setVehicleNo] = useState("");
-  const [nextLabel, setNextLabel] = useState<string | null | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getInvoiceSeries().then((s) => setNextLabel(s.next ? `${s.prefix} ${s.next}` : null)).catch(() => setNextLabel(null));
-  }, []);
-
-  const amountNum = Number.parseFloat(amount);
-  const tooLow = outside && Number.isFinite(amountNum) && amountNum < order.paidAmount;
-  const valid = outside ? invoiceNumber.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0 && !tooLow : nextLabel !== null && nextLabel !== undefined;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    setBusy(true);
-    setError(null);
-    try {
-      if (outside) {
-        await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
-        await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} (billed outside the app) — ready to dispatch`);
-      } else {
-        const billed = await api.billOrder(order.id, { vehicleNo: vehicleNo.trim() || undefined });
-        await onDone(`Invoice ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)} — ready to dispatch`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to bill order");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="rounded-lg bg-secondary px-3 py-2 text-sm">
-        <p className="font-medium">{order.outletName}</p>
-        <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
-        {onEdit && (
-          <button type="button" className="btn btn-secondary mt-2 h-9 w-full text-sm" onClick={onEdit}>
-            <Pencil className="h-4 w-4" /> Edit order
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="How to bill">
-        <button type="button" role="tab" aria-selected={!outside} className={`btn ${outside ? "btn-secondary" : "btn-primary"}`} onClick={() => setOutside(false)}>Bill in the app</button>
-        <button type="button" role="tab" aria-selected={outside} className={`btn ${outside ? "btn-primary" : "btn-secondary"}`} onClick={() => setOutside(true)}>Billed outside the app</button>
-      </div>
-
-      {!outside ? (
-        <>
-          <div className="rounded-lg border border-input px-3 py-2 text-sm">
-            <p className="text-xs text-muted-foreground">Invoice number</p>
-            <p className="font-mono text-lg font-semibold">{nextLabel === undefined ? "…" : nextLabel ?? "Not set yet"}</p>
-          </div>
-          {nextLabel === null && <Alert kind="warning">Set the starting invoice number first: "E-invoice &amp; numbering" (admin).</Alert>}
-          <div>
-            <label className="label" htmlFor="bill-vehicle">Vehicle number (optional)</label>
-            <input id="bill-vehicle" className="input" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="KA01AB1234" />
-            <p className="mt-1 text-xs text-muted-foreground">Used for the e-way bill when the invoice is over ₹50,000.</p>
-          </div>
-          <p className="text-xs text-muted-foreground">The invoice amount is the item total. The number is taken now and can't be changed later.</p>
-        </>
-      ) : (
-        <>
-          <Alert kind="warning">This bill was made outside the app. It is recorded and flagged, and no GST invoice or e-invoice is made for it here.</Alert>
-          <div>
-            <label className="label" htmlFor="bill-number">Bill book number</label>
-            <input id="bill-number" className="input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="e.g. SAC 1042" autoFocus />
-            <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
-          </div>
-          <div>
-            <label className="label" htmlFor="bill-amount">Bill amount</label>
-            <input id="bill-amount" type="number" inputMode="decimal" min={0} step="0.01" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill too — it becomes the order total payments are collected against.</p>
-          </div>
-          {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
-        </>
-      )}
-      {error && <Alert kind="error">{error}</Alert>}
-      <button type="submit" className="btn btn-primary w-full" disabled={busy || !valid}>
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
-        {outside ? "Save bill" : "Make invoice"}
       </button>
     </form>
   );
