@@ -50,12 +50,17 @@ export async function GET(req: Request) {
     if (ids.length === 0 && !from && !to) throw new HttpError(400, "Choose bills or a date range");
 
     const invoices = await prisma.invoice.findMany({ where, include: einvoiceInclude, orderBy: { billedAt: "asc" }, take: 1000 });
-    const results = invoices.map((inv) => ({ inv, res: buildEinvoice(inv) }));
+    const all = invoices.map((inv) => ({ inv, res: buildEinvoice(inv) }));
+    // B2C bills (outlet without a GSTIN) need no e-invoice: leave them out of the lists and counts.
+    const isB2c = (r: (typeof all)[number]) => r.res.json === null && r.res.errors.some((e) => e.includes("no GSTIN"));
+    const results = all.filter((r) => !isB2c(r));
+    const notApplicable = all.length - results.length;
 
     if (report) {
       const body: EinvoiceReportDTO = {
         ready: results.filter((r) => r.res.json).length,
         blocked: results.filter((r) => !r.res.json).length,
+        notApplicable,
         rows: results.map((r) => ({
           invoiceNumber: r.res.invoiceNumber,
           ready: r.res.json !== null,

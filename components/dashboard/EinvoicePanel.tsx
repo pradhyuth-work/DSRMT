@@ -110,7 +110,7 @@ function ExportBlock() {
       {note && <Alert kind={note.kind}>{note.text}</Alert>}
       {report && (
         <div className="space-y-1 text-sm">
-          <p className="font-medium">{report.ready} ready · {report.blocked} blocked</p>
+          <p className="font-medium">{report.ready} ready · {report.blocked} blocked{report.notApplicable > 0 ? ` · ${report.notApplicable} B2C (no e-invoice needed)` : ""}</p>
           {report.rows.filter((r) => !r.ready || r.warnings.length > 0).map((r) => (
             <div key={r.invoiceNumber} className="rounded-lg bg-secondary px-3 py-2">
               <p className="font-mono font-semibold">{r.invoiceNumber} {r.ready ? "" : "— blocked"}</p>

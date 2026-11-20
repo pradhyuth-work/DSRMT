@@ -367,6 +367,8 @@ export interface EinvoiceReportRow {
 export interface EinvoiceReportDTO {
   ready: number;
   blocked: number;
+  /** Bills to outlets without a GSTIN (B2C): no e-invoice is needed, so they are not "blocked". */
+  notApplicable: number;
   rows: EinvoiceReportRow[];
 }
 
