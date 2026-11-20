@@ -46,7 +46,19 @@ export default function OrdersView({
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   // Outlet whose details are open — set by tapping the outlet name on an order card.
   const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
-  const closeEdit = useCallback(() => setEditing(null), []);
+  // Editing from inside the billing step: after the edit is saved or closed, billing reopens on the refreshed order.
+  const [editFromBillId, setEditFromBillId] = useState<string | null>(null);
+  const [reopenBillId, setReopenBillId] = useState<string | null>(null);
+  const closeEdit = useCallback(() => {
+    setEditing(null);
+    if (editFromBillId) { setReopenBillId(editFromBillId); setEditFromBillId(null); }
+  }, [editFromBillId]);
+  useEffect(() => {
+    if (!reopenBillId) return;
+    const o = data.orders.find((x) => x.id === reopenBillId);
+    if (o && o.fulfilmentStatus === "PENDING") setBilling(o);
+    setReopenBillId(null);
+  }, [reopenBillId, data.orders]);
 
   const outletById = useMemo(() => new Map(data.outlets.map((o) => [o.id, o])), [data.outlets]);
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
@@ -496,7 +508,9 @@ export default function OrdersView({
       <Modal open={!!billing} title="Bill this order" onClose={() => setBilling(null)}>
         {billing && (
           <BillOrderForm
+            key={`${billing.id}-${billing.totalAmount}-${billing.items.length}`}
             order={billing}
+            onEdit={canEdit(billing) ? () => { setEditFromBillId(billing.id); setEditing(billing); setBilling(null); } : undefined}
             onDone={async (text) => {
               setBilling(null);
               setMessage({ kind: "success", text });
@@ -513,9 +527,12 @@ export default function OrdersView({
             order={editing}
             data={data}
             onDone={async (text) => {
+              const back = editFromBillId;
               setEditing(null);
+              setEditFromBillId(null);
               setMessage({ kind: "success", text });
               await onSaved();
+              if (back) setReopenBillId(back);
             }}
           />
         )}
@@ -840,7 +857,7 @@ function EditOrderForm({
  * flagged as billed outside the app, and no GST invoice is made for it here. The amount in that
  * case becomes the order total payments are collected against, since the bill book is the paperwork of record.
  */
-function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
+function BillOrderForm({ order, onDone, onEdit }: { order: OrderDTO; onDone: (message: string) => Promise<void>; onEdit?: () => void }) {
   const [outside, setOutside] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState(String(order.totalAmount));
@@ -881,6 +898,11 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
       <div className="rounded-lg bg-secondary px-3 py-2 text-sm">
         <p className="font-medium">{order.outletName}</p>
         <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
+        {onEdit && (
+          <button type="button" className="btn btn-secondary mt-2 h-9 w-full text-sm" onClick={onEdit}>
+            <Pencil className="h-4 w-4" /> Edit order
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="How to bill">
         <button type="button" role="tab" aria-selected={!outside} className={`btn ${outside ? "btn-secondary" : "btn-primary"}`} onClick={() => setOutside(false)}>Bill in the app</button>
