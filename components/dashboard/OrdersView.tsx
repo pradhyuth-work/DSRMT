@@ -43,6 +43,7 @@ export default function OrdersView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
+  const [billingOutside, setBillingOutside] = useState<OrderDTO | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   // Outlet whose details are open — set by tapping the outlet name on an order card.
   const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
@@ -434,6 +435,11 @@ export default function OrdersView({
                       <FileCheck className="h-4 w-4" /> Bill in Billing mode
                     </button>
                   )}
+                  {canBill && o.fulfilmentStatus === "PENDING" && (
+                    <button className="btn btn-secondary h-11 w-full text-sm" disabled={busy} onClick={() => setBillingOutside(o)}>
+                      Billed outside the app
+                    </button>
+                  )}
                   {canDispatch && o.fulfilmentStatus === "BILLED" && (
                     <button
                       className="btn btn-primary h-11 flex-1 text-sm"
@@ -482,6 +488,19 @@ export default function OrdersView({
           />
         </div>
       )}
+
+      <Modal open={!!billingOutside} title="Billed outside the app" onClose={() => setBillingOutside(null)}>
+        {billingOutside && (
+          <BillOutsideForm
+            order={billingOutside}
+            onDone={async (text) => {
+              setBillingOutside(null);
+              setMessage({ kind: "success", text });
+              await onSaved();
+            }}
+          />
+        )}
+      </Modal>
 
       <Modal open={!!editing} title={`Edit order — ${editing?.outletName ?? ""}`} onClose={closeEdit}>
         {editing && (
@@ -805,6 +824,62 @@ export function EditOrderForm({
       <button type="submit" className="btn btn-primary w-full" disabled={busy || tooLow}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
         Save changes
+      </button>
+    </form>
+  );
+}
+
+/**
+ * For a bill already written in the bill book / Target: the number and amount are copied in by hand.
+ * The order is flagged "billed outside the app" and no GST invoice or e-invoice is made for it here.
+ * The amount becomes the order total payments are collected against.
+ */
+function BillOutsideForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [amount, setAmount] = useState(String(order.totalAmount));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const amountNum = Number.parseFloat(amount);
+  const tooLow = Number.isFinite(amountNum) && amountNum < order.paidAmount;
+  const valid = invoiceNumber.trim().length > 0 && Number.isFinite(amountNum) && amountNum > 0 && !tooLow;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
+      await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} (billed outside the app) — ready to dispatch`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to bill order");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="rounded-lg bg-secondary px-3 py-2 text-sm">
+        <p className="font-medium">{order.outletName}</p>
+        <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
+      </div>
+      <Alert kind="warning">Recorded and flagged as billed outside the app. No GST invoice or e-invoice is made for it here.</Alert>
+      <div>
+        <label className="label" htmlFor="out-bill-number">Bill number</label>
+        <input id="out-bill-number" className="input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="e.g. SAC 1042" autoFocus />
+        <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="out-bill-amount">Bill amount</label>
+        <input id="out-bill-amount" type="number" inputMode="decimal" min={0} step="0.01" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <p className="mt-1 text-xs text-muted-foreground">Copy this from the bill too — it becomes the order total payments are collected against.</p>
+      </div>
+      {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
+      {error && <Alert kind="error">{error}</Alert>}
+      <button type="submit" className="btn btn-primary w-full" disabled={busy || !valid}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />}
+        Save bill
       </button>
     </form>
   );
