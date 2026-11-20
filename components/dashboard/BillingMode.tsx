@@ -12,7 +12,13 @@ import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
 import type { DashboardData } from "./Dashboard";
 
-type BillTab = "desk" | "invoices" | "pos" | "reports";
+export type BillTab = "desk" | "invoices" | "pos" | "reports";
+/** Billing sections, shown in the side panel (and the phone menu) rather than as tabs on the page. */
+export const billTabsFor = (isAdmin: boolean): { id: BillTab; label: string; helper: string }[] => [
+  { id: "desk", label: "Orders to bill", helper: "Turn orders into invoices" },
+  { id: "invoices", label: "Invoices", helper: "Print, cancel, correct" },
+  ...(isAdmin ? [{ id: "pos" as const, label: "POS billing", helper: "Counter sale" }, { id: "reports" as const, label: "Tax reports", helper: "GSTR-1, 3B, registers" }] : []),
+];
 
 const SELLER_NAME = "VARASIDHI ENTERPRISES";
 const SELLER_GSTIN = "29AEXPR8267H1ZC";
@@ -33,9 +39,8 @@ function lineTax(item: OrderDTO["items"][number], product: ProductDTO | undefine
  * and an Invoices list with cancel / correct. Operations keeps the order cards as they were.
  */
 export default function BillingMode({
-  data, user, onSaved, focusOrderId,
-}: { data: DashboardData; user: AuthUser; onSaved: () => Promise<void>; focusOrderId?: string | null }) {
-  const [tab, setTab] = useState<BillTab>("desk");
+  data, user, onSaved, focusOrderId, tab,
+}: { data: DashboardData; user: AuthUser; onSaved: () => Promise<void>; focusOrderId?: string | null; tab: BillTab }) {
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [series, setSeries] = useState<InvoiceSeriesDTO | null>(null);
   const isAdmin = user.role === "admin";
@@ -43,24 +48,11 @@ export default function BillingMode({
   const loadSeries = () => api.getInvoiceSeries().then(setSeries).catch(() => setSeries(null));
   useEffect(() => { void loadSeries(); }, [data.orders]);
 
-  const tabs: { id: BillTab; label: string }[] = [
-    { id: "desk", label: "Orders to bill" },
-    { id: "invoices", label: "Invoices" },
-    ...(isAdmin ? [{ id: "pos" as const, label: "POS billing" }, { id: "reports" as const, label: "Tax reports" }] : []),
-  ];
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-accent/40 bg-accent/10 px-4 py-2 text-sm">
         <span className="font-semibold text-accent">Billing mode</span>
         <span className="ml-2 opacity-85">Turn orders into GST invoices. Everything here follows the invoice number series.</span>
-      </div>
-      <div role="tablist" aria-label="Billing sections" className="flex gap-2 border-b border-border">
-        {tabs.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-            className={`focus-ring px-4 py-2 text-sm font-semibold ${tab === t.id ? "border-b-2 border-accent text-foreground" : "text-muted-foreground"}`}>
-            {t.label}
-          </button>
-        ))}
       </div>
       {message && <Alert kind={message.kind}>{message.text}</Alert>}
       {tab === "desk" && (
@@ -97,6 +89,9 @@ function Desk({
   const [selId, setSelId] = useState<string | null>(focusOrderId);
   const order = queue.find((o) => o.id === selId) ?? queue[0] ?? null;
   const [vehicleNo, setVehicleNo] = useState("");
+  const [vehicleFor, setVehicleFor] = useState<string | null>(null);
+  // Pre-fill the vehicle with the order owner's usual one whenever a different order is picked.
+  if (order && vehicleFor !== order.id) { setVehicleFor(order.id); setVehicleNo(order.agentVehicleNo ?? ""); }
   const [outside, setOutside] = useState(false);
   const [outNo, setOutNo] = useState("");
   const [outAmt, setOutAmt] = useState("");

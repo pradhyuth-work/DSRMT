@@ -60,7 +60,7 @@ import SalesReports from "./SalesReports";
 import SchemeSavings from "./SchemeSavings";
 import AgentBalancesView from "./AgentBalancesView";
 import AgentStockView from "./AgentStockView";
-import BillingMode from "./BillingMode";
+import BillingMode, { billTabsFor, type BillTab } from "./BillingMode";
 
 type TabId =
   | "sale"
@@ -85,6 +85,8 @@ interface TabDef {
 }
 
 // Which tabs each role sees, in order. The server enforces the same rules on every route.
+const BILL_ICONS: Record<BillTab, LucideIcon> = { desk: ClipboardList, invoices: ReceiptText, pos: ShoppingCart, reports: BarChart3 };
+
 const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   admin: [
     { id: "sale", label: "New Sale", helper: "Record a sale", icon: ShoppingCart },
@@ -210,6 +212,7 @@ export default function Dashboard() {
   // Operations = the day-to-day views; Billing = the GST invoice desk (admin/stock only).
   const [mode, setMode] = useState<"ops" | "bill">("ops");
   const [billFocusId, setBillFocusId] = useState<string | null>(null);
+  const [billTab, setBillTab] = useState<BillTab>("desk");
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -391,15 +394,20 @@ export default function Dashboard() {
             </div>
           )}
 
-          {billingMode && !sidebarCollapsed ? (
-            <div className="mt-8 w-full flex-1 space-y-2">
+          {billingMode ? (
+            <div className="mt-8 w-full flex-1 space-y-1">
+              {!sidebarCollapsed && <p className="mb-2 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Billing</p>}
+              {billTabsFor(user.role === "admin").map((t) => (
+                <TabButton key={t.id} label={t.label} helper={t.helper} icon={BILL_ICONS[t.id]} active={billTab === t.id} collapsed={sidebarCollapsed} onClick={() => setBillTab(t.id)} />
+              ))}
+              {!sidebarCollapsed && (<div className="space-y-2 pt-6">
               <p className="px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Today</p>
               {todayStats.map((t) => (
                 <div key={t.label} className="flex items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/50 px-3 py-2">
                   <span className="text-xs text-sidebar-foreground/70">{t.label}</span>
                   <span className="text-sm font-bold">{t.value}</span>
                 </div>
-              ))}
+              ))}</div>)}
             </div>
           ) : (
           <div className="mt-10 w-full flex-1">
@@ -549,7 +557,16 @@ export default function Dashboard() {
           {!isAgent && mobileNav && (
             <div className="app-enter border-b border-foreground/10 py-3 md:hidden">
               <nav className="grid grid-cols-2 gap-2">
-                {mainTabs.map(({ id, label, icon: Icon }) => {
+                {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
+                  const Icon = BILL_ICONS[id];
+                  return (
+                    <button key={id} onClick={() => { setBillTab(id); setMobileNav(false); }}
+                      className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${billTab === id ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>
+                      <Icon size={18} /><span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+                {!billingMode && mainTabs.map(({ id, label, icon: Icon }) => {
                   const active = tab === id;
                   return (
                     <button
@@ -568,7 +585,7 @@ export default function Dashboard() {
                   );
                 })}
 
-                {adminTabs.length > 0 && (
+                {!billingMode && adminTabs.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setAdminGroupOpen((v) => !v)}
@@ -582,7 +599,7 @@ export default function Dashboard() {
                   </button>
                 )}
 
-                {isAdminGroupOpen &&
+                {!billingMode && isAdminGroupOpen &&
                   adminTabs.map(({ id, label, icon: Icon }) => {
                     const active = tab === id;
                     return (
@@ -668,7 +685,7 @@ export default function Dashboard() {
                 </div>
               )
             ) : billingMode ? (
-              <BillingMode data={data} user={user} onSaved={refresh} focusOrderId={billFocusId} />
+              <BillingMode data={data} user={user} onSaved={refresh} focusOrderId={billFocusId} tab={billTab} />
             ) : (
               <>
                 {tab === "sale" &&
@@ -677,7 +694,7 @@ export default function Dashboard() {
                   ) : (
                     <SaleForm data={data} user={user} onSaved={refresh} />
                   ))}
-                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} onOpenBilling={(id) => { setBillFocusId(id); setMode("bill"); }} />}
+                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} onOpenBilling={(id) => { setBillFocusId(id); setBillTab("desk"); setMode("bill"); }} />}
                 {tab === "ledgers" && data.reports && (
                   <OutletLedgers
                     data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}

@@ -129,6 +129,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       const outletRow = await tx.outlet.findUnique({ where: { id: invoice.outletId }, select: { gstNumber: true, pincode: true } });
+      const ownerRow = await tx.staff.findUnique({ where: { id: invoice.staffId }, select: { vehicleNo: true } });
       const placeOfSupply = supplyState(outletRow?.gstNumber, outletRow?.pincode);
       return tx.invoice.update({
         where: { id },
@@ -137,7 +138,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           billedOutside,
           taxMode: "MRP",
           placeOfSupply,
-          vehicleNo: billedOutside ? null : input.vehicleNo?.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null,
+          vehicleNo: billedOutside ? null : (input.vehicleNo ?? ownerRow?.vehicleNo ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null,
           fulfilmentStatus: "BILLED",
           billedAt: new Date(),
           billedById: user.id,

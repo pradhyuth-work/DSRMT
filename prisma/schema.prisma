@@ -149,6 +149,8 @@ model Staff {
   passwordHash String?
   role         Role     @default(agent)
   active       Boolean  @default(true)
+  /// Field agent's delivery vehicle; pre-fills the vehicle number when their orders are billed.
+  vehicleNo    String?
   /// Bumped on password reset so previously issued tokens stop working.
   tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())

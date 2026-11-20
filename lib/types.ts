@@ -277,6 +277,8 @@ export interface OrderDTO {
   posBill: boolean;
   taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
   vehicleNo: string | null;
+  /** The order owner's usual vehicle — pre-fills the vehicle number at billing. */
+  agentVehicleNo: string | null;
   einvExportedAt: string | null;
   items: OrderItemDTO[];
 }
