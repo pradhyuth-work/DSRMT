@@ -19,16 +19,24 @@ export interface LineTax {
  *  MRP: price has tax; tax is worked on the MRP (Rule 31D, the MTR way): tax = MRP x qty x rate/(100+rate).
  * Returns null for MRP when no MRP is known, since the tax can't be worked out.
  */
+/**
+ * GST tax on a taxable value, always an even number of paise: the e-invoice portal rejects a bill whose
+ * SGST and CGST differ by even a paisa (error 2227), so tax = 2 x the rounded half.
+ */
+export function evenTax(taxable: number, rate: number): number {
+  return round2(2 * round2((taxable * rate) / 200));
+}
+
 export function computeLine(mode: TaxMode, price: number, qty: number, rate: number, mrp: number | null): LineTax | null {
   if (mode === "EXCLUSIVE") {
     const taxable = round2(price * qty);
-    const tax = round2((taxable * rate) / 100);
+    const tax = evenTax(taxable, rate);
     return { gross: round2(taxable + tax), taxable, tax };
   }
   const gross = round2(price * qty);
   if (mode === "INCLUSIVE") {
     const taxable = round2((gross * 100) / (100 + rate));
-    return { gross, taxable, tax: round2(gross - taxable) };
+    return { gross, taxable, tax: evenTax(taxable, rate) };
   }
   if (!mrp || mrp <= 0) return null;
   // MRP (RSP-based) valuation: tax is charged on the MRP, so taxable = MRP x qty x 100/(100+rate) and
@@ -36,7 +44,7 @@ export function computeLine(mode: TaxMode, price: number, qty: number, rate: num
   // and gross is the trade discount, shown on the invoice as a deduction.
   const mrpValue = mrp * qty;
   const taxable = round2((mrpValue * 100) / (100 + rate));
-  return { gross, taxable, tax: round2(mrpValue - taxable) };
+  return { gross, taxable, tax: evenTax(taxable, rate) };
 }
 
 /** Intra-state supplies split tax into CGST + SGST, everything else is IGST. */
