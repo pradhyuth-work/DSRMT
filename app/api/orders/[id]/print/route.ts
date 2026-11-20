@@ -33,32 +33,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const pos = inv.placeOfSupply || "29";
     const intra = pos === SELLER.stateCode;
     const stateName = STATES.find((x) => x.code === pos)?.name ?? "";
+    // Same layout as the Target bill: line Amount = what the buyer pays for the line less its tax (no discount
+    // column — any scheme is already in the rate); the GST summary's SALE VAL is the MRP-based taxable value.
     const rows = inv.items.map((it, i) => {
       const rate = it.gstRate ?? it.product.gstRate;
       const mrp = it.mrp ?? it.product.mrp ?? 0;
       const calc = it.taxable != null && it.taxAmt != null ? { taxable: it.taxable, tax: it.taxAmt } : (() => { const c = computeLine("MRP", it.unitPrice, it.quantity, rate, mrp); return { taxable: c?.taxable ?? it.subtotal, tax: c?.tax ?? 0 }; })();
       const pk = /(\d+)\s*s\b/i.exec(it.product.name)?.[1] ?? "";
-      return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: it.unitPrice, taxable: calc.taxable, tax: calc.tax, amt: round2n(calc.taxable + calc.tax), gst: rate };
+      const amt = round2n(it.subtotal - calc.tax);
+      return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: amt / it.quantity, taxable: calc.taxable, tax: calc.tax, amt, gst: rate };
     });
-    const sumTaxable = rows.reduce((s, r) => s + r.taxable, 0);
+    const saleVal = rows.reduce((s, r) => s + r.taxable, 0);
     const sumTax = rows.reduce((s, r) => s + r.tax, 0);
-    const sumAmt = rows.reduce((s, r) => s + r.amt, 0);
+    const subTotal = rows.reduce((s, r) => s + r.amt, 0);
     const sumQty = rows.reduce((s, r) => s + r.qty, 0);
     const mrpValue = rows.reduce((s, r) => s + r.mrp * r.qty, 0);
     const net = inv.totalAmount;
-    // MRP mode: lines add up to the MRP value; the gap to what the buyer pays is the trade discount.
-    const discount = inv.taxMode === "MRP" && sumAmt - net > 0 ? round2n(sumAmt - net) : 0;
-    const round = round2n(net - (sumAmt - discount));
+    const round = round2n(net - (subTotal + sumTax));
     const rate0 = rows[0]?.gst ?? 40;
     const addr = [o.address, [o.city, o.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     const when = inv.billedAt ?? inv.createdAt;
-    const grid = "16px 112px 48px 24px 32px 30px 24px 36px 54px 48px 1fr";
+    const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
+    const half = round2n(sumTax / 2);
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
       : `<div>IGST %</div><div>IGST AMT</div><div></div><div></div>`;
     const taxVals = intra
-      ? `<div>${rate0 / 2}</div><div>${f2(sumTax / 2)}</div><div>${rate0 / 2}</div><div>${f2(sumTax / 2)}</div>`
+      ? `<div>${rate0 / 2}</div><div>${f2(half)}</div><div>${rate0 / 2}</div><div>${f2(sumTax - half)}</div>`
       : `<div>${rate0}</div><div>${f2(sumTax)}</div><div></div><div></div>`;
+    const tline = (l: string, v: string, bold = false) => `<div style="display:flex;justify-content:space-between;padding:1px 0${bold ? ";font-weight:700" : ""}"><span>${l}</span><span>${v}</span></div>`;
+    const taxLines = intra ? tline("SGST AMT", f2(half)) + tline("CGST AMT", f2(sumTax - half)) : tline("IGST AMT", f2(sumTax));
 
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(inv.invoiceNumber)}</title>
 <style>
@@ -88,20 +92,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:8px 0;border-bottom:1px solid #C9D3D2">
 ${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-spacing:.14em;margin-bottom:2px">${t}</div><div style="font-weight:700;font-size:10.5px">${esc(o.name)}</div><div style="font-size:8.5px">${esc(addr)}</div>${o.gstNumber ? `<div style="font-size:8.5px;margin-top:2px">GSTIN: <b>${esc(o.gstNumber)}</b></div>` : ""}</div>`).join("")}</div>
 <div class="row" style="margin-top:8px;padding:5px 0;border-top:1.5px solid #0F2B2A;border-bottom:1.5px solid #0F2B2A;font-weight:700;font-size:7px;letter-spacing:.06em">
-<div>#</div><div>DESCRIPTION</div><div>HSN</div><div style="text-align:right">PKNG</div><div style="text-align:right">M.R.P</div><div style="text-align:right">QTY</div><div style="text-align:right">FREE</div><div style="text-align:right">RATE</div><div style="text-align:right">TAXABLE</div><div style="text-align:right">GST ${rate0}%</div><div style="text-align:right">AMOUNT</div></div>
+<div>#</div><div>DESCRIPTION</div><div>HSN</div><div style="text-align:right">PKNG</div><div style="text-align:right">M.R.P</div><div style="text-align:right">QTY</div><div style="text-align:right">FREE</div><div style="text-align:right">RATE</div><div style="text-align:right">GST%</div><div style="text-align:right">AMOUNT</div></div>
 <div style="flex:1;min-height:0;font-size:8.5px">
-${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${f2(r.taxable)}</div><div style="text-align:right">${f2(r.tax)}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`).join("")}
-<div class="row" style="padding:6px 0 1px;font-weight:700"><div></div><div style="grid-column:span 4;text-align:right">GROSS TAXABLE VALUE</div><div style="text-align:right">${sumQty}</div><div></div><div></div><div style="text-align:right">${f2(sumTaxable)}</div><div></div><div></div></div>
-${discount > 0 ? `<div class="row" style="padding:1px 0"><div></div><div style="grid-column:span 4;text-align:right">LESS: TRADE DISCOUNT</div><div></div><div></div><div></div><div></div><div></div><div style="text-align:right">-${f2(discount)}</div></div>` : ""}
-<div class="row" style="padding:1px 0"><div></div><div style="grid-column:span 4;text-align:right">ROUND OFF</div><div></div><div></div><div></div><div style="text-align:right">${f2(round)}</div><div></div><div></div></div></div>
+${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${r.gst}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`).join("")}
+</div>
 <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;border-top:1.5px solid #0F2B2A;padding-top:8px">
 <div style="font-size:8px">
-<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;font-weight:700;font-size:7px;color:#5A6D6C;padding-bottom:2px;border-bottom:1px solid #C9D3D2"><div>GST %</div><div>TAX AMT</div>${taxHead}</div>
-<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;padding-top:2px"><div>${rate0}.0</div><div>${f2(sumTax)}</div>${taxVals}</div>
-<div style="margin-top:7px">MRP value: <b>${f2(mrpValue)}</b></div>
+<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;font-weight:700;font-size:7px;color:#5A6D6C;padding-bottom:2px;border-bottom:1px solid #C9D3D2"><div>GST %</div><div>SALE VAL</div>${taxHead}</div>
+<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;padding-top:2px"><div>${rate0}.0</div><div>${f2(saleVal)}</div>${taxVals}</div>
+<div style="margin-top:7px">TOT ITEMS: <b>${rows.length}</b> &nbsp; TOT QTY: <b>${sumQty}</b> &nbsp; MRP VALUE: <b>${f2(mrpValue)}</b></div>
 <div class="lbl" style="margin-top:7px">TERMS</div><div>Goods once sold will not be returned.</div></div>
 <div style="display:flex;flex-direction:column;justify-content:space-between">
-<div style="border:1.5px solid #0F2B2A;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:8px;letter-spacing:.12em;font-weight:700">NET AMOUNT</span><span style="font-weight:700;font-size:20px">₹ ${f2(net)}</span></div>
+<div style="font-size:8.5px">${tline("SUB TOTAL", f2(subTotal))}${taxLines}${tline("ROUND OFF", f2(round))}</div>
+<div style="border:1.5px solid #0F2B2A;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:8px;letter-spacing:.12em;font-weight:700">NET AMT</span><span style="font-weight:700;font-size:20px">₹ ${f2(net)}</span></div>
 <div style="text-align:right;margin-top:24px"><div style="font-weight:700;font-size:8.5px">For VARASIDHI ENTERPRISES</div><div style="border-top:1px solid #8A9B9A;margin-top:18px;padding-top:2px;font-size:7px;letter-spacing:.1em;color:#5A6D6C">AUTHORISED SIGNATORY</div></div></div></div>
 </div></body></html>`;
     return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });

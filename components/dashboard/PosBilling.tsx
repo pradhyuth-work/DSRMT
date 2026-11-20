@@ -44,7 +44,6 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
     return computeLine(mode, price, qty, p.gstRate ?? 40, mrp ?? null);
   });
   const done = calc.filter((c): c is NonNullable<typeof c> => c !== null);
-  const taxable = done.reduce((s, c) => s + c.taxable, 0);
   const tax = done.reduce((s, c) => s + c.tax, 0);
   const total = Math.round(done.reduce((s, c) => s + c.gross, 0));
   const sp = splitTax(tax, effPos);
@@ -137,7 +136,7 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
         <div className="card w-full shrink-0 space-y-2 p-4 lg:w-80">
           <div className="text-xs font-semibold tracking-widest text-muted-foreground">WHAT THE BILL WILL SHOW</div>
           <p className="text-sm text-muted-foreground">{OPTIONS.find((o) => o.id === mode)!.explain}</p>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Net sale value</span><span>{formatMoney(taxable)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sub total</span><span>{formatMoney(total - tax)}</span></div>
           {effPos === HOME_STATE ? (
             <>
               <div className="flex justify-between text-sm"><span className="text-muted-foreground">CGST 20%</span><span>{formatMoney(sp.cgst)}</span></div>
@@ -145,9 +144,6 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
             </>
           ) : (
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">IGST 40%</span><span>{formatMoney(sp.igst)}</span></div>
-          )}
-          {mode === "MRP" && taxable + tax - total > 0.005 && (
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Less: trade discount</span><span>-{formatMoney(taxable + tax - total)}</span></div>
           )}
           <div className="flex justify-between border-t border-border pt-2 text-lg font-bold"><span>Total</span><span>{formatMoney(total)}</span></div>
           {anyRow && !complete && <Alert kind="warning">Fill quantity and price on every item{mode === "MRP" ? " (and MRP)" : ""}.</Alert>}
