@@ -53,3 +53,15 @@ export const STATES: { code: string; name: string }[] = [
   ["27", "Maharashtra"], ["29", "Karnataka"], ["30", "Goa"], ["31", "Lakshadweep"], ["32", "Kerala"], ["33", "Tamil Nadu"],
   ["34", "Puducherry"], ["35", "Andaman & Nicobar"], ["36", "Telangana"], ["37", "Andhra Pradesh"], ["38", "Ladakh"],
 ].map(([code, name]) => ({ code, name }));
+
+/**
+ * Place of supply = where the goods are delivered. Normally the state in the buyer's GSTIN, but a buyer
+ * registered in another state (e.g. a Delhi GSTIN) that takes delivery in Karnataka is a Karnataka supply.
+ * Karnataka pincodes start with 56 (and 57-59), so a delivery pincode there overrides the GSTIN state.
+ */
+export function supplyState(gstin: string | null | undefined, pincode: string | null | undefined): string {
+  const pin = (pincode ?? "").trim();
+  if (/^5[6-9][0-9]{4}$/.test(pin)) return HOME_STATE;
+  const g = (gstin ?? "").trim();
+  return /^[0-9]{2}/.test(g) ? g.slice(0, 2) : HOME_STATE;
+}

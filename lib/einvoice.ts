@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { SELLER } from "@/lib/seller";
 import { irpDocNumber } from "@/lib/invoice-series";
 import { round2 } from "@/lib/money";
-import { computeLine, splitTax, type TaxMode } from "@/lib/gst";
+import { computeLine, splitTax, supplyState, type TaxMode } from "@/lib/gst";
 
 /** What the e-invoice builder needs from the database. */
 export const einvoiceInclude = {
@@ -74,7 +74,8 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
   if (errors.length > 0) return { invoiceNumber: number, json: null, errors, warnings };
 
   const buyerState = gstin.slice(0, 2);
-  const intra = buyerState === SELLER.stateCode;
+  const posState = supplyState(gstin, o.pincode);
+  const intra = posState === SELLER.stateCode;
   let assTotal = 0, cgstTotal = 0, sgstTotal = 0, igstTotal = 0;
 
   const items = inv.items.map((it, i) => {
@@ -136,7 +137,7 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
     BuyerDtls: {
       Gstin: gstin,
       LglNm: clip(o.name, 100),
-      Pos: buyerState,
+      Pos: posState,
       Addr1: clip(o.address, 100),
       Loc: clip(o.city ?? "", 50),
       Pin: Number.parseInt(o.pincode!.trim(), 10),
@@ -155,6 +156,13 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
       TotInvVal: round2(sumItems + roundOff),
     },
   };
+
+  if (posState !== buyerState) {
+    // Registered in one state, delivered in another: the buyer block keeps the registered state and
+    // the goods go to the delivery address (the outlet's address on file).
+    doc.ShipDtls = { LglNm: clip(o.name, 100), Addr1: clip(o.address, 100), Loc: clip(o.city ?? "", 50), Pin: Number.parseInt(o.pincode!.trim(), 10), Stcd: posState };
+    warnings.push(`Buyer GSTIN is registered in state ${buyerState} but delivery is in ${posState}: the portal checks the buyer's pincode against the GSTIN state, so the buyer block needs the registered address — confirm in the sandbox`);
+  }
 
   if (needsEwb) {
     if (veh.length >= 7) {

@@ -1,3 +1,4 @@
+import { supplyState } from "@/lib/gst";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -127,8 +128,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         });
       }
 
-      const outletRow = await tx.outlet.findUnique({ where: { id: invoice.outletId }, select: { gstNumber: true } });
-      const placeOfSupply = /^[0-9]{2}/.test(outletRow?.gstNumber ?? "") ? outletRow!.gstNumber!.slice(0, 2) : "29";
+      const outletRow = await tx.outlet.findUnique({ where: { id: invoice.outletId }, select: { gstNumber: true, pincode: true } });
+      const placeOfSupply = supplyState(outletRow?.gstNumber, outletRow?.pincode);
       return tx.invoice.update({
         where: { id },
         data: {
