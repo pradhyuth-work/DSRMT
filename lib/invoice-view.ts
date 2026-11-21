@@ -30,7 +30,7 @@ export async function loadInvoiceView(id: string) {
     const calc = it.taxable != null && it.taxAmt != null ? { taxable: it.taxable, tax: it.taxAmt } : (() => { const c = computeLine("MRP", it.unitPrice, it.quantity, rate, mrp); return { taxable: c?.taxable ?? it.subtotal, tax: c?.tax ?? 0 }; })();
     const pk = /(\d+)\s*s\b/i.exec(it.product.name)?.[1] ?? "";
     const amt = round2n(calc.taxable);
-    return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: Math.round(((it.hasScheme ? it.unitPrice : (it.listUnitPrice ?? it.unitPrice)) * 100) / (100 + rate) * 100) / 100, taxable: calc.taxable, tax: calc.tax, amt, gst: rate };
+    return { n: i + 1, name: it.product.name, hsn: it.hsnCode ?? it.product.hsnCode ?? "", pk, mrp, qty: it.quantity, rate: amt / it.quantity, taxable: calc.taxable, tax: calc.tax, amt, gst: rate };
   });
   const saleVal = rows.reduce((s, r) => s + r.taxable, 0);
   const sumTax = rows.reduce((s, r) => s + r.tax, 0);
