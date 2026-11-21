@@ -450,14 +450,14 @@ export default function OrdersView({
                       Dispatch
                     </button>
                   )}
-                  {canBill && o.invoiceNumber && !o.billedOutside && o.fulfilmentStatus !== "CANCELLED" && (
+                  {o.invoiceNumber && !o.billedOutside && o.fulfilmentStatus !== "CANCELLED" && (
                     <button
                       className="btn btn-secondary h-11 shrink-0 gap-1 !px-3 text-xs"
-                      onClick={() => { api.downloadInvoicePdf(o.id).catch((e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : "Could not download the invoice" })); }}
-                      aria-label={`Invoice PDF for ${orderLabel(o)}`}
-                      title="Download the invoice as a PDF"
+                      onClick={() => { api.downloadInvoiceImage(o.id).catch((e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : "Could not download the invoice" })); }}
+                      aria-label={`Invoice image for ${orderLabel(o)}`}
+                      title="Download the invoice as an image"
                     >
-                      <Download className="h-4 w-4" /> PDF
+                      <Download className="h-4 w-4" /> Image
                     </button>
                   )}
                   {canEdit(o) && (

@@ -117,7 +117,7 @@ function footer(pg: PdfPage, v: View) {
   pg.text(R, 573, "AUTHORISED SIGNATORY", 5.5, { align: "right", gray: true });
 }
 
-export function renderInvoicePdf(v: View): Buffer {
+function buildPages(v: View): PdfPage[] {
   const pages: PdfPage[] = [];
   const total = v.rows.length;
   let from = 0;
@@ -130,5 +130,15 @@ export function renderInvoicePdf(v: View): Buffer {
     pages.push(pg);
   } while (from < total);
   footer(pages[pages.length - 1], v);
+  return pages;
+}
+
+/** The invoice pages as plain drawing commands (A5 points, y from the top) for painting on a canvas. */
+export function invoiceLayout(v: View) {
+  return { w: A5.w, h: A5.h, pages: buildPages(v).map((p) => p.cmds) };
+}
+
+export function renderInvoicePdf(v: View): Buffer {
+  const pages = buildPages(v);
   return buildPdf(pages, Buffer.from(LOGO_PNG_BASE64, "base64"), v.invoiceNumber);
 }

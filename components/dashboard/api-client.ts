@@ -148,6 +148,70 @@ async function downloadInvoicePdf(orderId: string): Promise<void> {
   await downloadFile(`/api/orders/${encodeURIComponent(orderId)}/pdf`, "invoice.pdf");
 }
 
+type DrawCmd =
+  | { t: "text"; x: number; y: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
+  | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
+  | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
+  | { t: "image"; x: number; y: number; w: number; h: number };
+
+/** Saves the invoice as a PNG image named after the invoice number (e.g. MTR-312.png). Several pages are stacked in one image. */
+async function downloadInvoiceImage(orderId: string): Promise<void> {
+  const layout = await request<{ name: string; w: number; h: number; pages: DrawCmd[][] }>(`/api/orders/${enc(orderId)}/image`);
+  const logo = await new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = "/varasidhi-logo.png";
+  });
+  const scale = 3;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(layout.w * scale);
+  canvas.height = Math.round(layout.h * scale * layout.pages.length);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new ApiRequestError("Could not make the image on this device");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const ink = "#0F2B29";
+  const gray = "#5A6B6B";
+  const light = "#C7D4D2";
+  layout.pages.forEach((cmds, pi) => {
+    ctx.save();
+    ctx.translate(0, pi * layout.h * scale);
+    ctx.scale(scale, scale);
+    ctx.textBaseline = "alphabetic";
+    for (const c of cmds) {
+      if (c.t === "text") {
+        ctx.fillStyle = c.gray ? gray : ink;
+        ctx.font = `${c.bold ? "bold " : ""}${c.size}px Helvetica, Arial, sans-serif`;
+        ctx.textAlign = c.right ? "right" : "left";
+        ctx.fillText(c.s, c.x, c.y);
+      } else if (c.t === "line") {
+        ctx.strokeStyle = c.gray ? light : ink;
+        ctx.lineWidth = c.width;
+        ctx.beginPath();
+        ctx.moveTo(c.x1, c.y1);
+        ctx.lineTo(c.x2, c.y2);
+        ctx.stroke();
+      } else if (c.t === "rect") {
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = c.width;
+        ctx.strokeRect(c.x, c.y, c.w, c.h);
+      } else if (logo) {
+        ctx.drawImage(logo, c.x, c.y, c.w, c.h);
+      }
+    }
+    ctx.restore();
+  });
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new ApiRequestError("Could not make the image on this device");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${layout.name}.png`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Opens the printable A5 invoice for a bill made in the app in a new window and starts printing. */
 async function printInvoice(orderId: string): Promise<void> {
   const token = getToken();
@@ -173,6 +237,7 @@ async function printInvoice(orderId: string): Promise<void> {
 export const api = {
   printInvoice,
   downloadInvoicePdf,
+  downloadInvoiceImage,
   login: (input: LoginInput) => post<LoginResponse>("/api/auth/login", input),
   me: () => request<AuthUser>("/api/auth/me"),
 

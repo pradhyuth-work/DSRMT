@@ -26,22 +26,34 @@ export function fit(s: string, size: number, max: number, bold = false): string 
 const esc = (s: string) => s.replace(/[^\x20-\x7e]/g, "?").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 const n = (v: number) => (Math.round(v * 100) / 100).toString();
 
+/** Same drawing as `ops`, but as plain data, so the invoice can also be painted on a canvas and saved as an image. */
+export type DrawCmd =
+  | { t: "text"; x: number; y: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
+  | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
+  | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
+  | { t: "image"; x: number; y: number; w: number; h: number };
+
 export class PdfPage {
   ops: string[] = [];
+  cmds: DrawCmd[] = [];
   /** y is measured from the TOP of the page, like on screen. */
   text(x: number, y: number, s: string, size = 8, o: { bold?: boolean; align?: "left" | "right"; gray?: boolean } = {}) {
+    this.cmds.push({ t: "text", x, y, s, size, bold: !!o.bold, right: o.align === "right", gray: !!o.gray });
     const w = textWidth(s, size, o.bold);
     const px = o.align === "right" ? x - w : x;
     const c = o.gray ? "0.35 0.42 0.42 rg" : "0.06 0.17 0.16 rg";
     this.ops.push(`BT ${c} /${o.bold ? "F2" : "F1"} ${n(size)} Tf ${n(px)} ${n(A5.h - y)} Td (${esc(s)}) Tj ET`);
   }
   line(x1: number, y1: number, x2: number, y2: number, width = 0.5, gray = false) {
+    this.cmds.push({ t: "line", x1, y1, x2, y2, width, gray });
     this.ops.push(`${gray ? "0.78 0.83 0.82" : "0.06 0.17 0.16"} RG ${n(width)} w ${n(x1)} ${n(A5.h - y1)} m ${n(x2)} ${n(A5.h - y2)} l S`);
   }
   rect(x: number, y: number, w: number, h: number, width = 1) {
+    this.cmds.push({ t: "rect", x, y, w, h, width });
     this.ops.push(`0.06 0.17 0.16 RG ${n(width)} w ${n(x)} ${n(A5.h - y - h)} ${n(w)} ${n(h)} re S`);
   }
   image(x: number, y: number, w: number, h: number) {
+    this.cmds.push({ t: "image", x, y, w, h });
     this.ops.push(`q ${n(w)} 0 0 ${n(h)} ${n(x)} ${n(A5.h - y - h)} cm /Im1 Do Q`);
   }
 }
