@@ -64,7 +64,7 @@ function header(pg: PdfPage, v: View, logo: boolean) {
   pg.text(M, y, "#", 6, { bold: true });
   pg.text(M + 12, y, "DESCRIPTION", 6, { bold: true });
   pg.text(M + 132, y, "HSN", 6, { bold: true });
-  const right: [string, number][] = [["PKNG", 190], ["M.R.P", 222], ["QTY", 246], ["FREE", 268], ["RATE", 304], ["GST%", 330], ["AMOUNT", R - M]];
+  const right: [string, number][] = [["PKNG", 186], ["M.R.P", 216], ["QTY", 240], ["FREE", 260], ["RATE", 294], ["GST%", 318], ["AMOUNT", R - M]];
   right.forEach(([l, x]) => pg.text(M + x, y, l, 6, { bold: true, align: "right" }));
   pg.line(M, 205, R, 205, 1.2);
 }
@@ -75,12 +75,12 @@ function lines(pg: PdfPage, v: View, from: number, to: number) {
     pg.text(M, y, String(r.n), 7, { gray: true });
     pg.text(M + 12, y, fit(r.name, 7.5, 114, true), 7.5, { bold: true });
     pg.text(M + 132, y, r.hsn, 7);
-    pg.text(M + 190, y, r.pk, 7, { align: "right" });
-    pg.text(M + 222, y, f2(r.mrp), 7, { align: "right" });
-    pg.text(M + 246, y, String(r.qty), 7, { align: "right" });
-    pg.text(M + 268, y, "0", 7, { align: "right" });
-    pg.text(M + 304, y, f2(r.rate), 7, { align: "right" });
-    pg.text(M + 330, y, String(r.gst), 7, { align: "right" });
+    pg.text(M + 186, y, r.pk, 7, { align: "right" });
+    pg.text(M + 216, y, f2(r.mrp), 7, { align: "right" });
+    pg.text(M + 240, y, String(r.qty), 7, { align: "right" });
+    pg.text(M + 260, y, "0", 7, { align: "right" });
+    pg.text(M + 294, y, f2(r.rate), 7, { align: "right" });
+    pg.text(M + 318, y, String(r.gst), 7, { align: "right" });
     pg.text(R, y, f2(r.amt), 7.5, { bold: true, align: "right" });
     pg.line(M, y + 5, R, y + 5, 0.3, true);
   });

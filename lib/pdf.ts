@@ -28,7 +28,7 @@ const n = (v: number) => (Math.round(v * 100) / 100).toString();
 
 /** Same drawing as `ops`, but as plain data, so the invoice can also be painted on a canvas and saved as an image. */
 export type DrawCmd =
-  | { t: "text"; x: number; y: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
+  | { t: "text"; x: number; y: number; w: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
   | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
   | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
   | { t: "image"; x: number; y: number; w: number; h: number };
@@ -38,8 +38,8 @@ export class PdfPage {
   cmds: DrawCmd[] = [];
   /** y is measured from the TOP of the page, like on screen. */
   text(x: number, y: number, s: string, size = 8, o: { bold?: boolean; align?: "left" | "right"; gray?: boolean } = {}) {
-    this.cmds.push({ t: "text", x, y, s, size, bold: !!o.bold, right: o.align === "right", gray: !!o.gray });
     const w = textWidth(s, size, o.bold);
+    this.cmds.push({ t: "text", x, y, w, s, size, bold: !!o.bold, right: o.align === "right", gray: !!o.gray });
     const px = o.align === "right" ? x - w : x;
     const c = o.gray ? "0.35 0.42 0.42 rg" : "0.06 0.17 0.16 rg";
     this.ops.push(`BT ${c} /${o.bold ? "F2" : "F1"} ${n(size)} Tf ${n(px)} ${n(A5.h - y)} Td (${esc(s)}) Tj ET`);

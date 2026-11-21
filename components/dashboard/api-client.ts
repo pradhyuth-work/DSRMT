@@ -149,7 +149,7 @@ async function downloadInvoicePdf(orderId: string): Promise<void> {
 }
 
 type DrawCmd =
-  | { t: "text"; x: number; y: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
+  | { t: "text"; x: number; y: number; w: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
   | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
   | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
   | { t: "image"; x: number; y: number; w: number; h: number };
@@ -184,7 +184,17 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
         ctx.fillStyle = c.gray ? gray : ink;
         ctx.font = `${c.bold ? "bold " : ""}${c.size}px Helvetica, Arial, sans-serif`;
         ctx.textAlign = c.right ? "right" : "left";
-        ctx.fillText(c.s, c.x, c.y);
+        // The device font can be wider than the Helvetica metrics the layout was planned with; squeeze to the planned width so nothing overlaps.
+        const actual = ctx.measureText(c.s).width;
+        if (actual > c.w * 1.01 && c.w > 0) {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(c.w / actual, 1);
+          ctx.fillText(c.s, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(c.s, c.x, c.y);
+        }
       } else if (c.t === "line") {
         ctx.strokeStyle = c.gray ? light : ink;
         ctx.lineWidth = c.width;
