@@ -163,6 +163,18 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
     img.onerror = () => resolve(null);
     img.src = "/varasidhi-logo.png";
   });
+  // Ship the font with the app (Liberation Sans, same metrics as Helvetica) so the image looks identical on every phone and browser.
+  const faces = await Promise.all(
+    [["normal", "LiberationSans-Regular"], ["bold", "LiberationSans-Bold"]].map(async ([weight, file]) => {
+      try {
+        const f = new FontFace("InvoiceSans", `url(/fonts/${file}.ttf)`, { weight });
+        await f.load();
+        document.fonts.add(f);
+        return true;
+      } catch { return false; }
+    }),
+  );
+  const family = faces.every(Boolean) ? "InvoiceSans, Helvetica, Arial, sans-serif" : "Helvetica, Arial, sans-serif";
   const scale = 3;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(layout.w * scale);
@@ -182,7 +194,7 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
     for (const c of cmds) {
       if (c.t === "text") {
         ctx.fillStyle = c.gray ? gray : ink;
-        ctx.font = `${c.bold ? "bold " : ""}${c.size}px Helvetica, Arial, sans-serif`;
+        ctx.font = `${c.bold ? "bold " : ""}${c.size}px ${family}`;
         ctx.textAlign = c.right ? "right" : "left";
         // The device font can be wider than the Helvetica metrics the layout was planned with; squeeze to the planned width so nothing overlaps.
         const actual = ctx.measureText(c.s).width;
