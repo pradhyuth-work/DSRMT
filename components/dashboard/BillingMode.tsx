@@ -118,7 +118,7 @@ function QueueCard({ o, selected, productById, gstin, onPick }: { o: OrderDTO; s
       </dl>
       <p className="mt-2 text-[11px] text-muted-foreground">{o.items.length} item{o.items.length === 1 ? "" : "s"} · {qty} pcs · <span className={sc === "none" ? "" : "font-bold uppercase tracking-wider text-accent"}>{SCHEME_LABEL[sc]}</span></p>
 
-      <button type="button" onClick={onPick} className={`btn mt-auto h-11 w-full pt-0 text-sm ${selected ? "btn-primary" : "btn-secondary"}`} style={{ marginTop: "0.75rem" }}>
+      <button type="button" onClick={onPick} className={`btn mt-3 h-11 w-full text-sm ${selected ? "btn-primary" : "btn-secondary"}`}>
         <FileCheck className="h-4 w-4" /> {selected ? "Selected — bill below" : "Bill this order"}
       </button>
     </article>
