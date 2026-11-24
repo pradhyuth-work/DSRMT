@@ -132,6 +132,7 @@ export const posBillSchema = z
           productId: id,
           quantity: z.coerce.number().int().positive("Quantity must be above 0"),
           price: money,
+          taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]).optional(),
           mrp: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()).optional(),
         }),
       )

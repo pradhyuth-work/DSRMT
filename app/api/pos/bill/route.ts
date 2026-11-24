@@ -56,10 +56,13 @@ export async function POST(req: Request) {
       const lines = input.items.map((it) => {
         const p = byId.get(it.productId)!;
         const mrp = it.mrp ?? p.mrp;
-        const t = computeLine(input.taxMode, it.price, it.quantity, p.gstRate, mrp ?? null);
+        const t = computeLine(it.taxMode ?? input.taxMode, it.price, it.quantity, p.gstRate, mrp ?? null);
         if (!t) throw new HttpError(400, `${p.name}: enter the MRP for the "Inclusive on MRP" option`);
         return { it, p, mrp: mrp ?? null, t };
       });
+      // Bill-level label: MRP if any line is on MRP (that is what drives the discount line), else the common option.
+      const modes = new Set(input.items.map((it) => it.taxMode ?? input.taxMode));
+      const billMode = modes.has("MRP") ? "MRP" : modes.size === 1 ? [...modes][0] : "INCLUSIVE";
       const total = Math.round(lines.reduce((s, l) => s + l.t.gross, 0));
       const invoiceNumber = await allocateNumber(tx);
       const now = new Date();
@@ -80,7 +83,7 @@ export async function POST(req: Request) {
           dispatchedById: user.id,
           billedOutside: false,
           posBill: true,
-          taxMode: input.taxMode,
+          taxMode: billMode,
           placeOfSupply,
           items: {
             create: lines.map((l) => ({

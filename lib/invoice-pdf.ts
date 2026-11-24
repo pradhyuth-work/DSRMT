@@ -87,19 +87,22 @@ function lines(pg: PdfPage, v: View, from: number, to: number) {
 }
 
 function footer(pg: PdfPage, v: View) {
-  const { intra, rate0, saleVal, sumTax, half, subTotal, discount, round, net, rows, sumQty, mrpValue } = v;
+  const { intra, slabs, sumTax, half, subTotal, discount, round, net, rows, sumQty, mrpValue } = v;
   pg.line(M, 450, R, 450, 1.5);
   const cx = intra ? [M, M + 28, M + 78, M + 108, M + 156, M + 186] : [M, M + 28, M + 78, M + 108];
   const heads = intra ? ["GST %", "SALE VAL", "SGST %", "SGST AMT", "CGST %", "CGST AMT"] : ["GST %", "SALE VAL", "IGST %", "IGST AMT"];
-  const vals = intra
-    ? [`${rate0}.0`, f2(saleVal), String(rate0 / 2), f2(half), String(rate0 / 2), f2(sumTax - half)]
-    : [`${rate0}.0`, f2(saleVal), String(rate0), f2(sumTax)];
   heads.forEach((h, i) => pg.text(cx[i], 459, h, 5.5, { bold: true, gray: true }));
   pg.line(M, 462, M + 225, 462, 0.4, true);
-  vals.forEach((t, i) => pg.text(cx[i], 471, t, 7));
-  pg.text(M, 487, `TOT ITEMS: ${rows.length}   TOT QTY: ${sumQty}   MRP VALUE: ${f2(mrpValue)}`, 6.5, { bold: true });
-  pg.text(M, 503, "TERMS", 5.5, { gray: true });
-  pg.text(M, 512, "Goods once sold will not be returned.", 7);
+  slabs.forEach((x, k) => {
+    const vals = intra
+      ? [`${x.rate}.0`, f2(x.saleVal), String(x.rate / 2), f2(x.half), String(x.rate / 2), f2(x.tax - x.half)]
+      : [`${x.rate}.0`, f2(x.saleVal), String(x.rate), f2(x.tax)];
+    vals.forEach((t, i) => pg.text(cx[i], 471 + k * 9, t, 7));
+  });
+  const dy = Math.max(0, slabs.length - 1) * 9;
+  pg.text(M, 487 + dy, `TOT ITEMS: ${rows.length}   TOT QTY: ${sumQty}   MRP VALUE: ${f2(mrpValue)}`, 6.5, { bold: true });
+  pg.text(M, 503 + dy, "TERMS", 5.5, { gray: true });
+  pg.text(M, 512 + dy, "Goods once sold will not be returned.", 7);
 
   const L = M + 240;
   const tl = (label: string, val: string, y: number) => { pg.text(L, y, label, 7); pg.text(R, y, val, 7, { align: "right" }); };

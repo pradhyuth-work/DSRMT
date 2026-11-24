@@ -45,6 +45,14 @@ export async function loadInvoiceView(id: string) {
   const rate0 = rows[0]?.gst ?? 40;
   const addr = [o.address, [o.city, o.pincode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const when = inv.billedAt ?? inv.createdAt;
-  const half = round2n(sumTax / 2);
-  return { inv, invoiceNumber, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, addr, when, half };
+  // One summary row per GST rate (a bill can mix 40% cigarettes with 5% / 18% items).
+  const slabMap = new Map<number, { rate: number; saleVal: number; tax: number }>();
+  for (const r of rows) {
+    const x = slabMap.get(r.gst) ?? { rate: r.gst, saleVal: 0, tax: 0 };
+    x.saleVal += r.taxable; x.tax += r.tax;
+    slabMap.set(r.gst, x);
+  }
+  const slabs = [...slabMap.values()].sort((a, b) => b.rate - a.rate).map((x) => ({ ...x, saleVal: round2n(x.saleVal), tax: round2n(x.tax), half: round2n(x.tax / 2) }));
+  const half = round2n(slabs.reduce((s, x) => s + x.half, 0));
+  return { inv, invoiceNumber, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, slabs, addr, when, half };
 }

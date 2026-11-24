@@ -315,7 +315,8 @@ export interface PosBillInput {
   /** State code for a B2C bill / new outlet without a GSTIN; a GSTIN's own state wins. Default 29. */
   placeOfSupply?: string;
   taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
-  items: { productId: string; quantity: number; price: number; mrp?: number | null }[];
+  /** Each line may carry its own tax option; `taxMode` above is the default for lines without one. */
+  items: { productId: string; quantity: number; price: number; mrp?: number | null; taxMode?: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
 }
 
 export interface ReverseBillInput {

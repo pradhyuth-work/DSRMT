@@ -16,14 +16,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { inv, invoiceNumber, o, pos, intra, stateName, rows, saleVal, sumTax, subTotal, sumQty, mrpValue, net, discount, round, rate0, addr, when, half } = await loadInvoiceView(id);
+    const { inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
       : `<div>IGST %</div><div>IGST AMT</div><div></div><div></div>`;
-    const taxVals = intra
-      ? `<div>${rate0 / 2}</div><div>${f2(half)}</div><div>${rate0 / 2}</div><div>${f2(sumTax - half)}</div>`
-      : `<div>${rate0}</div><div>${f2(sumTax)}</div><div></div><div></div>`;
+    const slabRows = slabs.map((x) => `<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;padding-top:2px"><div>${x.rate}.0</div><div>${f2(x.saleVal)}</div>${intra
+      ? `<div>${x.rate / 2}</div><div>${f2(x.half)}</div><div>${x.rate / 2}</div><div>${f2(x.tax - x.half)}</div>`
+      : `<div>${x.rate}</div><div>${f2(x.tax)}</div><div></div><div></div>`}</div>`).join("");
     const tline = (l: string, v: string, bold = false) => `<div style="display:flex;justify-content:space-between;padding:1px 0${bold ? ";font-weight:700" : ""}"><span>${l}</span><span>${v}</span></div>`;
     const taxLines = intra ? tline("SGST AMT", f2(half)) + tline("CGST AMT", f2(sumTax - half)) : tline("IGST AMT", f2(sumTax));
 
@@ -62,7 +62,7 @@ ${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid
 <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;border-top:1.5px solid #0F2B2A;padding-top:8px">
 <div style="font-size:8px">
 <div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;font-weight:700;font-size:7px;color:#5A6D6C;padding-bottom:2px;border-bottom:1px solid #C9D3D2"><div>GST %</div><div>SALE VAL</div>${taxHead}</div>
-<div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;padding-top:2px"><div>${rate0}.0</div><div>${f2(saleVal)}</div>${taxVals}</div>
+${slabRows}
 <div style="margin-top:7px">TOT ITEMS: <b>${rows.length}</b> &nbsp; TOT QTY: <b>${sumQty}</b> &nbsp; MRP VALUE: <b>${f2(mrpValue)}</b></div>
 <div class="lbl" style="margin-top:7px">TERMS</div><div>Goods once sold will not be returned.</div></div>
 <div style="display:flex;flex-direction:column;justify-content:space-between">
