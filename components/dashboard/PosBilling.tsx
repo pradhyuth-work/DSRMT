@@ -120,18 +120,18 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
             </div></div>
 
           <div className="space-y-2">
-            <div className="grid grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] gap-2 text-xs font-semibold text-muted-foreground"><div>Item</div><div>Tax</div><div>Qty</div><div>MRP / pack</div><div>Your price / pack</div><div /></div>
+            <div className="hidden grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] gap-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Item</div><div>Tax</div><div>Qty</div><div>MRP / pack</div><div>Your price / pack</div><div /></div>
             {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] items-center gap-2">
-                <Combobox value={r.productId} onChange={(v) => pickProduct(i, v)} ariaLabel="Item" placeholder="Choose item"
-                  options={data.products.map((p) => ({ value: p.id, label: p.name, description: p.stockQty != null ? `${p.stockQty} in stock` : undefined }))} />
+              <div key={i} className="grid grid-cols-2 items-center gap-2 rounded-lg border border-border p-2 sm:grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] sm:border-0 sm:p-0">
+                <div className="col-span-2 sm:col-span-1"><Combobox value={r.productId} onChange={(v) => pickProduct(i, v)} ariaLabel="Item" placeholder="Choose item"
+                  options={data.products.map((p) => ({ value: p.id, label: p.name, description: p.stockQty != null ? `${p.stockQty} in stock` : undefined }))} /></div>
                 <select className="input" aria-label="Tax option" value={r.mode} onChange={(e) => setRow(i, { mode: e.target.value as TaxMode })}>
                   {OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.id === "MRP" ? "On MRP" : o.label}</option>)}
                 </select>
-                <input className="input" aria-label="Quantity" inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, { qty: e.target.value.replace(/\D/g, "") })} />
-                <input className="input" aria-label="MRP" inputMode="decimal" value={r.mrp} onChange={(e) => setRow(i, { mrp: e.target.value })} disabled={r.mode !== "MRP"} />
-                <input className="input" aria-label="Price" inputMode="decimal" value={r.price} onChange={(e) => setRow(i, { price: e.target.value })} />
-                <button type="button" className="btn btn-secondary h-10 w-10 !px-0" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></button>
+                <input className="input" aria-label="Quantity" placeholder="Qty" inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, { qty: e.target.value.replace(/\D/g, "") })} />
+                <input className="input" aria-label="MRP" placeholder="MRP / pack" inputMode="decimal" value={r.mrp} onChange={(e) => setRow(i, { mrp: e.target.value })} disabled={r.mode !== "MRP"} />
+                <input className="input" aria-label="Price" placeholder="Your price / pack" inputMode="decimal" value={r.price} onChange={(e) => setRow(i, { price: e.target.value })} />
+                <button type="button" className="btn btn-secondary col-span-2 h-10 sm:col-span-1 sm:w-10 !px-0" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></button>
               </div>
             ))}
             <button type="button" className="btn btn-secondary h-9 text-sm" onClick={() => setRows([...rows, blank(mode)])}><Plus className="h-4 w-4" /> Add item</button>

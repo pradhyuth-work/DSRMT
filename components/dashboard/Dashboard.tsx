@@ -499,7 +499,22 @@ export default function Dashboard() {
         </aside>
       )}
 
-      <main className="ops-grid min-w-0 flex-1">
+      {billingMode && !isAgent && (
+        <nav aria-label="Billing sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-foreground/10 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          {billTabsFor(user.role === "admin").map(({ id, label }) => {
+            const Icon = BILL_ICONS[id];
+            const short = id === "desk" ? "To bill" : id === "pos" ? "POS" : id === "reports" ? "Reports" : label;
+            return (
+              <button key={id} type="button" onClick={() => setBillTab(id)} aria-current={billTab === id ? "page" : undefined}
+                className={`focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${billTab === id ? "text-accent" : "text-muted-foreground"}`}>
+                <Icon size={20} />{short}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      <main className={`ops-grid min-w-0 flex-1 ${billingMode && !isAgent ? "pb-20 md:pb-0" : ""}`}>
         <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
           <header className="app-header flex h-[76px] items-center justify-between border-b border-foreground/10">
             {isAgent ? (

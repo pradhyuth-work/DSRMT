@@ -149,14 +149,14 @@ function Desk({
   return (
     <div className="flex flex-wrap items-start gap-4">
       {/* queue */}
-      <section aria-label="Queue" className="card w-full shrink-0 p-3 md:w-64">
+      <section aria-label="Queue" className="card order-1 w-full shrink-0 p-3 md:w-64">
         <div className="mb-2 flex items-center justify-between text-xs font-semibold tracking-widest text-muted-foreground">
           <span>TO BILL</span><span className="text-accent">{queue.length}</span>
         </div>
-        <div className="space-y-1">
+        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:block md:space-y-1 md:overflow-visible md:px-0 md:pb-0">
           {queue.map((o) => (
             <button key={o.id} onClick={() => setSelId(o.id)}
-              className={`focus-ring w-full rounded-lg border px-3 py-2 text-left ${order?.id === o.id ? "border-accent bg-accent/10" : "border-border"}`}>
+              className={`focus-ring w-[78%] shrink-0 snap-start rounded-lg border px-3 py-2 text-left md:w-full ${order?.id === o.id ? "border-accent bg-accent/10" : "border-border"}`}>
               <div className="flex justify-between gap-2"><span className="truncate text-sm font-semibold">{o.outletName}</span><span className="text-sm font-bold">{formatMoney(o.totalAmount)}</span></div>
               <div className="text-xs opacity-75">{o.staffName} · {o.items.length} item{o.items.length === 1 ? "" : "s"} · {formatDate(o.createdAt)}</div>
               <div className={`mt-0.5 text-[10px] font-bold uppercase tracking-wider ${schemeState(o) === "none" ? "opacity-50" : "text-accent"}`}>{SCHEME_LABEL[schemeState(o)]}</div>
@@ -166,9 +166,9 @@ function Desk({
       </section>
 
       {/* draft invoice paper */}
-      <section aria-label="Draft invoice" className="min-w-0 flex-1 basis-[400px]">
+      <section aria-label="Draft invoice" className="order-3 min-w-0 flex-1 basis-[400px] md:order-2">
         {order && (
-          <div className="rounded-md bg-[#F4EFE3] p-5 text-[#1B2B2A] shadow">
+          <div className="rounded-md bg-[#F4EFE3] p-3 text-[#1B2B2A] shadow sm:p-5">
             <div className="flex items-start justify-between border-b-2 border-[#0F2B2A] pb-2">
               <div className="flex items-center gap-2"><img src="/varasidhi-logo.png" alt="" className="h-10 w-10 rounded-lg" /><div><div className="text-lg font-bold tracking-wider">{SELLER_NAME}</div><div className="text-xs">GSTIN {SELLER_GSTIN}</div></div></div>
               <div className="text-right"><div className="text-sm font-bold tracking-[.18em]">TAX INVOICE</div><div className="text-[10px] tracking-widest text-[#8a5a00]">DRAFT · NOT YET ISSUED</div></div>
@@ -201,10 +201,10 @@ function Desk({
       </section>
 
       {/* steps */}
-      <aside aria-label="Steps" className="card w-full shrink-0 space-y-3 p-4 lg:w-72">
-        <div className="text-xs font-semibold tracking-widest text-muted-foreground">WHAT HAPPENS</div>
+      <aside aria-label="Steps" className="card order-2 w-full shrink-0 space-y-3 p-4 md:order-3 lg:w-72">
+        <div className="hidden text-xs font-semibold tracking-widest text-muted-foreground md:block">WHAT HAPPENS</div>
         {steps.map((s, i) => (
-          <div key={s.t} className="flex gap-3"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] text-accent">{i + 1}</span>
+          <div key={s.t} className="hidden gap-3 md:flex"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] text-accent">{i + 1}</span>
             <span className="text-sm leading-snug"><span className="block font-bold">{s.t}</span><span className="text-xs text-muted-foreground">{s.n}</span></span></div>
         ))}
         {!outside ? (
@@ -261,7 +261,11 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
   const [dlErr, setDlErr] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
 
-  useEffect(() => { setConfirm(""); setErr(null); setReuse(false); setBack(true); }, [selId]);
+  useEffect(() => {
+    setConfirm(""); setErr(null); setReuse(false); setBack(true);
+    // On a phone the cancel/correct panel sits below the list, so bring it into view once an invoice is picked.
+    if (selId && typeof window !== "undefined" && window.innerWidth < 1024) document.getElementById("cancel-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selId]);
 
   const reuseBlock = !sel ? "" : sel.billedOutside ? "Written outside the app — can't be reused here." : sel.einvExportedAt ? "Already in an e-invoice file — can't be reused." : "Hands the number back so the next invoice takes it.";
   const canReuse = !!sel && !sel.billedOutside && !sel.einvExportedAt;
@@ -293,23 +297,26 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
 
       {dlErr && <Alert kind="error">{dlErr}</Alert>}
       <div className="flex flex-wrap items-start gap-4">
-        <div className="card min-w-0 flex-1 basis-[420px] overflow-x-auto">
+        <div className="card min-w-0 flex-1 basis-[420px]">
           {list.length === 0 ? <EmptyState>No invoices yet.</EmptyState> : (
-            <div className="min-w-[620px]">
-              <div className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[104px]">Download</div></div>
+            <div className="divide-y divide-border">
+              <div className="hidden grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[150px]">Download</div></div>
               {list.map((o) => {
                 const inApp = !o.billedOutside && o.fulfilmentStatus !== "CANCELLED";
                 return (
-                  <div key={o.id} className={`grid grid-cols-[1fr_2fr_1fr_1fr_auto] items-center gap-2 px-3 py-2 text-sm ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
-                    <button onClick={() => setSelId(o.id)} className="focus-ring col-span-4 grid grid-cols-[1fr_2fr_1fr_1fr] gap-2 text-left">
-                      <span className="font-mono font-bold">{o.invoiceNumber}</span><span className="truncate">{o.outletName}</span><span>{formatMoney(o.totalAmount)}</span>
-                      <span className="text-xs font-semibold uppercase">{label(o)}</span>
+                  <div key={o.id} className={`flex flex-col gap-2 px-3 py-3 text-sm sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] sm:items-center sm:gap-2 sm:py-2 ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
+                    <button onClick={() => setSelId(o.id)} className="focus-ring flex min-w-0 flex-col gap-1 text-left sm:col-span-4 sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr] sm:gap-2" aria-label={`Select ${o.invoiceNumber}`}>
+                      <span className="flex items-baseline justify-between gap-2 sm:block"><span className="font-mono font-bold">{o.invoiceNumber}</span><span className="font-bold sm:hidden">{formatMoney(o.totalAmount)}</span></span>
+                      <span className="truncate">{o.outletName}</span>
+                      <span className="hidden sm:block">{formatMoney(o.totalAmount)}</span>
+                      <span className="text-xs font-semibold uppercase text-muted-foreground sm:text-foreground">{label(o)}</span>
                     </button>
-                    <div className="flex w-[104px] gap-1">
-                      {inApp && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="Download the invoice as an image"
+                    <div className="flex gap-2 sm:w-[150px] sm:gap-1">
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="Download the invoice as an image"
                         onClick={() => { setDlErr(null); api.downloadInvoiceImage(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not download the invoice")); }}>Image</button>}
-                      {inApp && isAdmin && <button type="button" className="btn btn-secondary h-8 !px-2 text-xs" title="E-invoice JSON for this bill"
+                      {inApp && isAdmin && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="E-invoice JSON for this bill"
                         onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => { setSelId(o.id); }}>{isAdmin ? "Cancel / correct" : "Select"}</button>}
                     </div>
                   </div>
                 );
@@ -319,7 +326,7 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
         </div>
 
         {isAdmin && (
-          <div className="card w-full shrink-0 space-y-3 p-4 lg:w-80">
+          <div id="cancel-panel" className="card w-full shrink-0 scroll-mt-20 space-y-3 p-4 lg:w-80">
             <div className="text-xs font-semibold tracking-widest text-muted-foreground">CANCEL OR CORRECT</div>
             {!sel ? <p className="text-sm text-muted-foreground">Select an invoice.</p> : sel.fulfilmentStatus === "CANCELLED" ? (
               <p className="text-sm">{sel.invoiceNumber} · {sel.outletName} is already cancelled.</p>
