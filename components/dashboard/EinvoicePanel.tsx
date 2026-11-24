@@ -146,9 +146,16 @@ function SetupBlock() {
     if (!data) return;
     setBusy(true); setNote(null);
     try {
+      // Send only what was changed: saving every product and outlet at once could run past the database time limit.
+      const prodChanged = data.products.filter((p) => {
+        const x = prod[p.id];
+        return x.hsn.trim() !== (p.hsnCode ?? "") || x.mrp.trim() !== (p.mrp == null ? "" : String(p.mrp)) || Number(x.rate) !== p.gstRate || x.uqc !== p.uqc;
+      });
+      const outChanged = data.outlets.filter((o) => out[o.id].pin.trim() !== (o.pincode ?? "") || out[o.id].city.trim() !== (o.city ?? ""));
+      if (prodChanged.length === 0 && outChanged.length === 0) { setNote({ kind: "success", text: "Nothing changed" }); setBusy(false); return; }
       const d = await api.saveEinvoiceSetup({
-        products: data.products.map((p) => ({ id: p.id, hsnCode: prod[p.id].hsn.trim() || null, mrp: prod[p.id].mrp.trim() === "" ? null : Number(prod[p.id].mrp), gstRate: Number(prod[p.id].rate), uqc: prod[p.id].uqc })),
-        outlets: data.outlets.map((o) => ({ id: o.id, pincode: out[o.id].pin.trim() || null, city: out[o.id].city.trim() || null })),
+        products: prodChanged.map((p) => ({ id: p.id, hsnCode: prod[p.id].hsn.trim() || null, mrp: prod[p.id].mrp.trim() === "" ? null : Number(prod[p.id].mrp), gstRate: Number(prod[p.id].rate), uqc: prod[p.id].uqc })),
+        outlets: outChanged.map((o) => ({ id: o.id, pincode: out[o.id].pin.trim() || null, city: out[o.id].city.trim() || null })),
       });
       setData(d);
       setNote({ kind: "success", text: "Saved" });
