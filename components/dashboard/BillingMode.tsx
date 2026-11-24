@@ -74,6 +74,57 @@ export default function BillingMode({
   );
 }
 
+/** A pending order in the "Orders to bill" queue: who, what, how it is priced and the tax split, with a button to bill it. */
+function QueueCard({ o, selected, productById, gstin, onPick }: { o: OrderDTO; selected: boolean; productById: Map<string, ProductDTO>; gstin: string | null; onPick: () => void }) {
+  const lines = o.items.map((i) => ({ i, ...lineTax(i, productById.get(i.productId)) }));
+  const known = lines.every((l) => l.tax !== null);
+  const tax = lines.reduce((x, l) => x + (l.tax ?? 0), 0);
+  const gross = lines.reduce((x, l) => x + l.gross, 0);
+  const qty = o.items.reduce((x, i) => x + i.quantity, 0);
+  const sc = schemeState(o);
+  return (
+    <article className={`card flex min-w-0 flex-col p-4 ${selected ? "ring-2 ring-accent" : ""}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="break-words text-base font-bold leading-tight">{o.outletName}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{o.staffName} · {formatDate(o.createdAt)}</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-warning/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-foreground">To bill</span>
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">{gstin ? `GSTIN ${gstin}` : "No GSTIN — B2C, no e-invoice"}{o.agentVehicleNo ? ` · Vehicle ${o.agentVehicleNo}` : ""}</p>
+
+      <ul className="my-3 space-y-2 border-y border-border py-2 text-sm">
+        {lines.map((l) => (
+          <li key={l.i.productId}>
+            <div className="flex justify-between gap-2">
+              <span className="min-w-0 break-words"><span className="text-accent">{l.i.quantity} ×</span> {l.i.productName}</span>
+              <span className="shrink-0 font-medium tabular-nums">{formatMoney(l.gross)}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
+              <span>{formatMoney(l.i.unitPrice)}/pc</span>
+              <span>{l.mrp ? `MRP ${formatMoney(l.mrp)}` : "MRP missing"}</span>
+              <span>GST {l.rate}%</span>
+              {l.tax !== null && <span>Tax {formatMoney(l.tax)}</span>}
+              {l.i.hasScheme && <span className="font-bold uppercase tracking-wider text-accent">Scheme</span>}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <dl className="grid grid-cols-3 gap-2 text-xs">
+        <div><dt className="text-muted-foreground">Basic</dt><dd className="tabular-nums">{known ? formatMoney(round2(gross - tax)) : "—"}</dd></div>
+        <div><dt className="text-muted-foreground">GST</dt><dd className="tabular-nums">{known ? formatMoney(round2(tax)) : "—"}</dd></div>
+        <div><dt className="text-muted-foreground">Total</dt><dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd></div>
+      </dl>
+      <p className="mt-2 text-[11px] text-muted-foreground">{o.items.length} item{o.items.length === 1 ? "" : "s"} · {qty} pcs · <span className={sc === "none" ? "" : "font-bold uppercase tracking-wider text-accent"}>{SCHEME_LABEL[sc]}</span></p>
+
+      <button type="button" onClick={onPick} className={`btn mt-auto h-11 w-full pt-0 text-sm ${selected ? "btn-primary" : "btn-secondary"}`} style={{ marginTop: "0.75rem" }}>
+        <FileCheck className="h-4 w-4" /> {selected ? "Selected — bill below" : "Bill this order"}
+      </button>
+    </article>
+  );
+}
+
 /** Whether an order is priced with scheme rates: every line, some lines, or none. */
 function schemeState(o: OrderDTO): "all" | "some" | "none" {
   const n = o.items.filter((i) => i.hasScheme).length;
@@ -148,19 +199,16 @@ function Desk({
 
   return (
     <div className="flex flex-wrap items-start gap-4">
-      {/* queue */}
-      <section aria-label="Queue" className="card order-1 w-full shrink-0 p-3 md:w-64">
+      {/* queue — one detailed card per order, like the order cards in Operations */}
+      <section aria-label="Queue" className="order-1 w-full">
         <div className="mb-2 flex items-center justify-between text-xs font-semibold tracking-widest text-muted-foreground">
           <span>TO BILL</span><span className="text-accent">{queue.length}</span>
         </div>
-        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:block md:space-y-1 md:overflow-visible md:px-0 md:pb-0">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {queue.map((o) => (
-            <button key={o.id} onClick={() => setSelId(o.id)}
-              className={`focus-ring w-[78%] shrink-0 snap-start rounded-lg border px-3 py-2 text-left md:w-full ${order?.id === o.id ? "border-accent bg-accent/10" : "border-border"}`}>
-              <div className="flex justify-between gap-2"><span className="truncate text-sm font-semibold">{o.outletName}</span><span className="text-sm font-bold">{formatMoney(o.totalAmount)}</span></div>
-              <div className="text-xs opacity-75">{o.staffName} · {o.items.length} item{o.items.length === 1 ? "" : "s"} · {formatDate(o.createdAt)}</div>
-              <div className={`mt-0.5 text-[10px] font-bold uppercase tracking-wider ${schemeState(o) === "none" ? "opacity-50" : "text-accent"}`}>{SCHEME_LABEL[schemeState(o)]}</div>
-            </button>
+            <QueueCard key={o.id} o={o} selected={order?.id === o.id} productById={productById}
+              gstin={data.outlets.find((x) => x.id === o.outletId)?.gstNumber ?? null}
+              onPick={() => { setSelId(o.id); setTimeout(() => document.getElementById("bill-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }} />
           ))}
         </div>
       </section>
@@ -201,7 +249,7 @@ function Desk({
       </section>
 
       {/* steps */}
-      <aside aria-label="Steps" className="card order-2 w-full shrink-0 space-y-3 p-4 md:order-3 lg:w-72">
+      <aside id="bill-actions" aria-label="Steps" className="card order-2 scroll-mt-20 w-full shrink-0 space-y-3 p-4 md:order-3 lg:w-72">
         <div className="hidden text-xs font-semibold tracking-widest text-muted-foreground md:block">WHAT HAPPENS</div>
         {steps.map((s, i) => (
           <div key={s.t} className="hidden gap-3 md:flex"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] text-accent">{i + 1}</span>
