@@ -26,6 +26,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  X,
   Wallet2,
   type LucideIcon,
 } from "lucide-react";
@@ -570,8 +571,16 @@ export default function Dashboard() {
           </header>
 
           {!isAgent && mobileNav && (
-            <div className="app-enter border-b border-foreground/10 py-3 md:hidden">
-              <nav className="grid grid-cols-2 gap-2">
+            <div className="md:hidden">
+              <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMobileNav(false)} aria-hidden="true" />
+              <aside aria-label="Menu" className="app-enter fixed bottom-0 left-0 top-0 z-50 flex w-[84%] max-w-[330px] flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-5 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-lg font-bold">Varasidhi Enterprises</span>
+                <button type="button" onClick={() => setMobileNav(false)} aria-label="Close menu" className="focus-ring rounded-lg p-2 text-sidebar-foreground/70"><X size={20} /></button>
+              </div>
+              <div className="mb-1 text-[10px] font-semibold tracking-widest text-sidebar-foreground/60">MODE</div>
+              <div className="mb-5">{modeSwitch}</div>
+              <nav className="grid grid-cols-1 gap-2">
                 {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
                   const Icon = BILL_ICONS[id];
                   return (
@@ -604,7 +613,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setAdminGroupOpen((v) => !v)}
-                    className="focus-ring col-span-2 flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
+                    className="focus-ring flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
                   >
                     <span className="flex items-center gap-3">
                       <ShieldCheck size={18} />
@@ -636,17 +645,14 @@ export default function Dashboard() {
 
                 <button
                   onClick={() => signOut()}
-                  className="focus-ring col-span-2 flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
+                  className="focus-ring flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
                 >
                   <LogOut size={18} />
                   <span className="text-sm font-semibold">Sign out</span>
                 </button>
               </nav>
+              </aside>
             </div>
-          )}
-
-          {!isAgent && (
-            <div className="sticky top-[76px] z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
           )}
 
           {user.role === "admin" && !billingMode && (
