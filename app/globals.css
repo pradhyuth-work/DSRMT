@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 @import "tailwindcss";
 
 /* Design tokens. Values are borrowed from the reference "routeboard" UI so the app
    matches it: warm cream surface, dark-navy sidebar, olive/gold/rose/teal accents,
-   Barlow / Barlow Condensed / Courier Prime type (from the reference screen recording). Dark teal-black theme only — this app has no theme toggle. */
+   Barlow Condensed / Inter / JetBrains Mono type (from the reference screen recording). Dark teal-black theme only — this app has no theme toggle. */
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -36,7 +36,7 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --font-sans: var(--app-font-sans);
-  --font-mono: var(--app-font-mono);
+  --font-mono: var(--app-font-code);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -77,9 +77,10 @@
   --danger-foreground: #ff8a7a;
   --info: #1a2a2e;
   --info-foreground: #a9c4c0;
-  --app-font-sans: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --app-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --app-font-display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
-  --app-font-mono: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --app-font-mono: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --app-font-code: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --radius: .35rem;
   --shadow-card: 0 1px 1px hsl(0 0% 8% / .05), 0 3px 5px hsl(0 0% 8% / .04), 0 12px 20px hsl(0 0% 8% / .05);
   --shadow-float: 0 18px 45px hsl(0 0% 8% / .14);
@@ -96,6 +97,8 @@ html.billing-mode {
 body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--app-font-sans);
+  font-feature-settings: "cv11", "ss01";
+  font-variant-numeric: tabular-nums;
 }
 
 .font-mono-app {
