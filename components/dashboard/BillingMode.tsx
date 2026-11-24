@@ -10,6 +10,7 @@ import { EinvoicePanel } from "./EinvoicePanel";
 import { EditOrderForm } from "./OrdersView";
 import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
+import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import type { DashboardData } from "./Dashboard";
 
 export type BillTab = "desk" | "invoices" | "pos" | "reports";
@@ -147,6 +148,7 @@ function Desk({
   const [selId, setSelId] = useState<string | null>(focusOrderId);
   const order = queue.find((o) => o.id === selId) ?? queue[0] ?? null;
   const [vehicleNo, setVehicleNo] = useState("");
+  const [shipTo, setShipTo] = useState<ShipToForm>(emptyShipTo());
   const [vehicleFor, setVehicleFor] = useState<string | null>(null);
   // Pre-fill the vehicle with the order owner's usual one whenever a different order is picked.
   if (order && vehicleFor !== order.id) { setVehicleFor(order.id); setVehicleNo(order.agentVehicleNo ?? ""); }
@@ -156,7 +158,7 @@ function Desk({
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
 
-  useEffect(() => { setOutside(false); setOutNo(""); setOutAmt(order ? String(order.totalAmount) : ""); setVehicleNo(""); }, [order?.id]);
+  useEffect(() => { setOutside(false); setOutNo(""); setOutAmt(order ? String(order.totalAmount) : ""); setVehicleNo(""); setShipTo(emptyShipTo()); }, [order?.id]);
 
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
   const outlet = order ? data.outlets.find((o) => o.id === order.outletId) : undefined;
@@ -173,7 +175,7 @@ function Desk({
     if (!order) return;
     setBusy(true);
     try {
-      const billed = await api.billOrder(order.id, { vehicleNo: vehicleNo.trim() || undefined });
+      const billed = await api.billOrder(order.id, { vehicleNo: vehicleNo.trim() || undefined, shipTo: shipToInput(shipTo) });
       await onDone(`Invoice ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)}`);
     } catch (e) { onError(e instanceof Error ? e.message : "Could not bill"); }
     setBusy(false);
@@ -260,8 +262,9 @@ function Desk({
             <div><label className="label" htmlFor="desk-veh">Vehicle number (optional)</label>
               <input id="desk-veh" className="input" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="KA01AB1234" />
               {total > 50000 && !vehicleNo.trim() && <p className="mt-1 text-xs text-warning-foreground">Over ₹50,000: add the vehicle number so the e-way bill can be made.</p>}</div>
+            <ShipToFields idPrefix="desk" value={shipTo} onChange={setShipTo} />
             {!nextLabel && <Alert kind="warning">Set the starting invoice number first (Invoices → numbering).</Alert>}
-            <button type="button" className="btn btn-primary w-full" disabled={busy || !nextLabel} onClick={() => void generate()}>
+            <button type="button" className="btn btn-primary w-full" disabled={busy || !nextLabel || shipToIncomplete(shipTo)} onClick={() => void generate()}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />} Generate invoice
             </button>
             {canEdit && order && (

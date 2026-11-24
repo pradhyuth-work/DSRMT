@@ -137,7 +137,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           invoiceNumber,
           billedOutside,
           taxMode: "MRP",
-          placeOfSupply,
+          placeOfSupply: !billedOutside && input.shipTo ? input.shipTo.state : placeOfSupply,
+          ...(!billedOutside && input.shipTo
+            ? { shipToName: input.shipTo.name || null, shipToAddress: input.shipTo.address, shipToCity: input.shipTo.city, shipToPincode: input.shipTo.pincode, shipToState: input.shipTo.state }
+            : {}),
           vehicleNo: billedOutside ? null : (input.vehicleNo ?? ownerRow?.vehicleNo ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null,
           fulfilmentStatus: "BILLED",
           billedAt: new Date(),

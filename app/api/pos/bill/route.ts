@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         });
         outletId = created.id;
       }
-      const placeOfSupply = gstin && /^[0-9]{2}/.test(gstin) ? gstin.slice(0, 2) : input.placeOfSupply ?? "29";
+      const placeOfSupply = input.shipTo ? input.shipTo.state : gstin && /^[0-9]{2}/.test(gstin) ? gstin.slice(0, 2) : input.placeOfSupply ?? "29";
 
       const stock = await tx.$queryRaw<{ id: string; name: string; stockQty: number; unitPrice: number; mrp: number | null; hsnCode: string | null; gstRate: number }[]>`
         SELECT "id", "name", "stockQty", "unitPrice", "mrp", "hsnCode", "gstRate" FROM "Product"
@@ -85,6 +85,9 @@ export async function POST(req: Request) {
           posBill: true,
           taxMode: billMode,
           placeOfSupply,
+          ...(input.shipTo
+            ? { shipToName: input.shipTo.name || null, shipToAddress: input.shipTo.address, shipToCity: input.shipTo.city, shipToPincode: input.shipTo.pincode, shipToState: input.shipTo.state }
+            : {}),
           items: {
             create: lines.map((l) => ({
               productId: l.it.productId,

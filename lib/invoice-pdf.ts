@@ -24,7 +24,7 @@ function wrap(s: string, size: number, width: number, maxLines: number): string[
 }
 
 function header(pg: PdfPage, v: View, logo: boolean) {
-  const { inv, o, pos, stateName, addr, when } = v;
+  const { inv, o, pos, stateName, addr, ship, when } = v;
   if (logo) pg.image(M, 28, 40, 40);
   pg.text(M + 50, 44, "VARASIDHI ENTERPRISES", 16, { bold: true });
   pg.text(M + 50, 54, `${SELLER.addr1}, ${SELLER.addr2},`, 6.5, { gray: true });
@@ -52,8 +52,9 @@ function header(pg: PdfPage, v: View, logo: boolean) {
 
   [M, M + 185].forEach((x, i) => {
     pg.text(x, 139, i === 0 ? "BILLED TO" : "SHIPPED TO", 5.5, { gray: true });
-    pg.text(x, 149, fit(o.name, 9, 170, true), 9, { bold: true });
-    wrap(addr, 7, 170, 2).forEach((ln, k) => pg.text(x, 158 + k * 8, ln, 7));
+    const nm = i === 0 ? o.name : ship.name;
+    pg.text(x, 149, fit(nm, 9, 170, true), 9, { bold: true });
+    wrap(i === 0 ? addr : ship.addr, 7, 170, 2).forEach((ln, k) => pg.text(x, 158 + k * 8, ln, 7));
     if (o.gstNumber) pg.text(x, 176, `GSTIN: ${o.gstNumber}`, 7, { bold: true });
   });
   pg.line(M, 184, R, 184, 0.5, true);

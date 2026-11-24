@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, when, half } = await loadInvoiceView(id);
+    const { inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, ship, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 <div style="padding:5px 8px"><div class="lbl">REVERSE CHARGE</div><div style="font-weight:600">No</div></div>
 <div style="padding:5px 0 5px 8px"><div class="lbl">REP</div><div style="font-weight:600">${esc(inv.staff?.name ?? "")}</div></div></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:8px 0;border-bottom:1px solid #C9D3D2">
-${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-spacing:.14em;margin-bottom:2px">${t}</div><div style="font-weight:700;font-size:10.5px">${esc(o.name)}</div><div style="font-size:8.5px">${esc(addr)}</div>${o.gstNumber ? `<div style="font-size:8.5px;margin-top:2px">GSTIN: <b>${esc(o.gstNumber)}</b></div>` : ""}</div>`).join("")}</div>
+${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-spacing:.14em;margin-bottom:2px">${t}</div><div style="font-weight:700;font-size:10.5px">${esc(t === "BILLED TO" ? o.name : ship.name)}</div><div style="font-size:8.5px">${esc(t === "BILLED TO" ? addr : ship.addr)}</div>${o.gstNumber ? `<div style="font-size:8.5px;margin-top:2px">GSTIN: <b>${esc(o.gstNumber)}</b></div>` : ""}</div>`).join("")}</div>
 <div class="row" style="margin-top:8px;padding:5px 0;border-top:1.5px solid #0F2B2A;border-bottom:1.5px solid #0F2B2A;font-weight:700;font-size:7px;letter-spacing:.06em">
 <div>#</div><div>DESCRIPTION</div><div>HSN</div><div style="text-align:right">PKNG</div><div style="text-align:right">M.R.P</div><div style="text-align:right">QTY</div><div style="text-align:right">FREE</div><div style="text-align:right">RATE</div><div style="text-align:right">GST%</div><div style="text-align:right">AMOUNT</div></div>
 <div style="flex:1;min-height:0;font-size:8.5px">

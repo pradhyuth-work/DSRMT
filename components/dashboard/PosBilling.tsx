@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { computeLine, splitTax, STATES, HOME_STATE, type TaxMode } from "@/lib/gst";
 import { api } from "./api-client";
 import { Alert } from "./ui";
+import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import { Combobox } from "./Combobox";
 import type { DashboardData } from "./Dashboard";
 
@@ -27,12 +28,13 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
   const [pos, setPos] = useState(HOME_STATE);
   const [mode, setMode] = useState<TaxMode>("MRP");
   const [rows, setRows] = useState<Row[]>([blank("MRP")]);
+  const [shipTo, setShipTo] = useState<ShipToForm>(emptyShipTo());
   const [busy, setBusy] = useState(false);
 
   const outlet: OutletDTO | undefined = data.outlets.find((o) => o.id === outletId);
   const gstin = (existing ? outlet?.gstNumber ?? "" : n.gstin).trim().toUpperCase();
   const gstinState = /^[0-9]{2}/.test(gstin) ? gstin.slice(0, 2) : null;
-  const effPos = gstinState ?? pos;
+  const effPos = shipTo.on ? shipTo.state : gstinState ?? pos;
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
 
   const calc = rows.map((r) => {
@@ -68,9 +70,9 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
       }));
       const billed = await api.posBill({
         ...(existing ? { outletId } : { newOutlet: { name: n.name.trim(), gstNumber: gstin || null, address: n.address.trim(), city: n.city.trim() || undefined, pincode: n.pincode.trim() || undefined } }),
-        placeOfSupply: effPos, taxMode: mode, items,
+        placeOfSupply: effPos, taxMode: mode, shipTo: shipToInput(shipTo), items,
       });
-      setRows([blank(mode)]); setOutletId(""); setN({ name: "", gstin: "", address: "", city: "", pincode: "" });
+      setRows([blank(mode)]); setShipTo(emptyShipTo()); setOutletId(""); setN({ name: "", gstin: "", address: "", city: "", pincode: "" });
       await onDone(`POS bill ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)}${existing ? "" : " — new outlet is pending review"}`);
     } catch (e) { onError(e instanceof Error ? e.message : "Could not create the bill"); }
     setBusy(false);
@@ -114,6 +116,8 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
             <p className="mt-1 text-xs text-muted-foreground">{effPos === HOME_STATE ? "Karnataka: CGST + SGST." : "Outside Karnataka: IGST."}</p>
           </div>
 
+          <ShipToFields idPrefix="pos" value={shipTo} onChange={setShipTo} />
+
           <div><div className="mb-1 text-xs font-semibold tracking-widest text-muted-foreground">TAX OPTION FOR ALL ITEMS <span className="font-normal normal-case tracking-normal">— or change it item by item below</span></div>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Tax option">
               {OPTIONS.map((o) => (<button key={o.id} type="button" aria-pressed={rows.every((r) => r.mode === o.id)} onClick={() => { setMode(o.id); setRows(rows.map((r) => ({ ...r, mode: o.id }))); }} className={`btn h-9 text-sm ${rows.every((r) => r.mode === o.id) ? "btn-primary" : "btn-secondary"}`}>{o.label}</button>))}
@@ -156,7 +160,7 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
           })}
           <div className="flex justify-between border-t border-border pt-2 text-lg font-bold"><span>Total</span><span>{formatMoney(total)}</span></div>
           {anyRow && !complete && <Alert kind="warning">Fill quantity and price on every item{rows.some((r) => r.mode === "MRP") ? " (and MRP on MRP items)" : ""}.</Alert>}
-          <button type="button" className="btn btn-primary w-full" disabled={busy || !complete || !outletOk} onClick={() => void create()}>
+          <button type="button" className="btn btn-primary w-full" disabled={busy || !complete || !outletOk || shipToIncomplete(shipTo)} onClick={() => void create()}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create bill
           </button>
           <p className="text-xs text-muted-foreground">Makes the next MTR invoice, takes stock out and marks it handed over. Payment is collected under Payments.</p>

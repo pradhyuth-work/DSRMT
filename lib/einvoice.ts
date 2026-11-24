@@ -74,7 +74,8 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
   if (errors.length > 0) return { invoiceNumber: number, json: null, errors, warnings };
 
   const buyerState = gstin.slice(0, 2);
-  const posState = supplyState(gstin, o.pincode);
+  const shipTo = inv.shipToAddress && inv.shipToPincode && inv.shipToState ? { name: inv.shipToName || o.name, addr: inv.shipToAddress, city: inv.shipToCity ?? "", pin: inv.shipToPincode, state: inv.shipToState } : null;
+  const posState = shipTo ? shipTo.state : supplyState(gstin, o.pincode);
   const intra = posState === SELLER.stateCode;
   let assTotal = 0, cgstTotal = 0, sgstTotal = 0, igstTotal = 0;
 
@@ -161,7 +162,10 @@ export function buildEinvoice(inv: EinvoiceSource): EinvoiceResult {
     },
   };
 
-  if (posState !== buyerState) {
+  if (shipTo) {
+    doc.ShipDtls = { LglNm: clip(shipTo.name, 100), Addr1: clip(shipTo.addr, 100), Loc: clip(shipTo.city, 50), Pin: Number.parseInt(shipTo.pin, 10), Stcd: shipTo.state };
+    if (posState !== buyerState) warnings.push(`Buyer GSTIN is registered in state ${buyerState} but delivery is in ${posState}: check the buyer's registered address and pincode on the portal.`);
+  } else if (posState !== buyerState) {
     // Registered in one state, delivered in another: the buyer block keeps the registered state and
     // the goods go to the delivery address (the outlet's address on file).
     doc.ShipDtls = { LglNm: clip(o.name, 100), Addr1: clip(o.address, 100), Loc: clip(o.city ?? "", 50), Pin: Number.parseInt(o.pincode!.trim(), 10), Stcd: posState };

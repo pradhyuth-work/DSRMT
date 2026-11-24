@@ -100,11 +100,20 @@ export const updateOrderSchema = z
 // The physical bill-book number, copied in by hand — free text (not every book uses plain
 // digits), but bounded so it can't be pasted-in garbage. `amount` is the bill-book total,
 // also copied in by hand — becomes the order's totalAmount from here on (see the route).
+const shipToSchema = z.object({
+  name: z.string().trim().max(100).optional(),
+  address: z.string().trim().min(1, "Enter the ship-to address").max(100),
+  city: z.string().trim().min(3, "Enter the ship-to city").max(50),
+  pincode: z.string().trim().regex(/^[0-9]{6}$/, "Ship-to pincode must be 6 digits"),
+  state: z.string().trim().regex(/^[0-9]{2}$/, "Choose the ship-to state"),
+});
+
 export const billOrderSchema = z
   .object({
     invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40).optional(),
     amount: money.positive("Enter the bill amount").optional(),
     vehicleNo: z.string().trim().max(20).optional(),
+    shipTo: shipToSchema.optional(),
   })
   .refine((v) => v.invoiceNumber === undefined || v.amount !== undefined, {
     message: "Enter the bill amount",
@@ -126,6 +135,7 @@ export const posBillSchema = z
       .optional(),
     placeOfSupply: z.string().trim().regex(/^[0-9]{2}$/, "Choose a state").optional(),
     taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]),
+    shipTo: shipToSchema.optional(),
     items: z
       .array(
         z.object({

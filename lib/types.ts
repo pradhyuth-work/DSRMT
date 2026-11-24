@@ -283,6 +283,16 @@ export interface OrderDTO {
   items: OrderItemDTO[];
 }
 
+/** Delivery address when it differs from the buyer's registered one. */
+export interface ShipToInput {
+  name?: string;
+  address: string;
+  city: string;
+  pincode: string;
+  /** GST state code of the delivery place; it becomes the place of supply. */
+  state: string;
+}
+
 export interface BillOrderInput {
   /** Hand-entered bill-book number = "billed outside the app" (flagged, no e-invoice).
    * Leave out to bill in the app: the next number in the MTR series is used. */
@@ -293,6 +303,7 @@ export interface BillOrderInput {
   amount?: number;
   /** Vehicle for the e-way bill part of the e-invoice (in-app billing only). */
   vehicleNo?: string;
+  shipTo?: ShipToInput;
 }
 
 export interface InvoiceSeriesDTO {
@@ -316,6 +327,7 @@ export interface PosBillInput {
   placeOfSupply?: string;
   taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
   /** Each line may carry its own tax option; `taxMode` above is the default for lines without one. */
+  shipTo?: ShipToInput;
   items: { productId: string; quantity: number; price: number; mrp?: number | null; taxMode?: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
 }
 

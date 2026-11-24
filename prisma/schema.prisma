@@ -209,6 +209,12 @@ model Invoice {
   posBill          Boolean          @default(false)
   /// State code of the place of supply; 29 = Karnataka (CGST + SGST), anything else is IGST.
   placeOfSupply    String           @default("29")
+  /// Optional delivery address when it differs from the buyer's (null = ship to the buyer's address).
+  shipToName       String?
+  shipToAddress    String?
+  shipToCity       String?
+  shipToPincode    String?
+  shipToState      String?
   createdAt        DateTime         @default(now())
 
   outlet         Outlet              @relation(fields: [outletId], references: [id])
