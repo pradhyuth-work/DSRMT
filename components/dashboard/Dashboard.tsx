@@ -516,7 +516,7 @@ export default function Dashboard() {
 
       <main className={`ops-grid min-w-0 flex-1 ${billingMode && !isAgent ? "pb-20 md:pb-0" : ""}`}>
         <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
-          <header className="app-header flex h-[76px] items-center justify-between border-b border-foreground/10">
+          <header className="app-header sticky top-0 z-30 -mx-4 flex h-[76px] items-center justify-between border-b border-foreground/10 bg-background/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <BrandTile size={36} />
@@ -646,7 +646,7 @@ export default function Dashboard() {
           )}
 
           {!isAgent && (
-            <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
+            <div className="sticky top-[76px] z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
           )}
 
           {user.role === "admin" && !billingMode && (
