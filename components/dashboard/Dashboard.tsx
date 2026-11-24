@@ -365,7 +365,7 @@ export default function Dashboard() {
       {/* Desktop sidebar — admin/stock only. Agents are phone-first, so they never see it. */}
       {!isAgent && (
         <aside
-          className={`relative hidden shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
+          className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start overflow-y-auto bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
             sidebarCollapsed ? "w-[76px] items-center px-3" : "w-[248px]"
           }`}
         >
@@ -646,7 +646,7 @@ export default function Dashboard() {
           )}
 
           {!isAgent && (
-            <div className="pt-4 md:hidden">{modeSwitch}</div>
+            <div className="sticky top-0 z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
           )}
 
           {user.role === "admin" && !billingMode && (
