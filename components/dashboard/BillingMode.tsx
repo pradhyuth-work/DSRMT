@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileCheck, Loader2, Pencil } from "lucide-react";
 import type { AuthUser, InvoiceSeriesDTO, OrderDTO, ProductDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
@@ -76,7 +76,7 @@ export default function BillingMode({
 }
 
 /** A pending order in the "Orders to bill" queue: who, what, how it is priced and the tax split, with a button to bill it. */
-function QueueCard({ o, selected, productById, gstin, onPick }: { o: OrderDTO; selected: boolean; productById: Map<string, ProductDTO>; gstin: string | null; onPick: () => void }) {
+function QueueCard({ o, selected, productById, gstin, onPick, className = "" }: { o: OrderDTO; selected: boolean; productById: Map<string, ProductDTO>; gstin: string | null; onPick: () => void; className?: string }) {
   const lines = o.items.map((i) => ({ i, ...lineTax(i, productById.get(i.productId)) }));
   const known = lines.every((l) => l.tax !== null);
   const tax = lines.reduce((x, l) => x + (l.tax ?? 0), 0);
@@ -84,7 +84,7 @@ function QueueCard({ o, selected, productById, gstin, onPick }: { o: OrderDTO; s
   const qty = o.items.reduce((x, i) => x + i.quantity, 0);
   const sc = schemeState(o);
   return (
-    <article className={`card flex min-w-0 flex-col p-4 ${selected ? "ring-2 ring-accent" : ""}`}>
+    <article className={`card flex min-w-0 flex-col p-4 ${selected ? "ring-2 ring-accent" : ""} ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="break-words text-base font-bold leading-tight">{o.outletName}</h3>
@@ -160,6 +160,27 @@ function Desk({
 
   useEffect(() => { setOutside(false); setOutNo(""); setOutAmt(order ? String(order.totalAmount) : ""); setVehicleNo(""); setShipTo(emptyShipTo()); }, [order?.id]);
 
+  // Swipe rail (phone): which card is showing, kept in step with the scroll position.
+  const railRef = useRef<HTMLDivElement>(null);
+  const [cardIdx, setCardIdx] = useState(0);
+  function onRailScroll() {
+    const el = railRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const first = el.firstElementChild as HTMLElement | null;
+    const step = first ? first.offsetWidth + 12 : el.clientWidth;
+    setCardIdx(Math.max(0, Math.min(queue.length - 1, Math.round(el.scrollLeft / step))));
+  }
+  // Open the rail on the focused order (when arriving from an order card elsewhere).
+  useEffect(() => {
+    if (!focusOrderId) return;
+    const i = queue.findIndex((o) => o.id === focusOrderId);
+    const card = railRef.current?.children[i] as HTMLElement | undefined;
+    if (card) railRef.current!.scrollTo({ left: card.offsetLeft - railRef.current!.offsetLeft, behavior: "auto" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusOrderId]);
+  // Keep the index valid after an order is billed and leaves the queue.
+  useEffect(() => { setCardIdx((i) => Math.min(i, Math.max(0, queue.length - 1))); }, [queue.length]);
+
   const productById = useMemo(() => new Map(data.products.map((p) => [p.id, p])), [data.products]);
   const outlet = order ? data.outlets.find((o) => o.id === order.outletId) : undefined;
   const nextLabel = series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : null;
@@ -204,15 +225,28 @@ function Desk({
       {/* queue — one detailed card per order, like the order cards in Operations */}
       <section aria-label="Queue" className="order-1 w-full">
         <div className="mb-2 flex items-center justify-between text-xs font-semibold tracking-widest text-muted-foreground">
-          <span>TO BILL</span><span className="text-accent">{queue.length}</span>
+          <span>TO BILL</span>
+          <span className="text-accent">
+            <span className="sm:hidden">{Math.min(cardIdx + 1, queue.length)} / </span>{queue.length}
+          </span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {/* Phone: one card at a time, swipe sideways for the next. Wider screens keep the grid. */}
+        <div ref={railRef} onScroll={onRailScroll}
+          className="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible xl:grid-cols-3">
           {queue.map((o) => (
             <QueueCard key={o.id} o={o} selected={order?.id === o.id} productById={productById}
+              className="w-full shrink-0 snap-center [scroll-snap-stop:always] sm:w-auto sm:shrink"
               gstin={data.outlets.find((x) => x.id === o.outletId)?.gstNumber ?? null}
               onPick={() => { setSelId(o.id); setTimeout(() => document.getElementById("bill-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }} />
           ))}
         </div>
+        {queue.length > 1 && (
+          <div className="mt-2 flex justify-center gap-1.5 sm:hidden" aria-hidden>
+            {queue.map((o, i) => (
+              <span key={o.id} className={`h-1.5 rounded-full transition-all ${i === cardIdx ? "w-4 bg-accent" : "w-1.5 bg-muted-foreground/40"}`} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* draft invoice paper */}
