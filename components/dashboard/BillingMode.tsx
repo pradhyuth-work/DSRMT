@@ -11,6 +11,7 @@ import { IrnPanel, irnActive, irnFor, irnLabel } from "./IrnPanel";
 import { EditOrderForm } from "./OrdersView";
 import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
+import { SELLER } from "@/lib/seller";
 import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import type { DashboardData } from "./Dashboard";
 
@@ -49,6 +50,9 @@ export default function BillingMode({
 
   const loadSeries = () => api.getInvoiceSeries().then(setSeries).catch(() => setSeries(null));
   useEffect(() => { void loadSeries(); }, [data.orders]);
+  // The result of billing shows at the top, which on a phone is well above the button that was pressed.
+  const messageRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (message) messageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }, [message]);
 
   return (
     <div className="space-y-4">
@@ -56,10 +60,10 @@ export default function BillingMode({
         <span className="font-semibold text-accent">Billing mode</span>
         <span className="ml-2 opacity-85">Turn orders into GST invoices. Everything here follows the invoice number series.</span>
       </div>
-      {message && <Alert kind={message.kind}>{message.text}</Alert>}
+      {message && <div ref={messageRef} className="scroll-mt-20"><Alert kind={message.kind}>{message.text}</Alert></div>}
       {tab === "desk" && (
         <Desk data={data} user={user} series={series} focusOrderId={focusOrderId ?? null}
-          onDone={async (text) => { setMessage({ kind: "success", text }); await onSaved(); await loadSeries(); }}
+          onDone={async (text, kind = "success") => { setMessage({ kind, text }); await onSaved(); await loadSeries(); }}
           onError={(text) => setMessage({ kind: "error", text })} />
       )}
       {tab === "pos" && isAdmin && (
@@ -140,7 +144,7 @@ function Desk({
   data, user, series, focusOrderId, onDone, onError,
 }: {
   data: DashboardData; user: AuthUser; series: InvoiceSeriesDTO | null; focusOrderId: string | null;
-  onDone: (text: string) => Promise<void>; onError: (text: string) => void;
+  onDone: (text: string, kind?: "success" | "error") => Promise<void>; onError: (text: string) => void;
 }) {
   const queue = useMemo(
     () => data.orders.filter((o) => o.fulfilmentStatus === "PENDING").sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -159,7 +163,13 @@ function Desk({
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
 
-  useEffect(() => { setOutside(false); setOutNo(""); setOutAmt(order ? String(order.totalAmount) : ""); setVehicleNo(""); setShipTo(emptyShipTo()); }, [order?.id]);
+  const [wantEwb, setWantEwb] = useState(true);
+  const [distance, setDistance] = useState("");
+  // Whether the GSP is set up, and in test or live mode: undefined = still loading, null = could not be read.
+  const [gsp, setGsp] = useState<EInvoiceListDTO | null | undefined>(undefined);
+  useEffect(() => { api.einvoiceRecords().then(setGsp).catch(() => setGsp(null)); }, []);
+
+  useEffect(() => { setOutside(false); setOutNo(""); setOutAmt(order ? String(order.totalAmount) : ""); setShipTo(emptyShipTo()); setWantEwb(true); setDistance(""); }, [order?.id]);
 
   // Swipe rail (phone): which card is showing, kept in step with the scroll position.
   const railRef = useRef<HTMLDivElement>(null);
@@ -193,13 +203,42 @@ function Desk({
   const netSum = lines.reduce((s, l) => s + (l.net ?? 0), 0);
   const total = Math.round(gross);
 
+  // A GSTIN outlet is filed with the GSP straight after billing.
+  const willFile = !!outlet?.gstNumber && !!gsp?.ready;
+  const ewb = willFile && wantEwb;
+  const needDistance = ewb && String(shipToInput(shipTo)?.pincode ?? outlet?.pincode ?? "") === String(SELLER.pincode);
+  const ewbMissing = !ewb ? null
+    : vehicleNo.replace(/[^A-Za-z0-9]/g, "").length < 7 ? "Enter the vehicle number for the e-way bill, or untick it."
+    : needDistance && !(Number(distance) > 0) ? "Delivery is in your own pincode: enter the distance in km, or untick the e-way bill."
+    : null;
+
   async function generate() {
     if (!order) return;
     setBusy(true);
+    const vehicle = vehicleNo.trim() || undefined;
+    let billed: OrderDTO;
     try {
-      const billed = await api.billOrder(order.id, { vehicleNo: vehicleNo.trim() || undefined, shipTo: shipToInput(shipTo) });
-      await onDone(`Invoice ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)}`);
-    } catch (e) { onError(e instanceof Error ? e.message : "Could not bill"); }
+      billed = await api.billOrder(order.id, { vehicleNo: vehicle, shipTo: shipToInput(shipTo) });
+    } catch (e) { onError(e instanceof Error ? e.message : "Could not bill"); setBusy(false); return; }
+    // Portal and server messages may or may not end with a full stop.
+    const why = (s: string | null | undefined) => (s ?? "no reply").replace(/[.\s]*$/, ".");
+    const made = `Invoice ${billed.invoiceNumber} made for ${formatMoney(billed.totalAmount)}`;
+    if (!willFile) {
+      const notFiled = !outlet?.gstNumber ? "" : `. E-invoice NOT filed: ${why(gsp?.problem ?? "the e-invoice set-up could not be read")}`;
+      await onDone(made + notFiled, notFiled ? "error" : "success");
+    } else {
+      // The invoice now exists whatever happens next; a failure here is retried under Invoices, never re-billed.
+      const test = gsp.testMode ? "Test " : "";
+      try {
+        const r = await api.generateIrn(billed.id, { ewayBill: ewb ? { vehicleNo: vehicle, distance: needDistance ? Number(distance) : 0 } : null });
+        if (r.status === "FAILED") await onDone(`${made}, but the ${test}IRN was refused: ${why(r.error)} Fix it, then try again under Invoices.`, "error");
+        else if (r.status !== "GENERATED") await onDone(`${made}, but the ${test}IRN is not confirmed: ${why(r.error)} Check it under Invoices.`, "error");
+        else if (ewb && r.ewbStatus !== "GENERATED") await onDone(`${made}. ${test}IRN made, but not the e-way bill: ${why(r.ewbError)} Open Invoices to retry it.`, "error");
+        else await onDone(`${made}. ${test}IRN made${r.ewbNo ? `, e-way bill ${r.ewbNo}` : ""}.`);
+      } catch (e) {
+        await onDone(`${made}, but the e-invoice step failed: ${why(e instanceof Error ? e.message : null)} Open Invoices to check it.`, "error");
+      }
+    }
     setBusy(false);
   }
   async function saveOutside() {
@@ -218,7 +257,7 @@ function Desk({
     { t: `Take invoice number ${nextLabel ?? "(set the start first)"}`, n: "Next in the MTR series" },
     { t: "Take stock out", n: "Stock leaves the inventory when the invoice is made" },
     { t: "Save the GST invoice", n: "Locks the amount; payments are collected against it" },
-    { t: "File the e-invoice", n: "Under Invoices: one press for IRN + e-way bill" },
+    { t: "File the e-invoice", n: "IRN + e-way bill straight away for outlets with a GSTIN" },
   ];
 
   return (
@@ -294,12 +333,22 @@ function Desk({
         ))}
         {!outside ? (
           <>
-            <div><label className="label" htmlFor="desk-veh">Vehicle number (optional)</label>
+            <div><label className="label" htmlFor="desk-veh">Vehicle number{ewb ? " (for the e-way bill)" : " (optional)"}</label>
               <input id="desk-veh" className="input" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="KA01AB1234" />
-              {total > 50000 && !vehicleNo.trim() && <p className="mt-1 text-xs text-warning-foreground">Over ₹50,000: add the vehicle number so the e-way bill can be made.</p>}</div>
+              {total > 50000 && !ewb && <p className="mt-1 text-xs text-warning-foreground">Over ₹50,000: goods need an e-way bill before they move.{outlet?.gstNumber ? "" : " Make it on the e-way bill portal."}</p>}</div>
             <ShipToFields idPrefix="desk" value={shipTo} onChange={setShipTo} />
+            {willFile && (
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={wantEwb} onChange={(e) => setWantEwb(e.target.checked)} /> Make the e-way bill too</label>
+            )}
+            {needDistance && (
+              <div><label className="label" htmlFor="desk-km">Distance km</label><input id="desk-km" className="input" inputMode="numeric" value={distance} onChange={(e) => setDistance(e.target.value.replace(/\D/g, "").slice(0, 4))} /></div>
+            )}
+            {ewbMissing && <p className="text-xs text-warning-foreground">{ewbMissing}</p>}
+            {willFile && <p className="text-xs text-muted-foreground">{gsp.testMode ? "Test mode: the e-invoice is a trial and nothing reaches the government." : `LIVE: this also files the ${ewb ? "e-invoice and e-way bill" : "e-invoice"} with the government.`}</p>}
+            {outlet?.gstNumber && gsp !== undefined && !gsp?.ready && <Alert kind="warning">This will make the invoice only, not the e-invoice: {gsp?.problem ?? "the e-invoice set-up could not be read"}</Alert>}
+            {outlet && !outlet.gstNumber && <p className="text-xs text-muted-foreground">No GSTIN on this outlet: invoice only, no e-invoice or e-way bill.</p>}
             {!nextLabel && <Alert kind="warning">Set the starting invoice number first (Invoices → numbering).</Alert>}
-            <button type="button" className="btn btn-primary w-full" disabled={busy || !nextLabel || shipToIncomplete(shipTo)} onClick={() => void generate()}>
+            <button type="button" className="btn btn-primary w-full" disabled={busy || !nextLabel || shipToIncomplete(shipTo) || gsp === undefined || !!ewbMissing} onClick={() => void generate()}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />} Generate invoice
             </button>
             {canEdit && order && (

@@ -60,6 +60,7 @@ export interface OutletDTO {
   phone: string;
   address: string;
   gstNumber: string | null;
+  pincode: string | null;
   /** Made at the POS and not yet approved by an admin. */
   pendingReview?: boolean;
   routeId: string | null;
