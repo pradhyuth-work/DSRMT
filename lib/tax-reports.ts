@@ -161,13 +161,19 @@ export function hsnTable(live: TaxInvoice[]): Table {
   return gstr1Tables(live, []).tables.find((t) => t.name === "HSN")!;
 }
 
-export function einvoiceStatusTable(live: TaxInvoice[]): Table {
+/** Live IRN records only: test filings never appear in tax reports. */
+export async function einvoiceStatusTable(live: TaxInvoice[]): Promise<Table> {
+  const records = await prisma.eInvoice.findMany({ where: { invoiceId: { in: live.map((i) => i.id) }, testMode: false } });
+  const byBill = new Map(records.map((r) => [`${r.invoiceId}|${r.docNo}`, r]));
+  const STATUS: Record<string, string> = { GENERATED: "IRN generated", CANCELLED: "IRN cancelled", FAILED: "Refused by the portal", UNKNOWN: "No clear reply: check", SENDING: "Being sent", CANCELLING: "Being cancelled" };
   return {
     name: "E-invoice status",
-    header: ["Invoice no", "Date", "Outlet", "GSTIN", "Type", "JSON exported", "IRN", "Ack no", "Status"],
+    header: ["Invoice no", "Date", "Outlet", "GSTIN", "Type", "JSON exported", "IRN", "Ack no", "E-way bill", "Status"],
     rows: live.map((i): Row => {
       const gstin = (i.outlet.gstNumber ?? "").trim();
-      return [i.invoiceNumber, istDisplay(i.billedAt!), i.outlet.name, gstin, gstin ? "B2B" : "B2C", i.einvExportedAt ? istDisplay(i.einvExportedAt) : "", "", "", gstin ? (i.einvExportedAt ? "JSON made, IRN not recorded yet" : "Not exported") : "B2C: no e-invoice needed"];
+      const r = byBill.get(`${i.id}|${irpDocNumber(i.invoiceNumber!)}`);
+      const status = r ? STATUS[r.status] ?? r.status : gstin ? (i.einvExportedAt ? "JSON made, IRN not recorded" : "Not filed") : "B2C: no e-invoice needed";
+      return [i.invoiceNumber, istDisplay(i.billedAt!), i.outlet.name, gstin, gstin ? "B2B" : "B2C", i.einvExportedAt ? istDisplay(i.einvExportedAt) : "", r?.irn ?? "", r?.ackNo ?? "", r?.ewbNo ?? "", status];
     }),
   };
 }

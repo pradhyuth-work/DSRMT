@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { HttpError, errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { buildEinvoice, einvoiceInclude } from "@/lib/einvoice";
+import { irpDocNumber } from "@/lib/invoice-series";
 import type { EinvoiceReportDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,20 @@ export async function GET(req: Request) {
     if (ids.length === 0 && !from && !to) throw new HttpError(400, "Choose bills or a date range");
 
     const invoices = await prisma.invoice.findMany({ where, include: einvoiceInclude, orderBy: { billedAt: "asc" }, take: 1000 });
-    const all = invoices.map((inv) => ({ inv, res: buildEinvoice(inv) }));
+    // A bill already filed through the GSP must not be uploaded again by hand.
+    const filed = new Map(
+      (await prisma.eInvoice.findMany({ where: { invoiceId: { in: invoices.map((i) => i.id) }, testMode: false, status: { not: "FAILED" } } }))
+        .map((r) => [`${r.invoiceId}|${r.docNo}`, r.status]),
+    );
+    const all = invoices.map((inv) => {
+      const res = buildEinvoice(inv);
+      const status = inv.invoiceNumber ? filed.get(`${inv.id}|${irpDocNumber(inv.invoiceNumber)}`) : undefined;
+      if (status === "GENERATED" || status === "CANCELLING" || status === "CANCELLED") {
+        return { inv, res: { ...res, json: null, errors: [status === "CANCELLED" ? "IRN was cancelled: this number can't be filed again" : "Already has an IRN"] } };
+      }
+      if (status) res.warnings.push("Sent to the portal from the app with no clear reply: check the portal before uploading");
+      return { inv, res };
+    });
     // B2C bills (outlet without a GSTIN) need no e-invoice: leave them out of the lists and counts.
     const isB2c = (r: (typeof all)[number]) => r.res.json === null && r.res.errors.some((e) => e.includes("no GSTIN"));
     const results = all.filter((r) => !isB2c(r));

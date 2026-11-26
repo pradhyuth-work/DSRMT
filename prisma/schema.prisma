@@ -225,6 +225,7 @@ model Invoice {
   items          InvoiceItem[]
   payments       PaymentCollection[]
   stockMovements StockMovement[]
+  einvoices      EInvoice[]
 
   @@index([outletId, createdAt])
   @@index([staffId])
@@ -448,6 +449,42 @@ model AgentPayment {
   createdBy Staff @relation("AgentPaymentCreator", fields: [createdById], references: [id])
 
   @@index([agentId, createdAt])
+}
+
+/// IRN / e-way bill made through the GSP. One row per invoice number per mode (test / live); the unique
+/// pair is what stops the same bill being sent twice. Never deleted.
+model EInvoice {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  /// The number as sent to the government portal, e.g. MTR-312.
+  docNo         String
+  testMode      Boolean
+  /// SENDING | GENERATED | FAILED | UNKNOWN (no reply: may or may not be registered) | CANCELLING | CANCELLED
+  status        String
+  irn           String?
+  ackNo         String?
+  ackDate       String?
+  /// Base64 PNG of the signed QR code printed on the invoice.
+  qrImage       String?
+  signedInvoice String?
+  /// NOT_REQUESTED | SENDING | GENERATED | FAILED | UNKNOWN | CANCELLED
+  ewbStatus     String    @default("NOT_REQUESTED")
+  ewbNo         String?
+  ewbDate       String?
+  ewbValidUpto  String?
+  ewbError      String?
+  vehicleNo     String?
+  error         String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([docNo, testMode])
+  @@index([invoiceId])
 }
 
 /// Small key/value store for app settings. Holds the in-app invoice number series

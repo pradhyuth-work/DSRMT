@@ -2,6 +2,7 @@ import { SELLER } from "@/lib/seller";
 import { LOGO_PNG_BASE64 } from "@/lib/logo-data";
 import { A5, PdfPage, buildPdf, fit, textWidth } from "@/lib/pdf";
 import { f2, ist, type loadInvoiceView } from "@/lib/invoice-view";
+import { pngToGray } from "@/lib/png";
 
 type View = Awaited<ReturnType<typeof loadInvoiceView>>;
 
@@ -9,6 +10,7 @@ const M = 28;
 const R = A5.w - M; // right edge
 const ROW_H = 14;
 const ROWS_FIRST = 15; // rows that fit between the table header and the footer block
+const ROWS_WITH_IRN = 10; // rows on the last page when it also carries the QR code and IRN
 
 /** Word-wraps to the given width, at most `maxLines` lines. */
 function wrap(s: string, size: number, width: number, maxLines: number): string[] {
@@ -87,6 +89,19 @@ function lines(pg: PdfPage, v: View, from: number, to: number) {
   });
 }
 
+/** QR code, IRN and e-way bill, above the totals on the last page. */
+function irnBlock(pg: PdfPage, v: View, hasQr: boolean) {
+  const e = v.einv!;
+  const x = hasQr ? M + 84 : M;
+  if (hasQr) pg.qr(M, 366, 76);
+  if (!hasQr) pg.text(M, 441, "QR code could not be drawn here: use Print.", 5.5, { gray: true });
+  pg.text(x, 374, e.test ? "TEST ONLY - NOT A VALID E-INVOICE" : "E-INVOICE", e.test ? 9 : 6, { bold: true, gray: !e.test });
+  const field = (label: string, val: string, y: number) => { pg.text(x, y, label, 5.5, { gray: true }); pg.text(x, y + 8, fit(val, 6.5, R - x, true), 6.5, { bold: true }); };
+  field("IRN", e.irn, 384);
+  field("ACK NO / DATE", [e.ackNo, e.ackDate].filter(Boolean).join("   "), 403);
+  if (e.ewb) field("E-WAY BILL NO / DATE / VALID UPTO", [e.ewb.no, e.ewb.date, e.ewb.validUpto].filter(Boolean).join("   "), 422);
+}
+
 function footer(pg: PdfPage, v: View) {
   const { intra, slabs, sumTax, half, subTotal, discount, round, net, rows, sumQty, mrpValue } = v;
   pg.line(M, 450, R, 450, 1.5);
@@ -121,28 +136,39 @@ function footer(pg: PdfPage, v: View) {
   pg.text(R, 573, "AUTHORISED SIGNATORY", 5.5, { align: "right", gray: true });
 }
 
-function buildPages(v: View): PdfPage[] {
+function buildPages(v: View, hasQr: boolean): PdfPage[] {
   const pages: PdfPage[] = [];
   const total = v.rows.length;
+  const lastCap = v.einv ? ROWS_WITH_IRN : ROWS_FIRST;
   let from = 0;
-  do {
+  for (;;) {
     const pg = new PdfPage();
     header(pg, v, true);
-    const to = Math.min(total, from + ROWS_FIRST);
+    const left = total - from;
+    const last = left <= lastCap;
+    // An earlier page keeps at least one line back, so the last page is never empty.
+    const to = from + (last ? left : Math.min(ROWS_FIRST, left - 1));
     lines(pg, v, from, to);
     from = to;
     pages.push(pg);
-  } while (from < total);
-  footer(pages[pages.length - 1], v);
+    if (last) break;
+  }
+  const end = pages[pages.length - 1];
+  if (v.einv) irnBlock(end, v, hasQr);
+  footer(end, v);
   return pages;
 }
 
+const qrImage = (v: View) => (v.einv?.qr ? pngToGray(Buffer.from(v.einv.qr, "base64")) : null);
+
 /** The invoice pages as plain drawing commands (A5 points, y from the top) for painting on a canvas. */
 export function invoiceLayout(v: View) {
-  return { w: A5.w, h: A5.h, pages: buildPages(v).map((p) => p.cmds) };
+  const qr = v.einv?.qr ? `data:image/png;base64,${v.einv.qr}` : null;
+  return { w: A5.w, h: A5.h, qr, pages: buildPages(v, qr !== null).map((p) => p.cmds) };
 }
 
 export function renderInvoicePdf(v: View): Buffer {
-  const pages = buildPages(v);
-  return buildPdf(pages, Buffer.from(LOGO_PNG_BASE64, "base64"), v.invoiceNumber);
+  const qr = qrImage(v);
+  const pages = buildPages(v, qr !== null);
+  return buildPdf(pages, Buffer.from(LOGO_PNG_BASE64, "base64"), v.invoiceNumber, qr);
 }

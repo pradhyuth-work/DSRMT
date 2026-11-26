@@ -11,6 +11,8 @@ import type {
   AuthUser,
   BalanceAdjustmentDTO,
   BillOrderInput,
+  EInvoiceDTO,
+  EInvoiceListDTO,
   EinvoiceReportDTO,
   EinvoiceSetupDTO,
   EinvoiceSetupInput,
@@ -152,17 +154,26 @@ type DrawCmd =
   | { t: "text"; x: number; y: number; w: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
   | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
   | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
-  | { t: "image"; x: number; y: number; w: number; h: number };
+  | { t: "image"; x: number; y: number; w: number; h: number }
+  | { t: "qr"; x: number; y: number; w: number; h: number };
 
 /** Saves the invoice as a PNG image named after the invoice number (e.g. MTR-312.png). Several pages are stacked in one image. */
 async function downloadInvoiceImage(orderId: string): Promise<void> {
-  const layout = await request<{ name: string; w: number; h: number; pages: DrawCmd[][] }>(`/api/orders/${enc(orderId)}/image`);
+  const layout = await request<{ name: string; w: number; h: number; qr: string | null; pages: DrawCmd[][] }>(`/api/orders/${enc(orderId)}/image`);
   const logo = await new Promise<HTMLImageElement | null>((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = "/varasidhi-logo.png";
   });
+  const qr = await new Promise<HTMLImageElement | null>((resolve) => {
+    if (!layout.qr) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = layout.qr;
+  });
+  if (layout.qr && !qr) throw new ApiRequestError("Could not draw the QR code, so the image was not made. Use Print instead.");
   // Ship the font with the app (Liberation Sans, same metrics as Helvetica) so the image looks identical on every phone and browser.
   const faces = await Promise.all(
     [["normal", "LiberationSans-Regular"], ["bold", "LiberationSans-Bold"]].map(async ([weight, file]) => {
@@ -218,6 +229,13 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
         ctx.strokeStyle = ink;
         ctx.lineWidth = c.width;
         ctx.strokeRect(c.x, c.y, c.w, c.h);
+      } else if (c.t === "qr") {
+        if (qr) {
+          // Keep the squares sharp so the code scans.
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(qr, c.x, c.y, c.w, c.h);
+          ctx.imageSmoothingEnabled = true;
+        }
       } else if (logo) {
         ctx.drawImage(logo, c.x, c.y, c.w, c.h);
       }
@@ -346,6 +364,10 @@ export const api = {
       throw new ApiRequestError(why || (e instanceof Error ? e.message : "Could not make the JSON"));
     }
   },
+  einvoiceRecords: () => request<EInvoiceListDTO>("/api/einvoice/records"),
+  generateIrn: (id: string, input: { ewayBill: { vehicleNo?: string; distance?: number } | null }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice`, input),
+  makeEwayBill: (id: string, input: { vehicleNo?: string; distance?: number }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice/ewaybill`, input),
+  cancelIrn: (id: string, input: { reason: string; remark: string; confirm: string }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice/cancel`, input),
   posBill: (input: PosBillInput) => post<OrderDTO>("/api/pos/bill", input),
   approveOutlet: (id: string) => post<OutletDTO>(`/api/outlets/${enc(id)}/approve`, {}),
   taxReportView: (type: string, month: string) => request<{ tables: TaxReportTable[] }>(`/api/tax/report?type=${enc(type)}&month=${enc(month)}&format=json`),

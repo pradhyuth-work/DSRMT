@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileCheck, Loader2, Pencil } from "lucide-react";
-import type { AuthUser, InvoiceSeriesDTO, OrderDTO, ProductDTO } from "@/lib/types";
+import type { AuthUser, EInvoiceListDTO, InvoiceSeriesDTO, OrderDTO, ProductDTO } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, formatDate } from "./ui";
 import { EinvoicePanel } from "./EinvoicePanel";
+import { IrnPanel, irnActive, irnFor, irnLabel } from "./IrnPanel";
 import { EditOrderForm } from "./OrdersView";
 import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
@@ -217,7 +218,7 @@ function Desk({
     { t: `Take invoice number ${nextLabel ?? "(set the start first)"}`, n: "Next in the MTR series" },
     { t: "Take stock out", n: "Stock leaves the inventory when the invoice is made" },
     { t: "Save the GST invoice", n: "Locks the amount; payments are collected against it" },
-    { t: "Ready for e-invoice", n: "Download the JSON from Invoices; IRN + e-way bill once the GSP is connected" },
+    { t: "File the e-invoice", n: "Under Invoices: one press for IRN + e-way bill" },
   ];
 
   return (
@@ -345,22 +346,37 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
   const [err, setErr] = useState<string | null>(null);
   const [dlErr, setDlErr] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [force, setForce] = useState(false);
+  const [gsp, setGsp] = useState<EInvoiceListDTO | null>(null);
+  const [gspError, setGspError] = useState<string | null>(null);
+  const loadGsp = () => api.einvoiceRecords()
+    .then((l) => { setGsp(l); setGspError(null); })
+    .catch((e) => setGspError(e instanceof Error ? e.message : "Could not load e-invoice records"));
+  useEffect(() => { void loadGsp(); }, [data.orders]);
 
   useEffect(() => {
-    setConfirm(""); setErr(null); setReuse(false); setBack(true);
+    setConfirm(""); setErr(null); setReuse(false); setBack(true); setForce(false);
     // On a phone the cancel/correct panel sits below the list, so bring it into view once an invoice is picked.
     if (selId && typeof window !== "undefined" && window.innerWidth < 1024) document.getElementById("cancel-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [selId]);
 
-  const reuseBlock = !sel ? "" : sel.billedOutside ? "Written outside the app — can't be reused here." : sel.einvExportedAt ? "Already in an e-invoice file — can't be reused." : "Hands the number back so the next invoice takes it.";
-  const canReuse = !!sel && !sel.billedOutside && !sel.einvExportedAt;
-  const label = (o: OrderDTO) => (o.fulfilmentStatus === "CANCELLED" ? "Cancelled" : o.billedOutside ? "Outside app" : o.posBill ? "POS" : o.einvExportedAt ? "JSON exported" : "In app");
+  const live = sel ? irnFor(sel, gsp).live : undefined;
+  const filed = !!live && live.status !== "FAILED";
+  const active = irnActive(live);
+  const reuseBlock = !sel ? "" : sel.billedOutside ? "Written outside the app — can't be reused here." : filed ? "Filed on the government portal — can't be reused." : sel.einvExportedAt ? "Already in an e-invoice file — can't be reused." : "Hands the number back so the next invoice takes it.";
+  const canReuse = !!sel && !sel.billedOutside && !sel.einvExportedAt && !filed;
+  const label = (o: OrderDTO) => {
+    if (o.fulfilmentStatus === "CANCELLED") return irnActive(irnFor(o, gsp).live) ? "Cancelled, IRN active" : "Cancelled";
+    if (o.billedOutside) return "Outside app";
+    const r = irnFor(o, gsp).shown;
+    return r ? irnLabel(r) : o.posBill ? "POS" : o.einvExportedAt ? "JSON exported" : "In app";
+  };
 
   async function submit() {
     if (!sel) return;
     setBusy(true); setErr(null);
     try {
-      await api.reverseBill(sel.id, { reason, returnToPending: back && !sel.posBill, reuseNumber: reuse && canReuse, confirm: confirm.trim() });
+      await api.reverseBill(sel.id, { reason, returnToPending: back && !sel.posBill, reuseNumber: reuse && canReuse, confirm: confirm.trim(), force: active && force });
       setSelId(null);
       await onDone(`${sel.invoiceNumber} ${back ? "returned to Pending" : "cancelled"}`);
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not cancel"); }
@@ -401,7 +417,7 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
                         onClick={() => { setDlErr(null); api.downloadInvoiceImage(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not download the invoice")); }}>Image</button>}
                       {inApp && isAdmin && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="E-invoice JSON for this bill"
                         onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
-                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => { setSelId(o.id); }}>{isAdmin ? "Cancel / correct" : "Select"}</button>}
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => { setSelId(o.id); }}>{isAdmin ? "IRN / cancel" : "IRN"}</button>}
                     </div>
                   </div>
                 );
@@ -410,8 +426,14 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
           )}
         </div>
 
+        <div id="cancel-panel" className="w-full shrink-0 scroll-mt-20 space-y-4 lg:w-80">
+        {sel && !sel.billedOutside && (
+          <IrnPanel key={sel.id} order={sel} gstin={data.outlets.find((x) => x.id === sel.outletId)?.gstNumber ?? null}
+            list={gsp} loadError={gspError} isAdmin={isAdmin} onChanged={loadGsp} />
+        )}
+        {!isAdmin && !sel && <div className="card p-4 text-sm text-muted-foreground">Select an invoice to file its e-invoice.</div>}
         {isAdmin && (
-          <div id="cancel-panel" className="card w-full shrink-0 scroll-mt-20 space-y-3 p-4 lg:w-80">
+          <div className="card space-y-3 p-4">
             <div className="text-xs font-semibold tracking-widest text-muted-foreground">CANCEL OR CORRECT</div>
             {!sel ? <p className="text-sm text-muted-foreground">Select an invoice.</p> : sel.fulfilmentStatus === "CANCELLED" ? (
               <p className="text-sm">{sel.invoiceNumber} · {sel.outletName} is already cancelled.</p>
@@ -427,8 +449,12 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
                 <label className="flex items-start justify-between gap-3 text-sm"><span><b>Reuse this invoice number</b><br /><span className="text-xs text-muted-foreground">{reuseBlock}</span></span>
                   <input type="checkbox" role="switch" checked={reuse && canReuse} disabled={!canReuse} onChange={(e) => setReuse(e.target.checked)} aria-label="Reuse this invoice number" /></label>
                 <div><label className="label" htmlFor="cfm">Type {sel.invoiceNumber} to confirm</label><input id="cfm" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={sel.invoiceNumber ?? ""} /></div>
+                {active && (
+                  <label className="flex items-start justify-between gap-3 text-sm"><span><b>Cancel in the app anyway</b><br /><span className="text-xs text-muted-foreground">This bill has an IRN on the portal. Cancel the IRN above first. Tick this only if the portal no longer allows it: the IRN stays active there, so ask your CA about a credit note.</span></span>
+                    <input type="checkbox" role="switch" checked={force} onChange={(e) => setForce(e.target.checked)} aria-label="Cancel in the app anyway" /></label>
+                )}
                 {err && <Alert kind="error">{err}</Alert>}
-                <button type="button" className="btn btn-primary w-full" disabled={busy || confirm.trim() !== sel.invoiceNumber} onClick={() => void submit()}>
+                <button type="button" className="btn btn-primary w-full" disabled={busy || confirm.trim() !== sel.invoiceNumber || (active && !force)} onClick={() => void submit()}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{back && !sel.posBill ? "Cancel and return to Pending" : "Cancel invoice"}
                 </button>
               </>
@@ -436,6 +462,7 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
             <p className="text-xs text-muted-foreground">Every cancel records who did it, when and why. Admin only.</p>
           </div>
         )}
+        </div>
       </div>
 
       <Modal open={showSetup} title="E-invoice JSON, numbering & details" onClose={() => setShowSetup(false)}>{showSetup && <EinvoicePanel />}</Modal>

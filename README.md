@@ -146,5 +146,10 @@ scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgre
 - Run `supabase/migrations/0022_pos_and_tax_snapshots.sql` after 0021 (POS, tax snapshots, tax reports).
 - `POST /api/pos/bill` — admin POS bill (3 tax options, new outlets stay pending review).
 - `POST /api/orders/[id]/reverse-bill` — admin cancel / return to Pending, optional number reuse, audit logged.
+- Run `supabase/migrations/0025_einvoice_records.sql` **before deploying** the GSP code (the cancel routes, export, tax report and full backup read the new table).
+- E-invoice + e-way bill through gstinapi.in: set `GSTINAPI_KEY`, `GSTINAPI_GSTIN`, `GSTINAPI_USERNAME`, `GSTINAPI_PASSWORD` (server only). Test mode is on unless `GSTINAPI_TEST_MODE` is exactly `false`; redeploy after changing it.
+  - `GET /api/einvoice/records` — admin, stock; set-up state and IRN records.
+  - `POST /api/orders/[id]/einvoice` — admin, stock; IRN, with the e-way bill in the same call when asked. `.../einvoice/ewaybill` makes or retries the e-way bill; `.../einvoice/cancel` (admin) cancels both on the portal.
+  - No automatic retries. A number is claimed in the database before sending (one row per number per mode). Pure helpers: `npm run test:einvoice-live`.
 - `GET /api/tax/report?type=gstr1|gstr3b|sales-register|hsn|einvoice-status|cancelled&month=YYYY-MM[&format=json]` — admin.
 

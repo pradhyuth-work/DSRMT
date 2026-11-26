@@ -2,6 +2,7 @@
 // lines, rectangles, one PNG image, several pages. (Same spirit as lib/xlsx.ts.)
 import { deflateSync } from "node:zlib";
 import { HELV, HELV_BOLD } from "@/lib/pdf-fonts";
+import type { GrayImage } from "@/lib/png";
 
 export const A5 = { w: 419.53, h: 595.28 };
 
@@ -31,7 +32,8 @@ export type DrawCmd =
   | { t: "text"; x: number; y: number; w: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
   | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
   | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
-  | { t: "image"; x: number; y: number; w: number; h: number };
+  | { t: "image"; x: number; y: number; w: number; h: number }
+  | { t: "qr"; x: number; y: number; w: number; h: number };
 
 export class PdfPage {
   ops: string[] = [];
@@ -56,6 +58,11 @@ export class PdfPage {
     this.cmds.push({ t: "image", x, y, w, h });
     this.ops.push(`q ${n(w)} 0 0 ${n(h)} ${n(x)} ${n(A5.h - y - h)} cm /Im1 Do Q`);
   }
+  /** The e-invoice QR code (the second image of the document). */
+  qr(x: number, y: number, size: number) {
+    this.cmds.push({ t: "qr", x, y, w: size, h: size });
+    this.ops.push(`q ${n(size)} 0 0 ${n(size)} ${n(x)} ${n(A5.h - y - size)} cm /Im2 Do Q`);
+  }
 }
 
 /** Reads width/height and the raw IDAT stream of a non-interlaced 8-bit RGB PNG so it can go into a PDF as-is. */
@@ -74,7 +81,7 @@ function pngForPdf(png: Buffer) {
   return { width, height, data: Buffer.concat(idat) };
 }
 
-export function buildPdf(pages: PdfPage[], logoPng: Buffer, title: string): Buffer {
+export function buildPdf(pages: PdfPage[], logoPng: Buffer, title: string, qr: GrayImage | null = null): Buffer {
   const img = pngForPdf(logoPng);
   const objs: Buffer[] = [];
   const add = (b: string | Buffer) => { objs.push(Buffer.isBuffer(b) ? b : Buffer.from(b, "latin1")); return objs.length; };
@@ -88,11 +95,20 @@ export function buildPdf(pages: PdfPage[], logoPng: Buffer, title: string): Buff
     img.data, Buffer.from("\nendstream", "latin1"),
   ]));
   add(`<< /Title (${esc(title)}) /Producer (Varasidhi DSRMT) >>`);
+  let qrObj = 0;
+  if (qr) {
+    const data = deflateSync(qr.pixels);
+    qrObj = add(Buffer.concat([
+      Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${qr.width} /Height ${qr.height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${data.length} >>\nstream\n`, "latin1"),
+      data, Buffer.from("\nendstream", "latin1"),
+    ]));
+  }
+  const xobjects = `/Im1 5 0 R${qrObj ? ` /Im2 ${qrObj} 0 R` : ""}`;
   const kids: number[] = [];
   for (const pg of pages) {
     const stream = deflateSync(Buffer.from(pg.ops.join("\n"), "latin1"));
     const c = add(Buffer.concat([Buffer.from(`<< /Filter /FlateDecode /Length ${stream.length} >>\nstream\n`, "latin1"), stream, Buffer.from("\nendstream", "latin1")]));
-    const pgObj = add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(A5.w)} ${n(A5.h)}] /Contents ${c} 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im1 5 0 R >> >> >>`);
+    const pgObj = add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(A5.w)} ${n(A5.h)}] /Contents ${c} 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << ${xobjects} >> >> >>`);
     kids.push(pgObj);
   }
   objs[1] = Buffer.from(`<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`, "latin1");

@@ -48,7 +48,7 @@ export async function GET(req: Request) {
         : type === "gstr3b" ? [gstr3bTable(live)]
         : type === "sales-register" ? [salesRegisterTable(live)]
         : type === "hsn" ? [hsnTable(live)]
-        : [einvoiceStatusTable(live)];
+        : [await einvoiceStatusTable(live)];
     }
 
     if (url.searchParams.get("format") === "json") return Response.json({ tables });

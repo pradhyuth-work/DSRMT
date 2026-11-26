@@ -11,8 +11,8 @@ const msg = (e: unknown, fallback: string) => (e instanceof Error ? e.message : 
 
 /**
  * Admin tools for GST invoices made in the app: the MTR number series, the product/outlet details
- * the e-invoice needs, and the e-invoice JSON export (one bill or many, for the IRP bulk upload).
- * No GSP is connected yet — the JSON is uploaded by hand on the e-invoice portal for now.
+ * the e-invoice needs, and the e-invoice JSON export (one bill or many, for the IRP bulk upload). The
+ * export is the fallback: normally a bill is filed from its invoice (see IrnPanel).
  */
 export function EinvoicePanel() {
   return (
@@ -93,8 +93,8 @@ function ExportBlock() {
     <section className="space-y-2">
       <h3 className="font-semibold">E-invoice JSON</h3>
       <p className="text-xs text-muted-foreground">
-        One file for every bill made in the app in the date range, ready for the e-invoice portal's bulk upload. Bills written outside the app,
-        cancelled bills and outlets without a GSTIN are never included.
+        Backup for when direct filing is not working: one file for the bills in the date range, for the e-invoice portal's bulk upload. Bills written outside
+        the app, cancelled bills, bills already filed from the app and outlets without a GSTIN are never included.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div><label className="label" htmlFor="ei-from">From</label><input id="ei-from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></div>

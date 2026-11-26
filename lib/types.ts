@@ -339,6 +339,8 @@ export interface ReverseBillInput {
   reuseNumber: boolean;
   /** The invoice number typed again to confirm. */
   confirm: string;
+  /** Cancel in the app although a live IRN is still active (too late to cancel on the portal). */
+  force?: boolean;
 }
 export interface SetInvoiceSeriesInput {
   next: number;
@@ -383,6 +385,32 @@ export interface EinvoiceReportDTO {
   /** Bills to outlets without a GSTIN (B2C): no e-invoice is needed, so they are not "blocked". */
   notApplicable: number;
   rows: EinvoiceReportRow[];
+}
+
+export interface EInvoiceDTO {
+  invoiceId: string;
+  /** The number as filed, e.g. MTR-312. */
+  docNo: string;
+  testMode: boolean;
+  status: "SENDING" | "GENERATED" | "FAILED" | "UNKNOWN" | "CANCELLING" | "CANCELLED";
+  irn: string | null;
+  ackNo: string | null;
+  ackDate: string | null;
+  ewbStatus: "NOT_REQUESTED" | "SENDING" | "GENERATED" | "FAILED" | "UNKNOWN" | "CANCELLED";
+  ewbNo: string | null;
+  ewbDate: string | null;
+  ewbValidUpto: string | null;
+  ewbError: string | null;
+  vehicleNo: string | null;
+  error: string | null;
+  cancelledAt: string | null;
+}
+export interface EInvoiceListDTO {
+  testMode: boolean;
+  ready: boolean;
+  /** Why the GSP can't be used yet (null when ready). */
+  problem: string | null;
+  records: EInvoiceDTO[];
 }
 
 export interface UpdateOrderInput {

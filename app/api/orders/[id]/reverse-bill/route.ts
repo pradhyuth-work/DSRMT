@@ -5,6 +5,7 @@ import { authorize } from "@/lib/auth";
 import { reverseBillSchema } from "@/lib/validation";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { addReusable } from "@/lib/invoice-series";
+import { activeLiveEinvoice, numberFiled } from "@/lib/einvoice-live";
 import { appendInvoiceAudit } from "@/lib/invoice-audit";
 import type { OrderDTO } from "@/lib/types";
 
@@ -13,6 +14,8 @@ import type { OrderDTO } from "@/lib/types";
  *  - returnToPending: the order goes back to Pending and can be billed again; otherwise it is cancelled.
  *  - reuseNumber: the invoice number goes back to the MTR series. Only for a number of that series that
  *    was never put in an e-invoice file. A number that is not reused is gone for good.
+ * A bill whose live IRN is still active is refused unless `force` is set (cancel the IRN first when the
+ * portal still allows it); a number that reached the portal is never reused.
  * Stock is returned. An order with payments against it is refused (reverse the payment first).
  * Every reversal is written to the audit log with who, when and why.
  */
@@ -36,9 +39,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const payments = await tx.paymentCollection.count({ where: { invoiceId: id } });
       if (payments > 0) throw new HttpError(409, "Payments are recorded against this invoice — reverse them first");
 
+      const active = await activeLiveEinvoice(tx, id);
+      // Never override a request that is still on its way to the portal.
+      if (active?.status === "SENDING" && Date.now() - active.updatedAt.getTime() < 120_000) {
+        throw new HttpError(409, `${number} is being sent to the portal right now: wait a moment and try again`);
+      }
+      if (active && !input.force) {
+        throw new HttpError(409, active.irn
+          ? `${number} has an active IRN. Cancel the IRN first, or tick "cancel in the app anyway" if the portal no longer allows it.`
+          : `${number} was sent to the portal and no clear reply came back. Press "Check again" under E-invoice first.`);
+      }
+
       if (input.reuseNumber) {
         if (invoice.billedOutside) throw new HttpError(400, "A number written outside the app can't be reused here");
         if (invoice.einvExportedAt) throw new HttpError(400, "This invoice was already in an e-invoice file, so its number can't be reused");
+        if (await numberFiled(tx, number)) throw new HttpError(400, "This number was filed on the government portal, so it can't be reused");
         await addReusable(tx, number);
       }
 
@@ -55,7 +70,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         invoiceNumber: number,
         orderId: id,
         action: input.returnToPending ? "RETURN_TO_PENDING" : "CANCEL",
-        reason: input.reason,
+        reason: active ? `${input.reason} (IRN left active on the portal)` : input.reason,
         numberReused: input.reuseNumber,
       });
 

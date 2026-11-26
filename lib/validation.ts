@@ -159,8 +159,24 @@ export const reverseBillSchema = z.object({
   reason: z.string().trim().min(1, "Choose a reason").max(120),
   returnToPending: z.boolean(),
   reuseNumber: z.boolean(),
+  force: z.boolean().optional(),
   confirm: z.string().trim().min(1, "Type the invoice number to confirm").max(40),
 }) satisfies z.ZodType<ReverseBillInput, z.ZodTypeDef, unknown>;
+
+const ewbFields = {
+  vehicleNo: z.string().trim().max(20).optional(),
+  distance: z.coerce.number().int("Distance must be whole km").min(0).max(4000).optional(),
+};
+export const ewayBillSchema = z.object(ewbFields);
+export const generateEinvoiceSchema = z.object({
+  /** null = IRN only. */
+  ewayBill: z.object(ewbFields).nullable(),
+});
+export const cancelEinvoiceSchema = z.object({
+  reason: z.enum(["1", "2", "3", "4"]),
+  remark: z.string().trim().min(3, "Write a short remark").max(100),
+  confirm: z.string().trim().min(1, "Type the invoice number to confirm").max(40),
+});
 
 export const setInvoiceSeriesSchema = z.object({
   next: z.coerce.number().int("Whole number").positive("Enter a number above 0").max(99_999_999),

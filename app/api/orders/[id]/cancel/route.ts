@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse } from "@/lib/api";
 import { authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
+import { activeLiveEinvoice } from "@/lib/einvoice-live";
 import type { OrderDTO } from "@/lib/types";
 
 /**
@@ -34,6 +35,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       if (invoice.fulfilmentStatus === "BILLED" || invoice.fulfilmentStatus === "DISPATCHED") {
+        if (await activeLiveEinvoice(tx, id)) {
+          throw new HttpError(409, "This invoice has an IRN on the government portal. Use Billing mode → Invoices to cancel it.");
+        }
         for (const item of invoice.items) {
           await tx.product.update({ where: { id: item.productId }, data: { stockQty: { increment: item.quantity } } });
           await tx.stockMovement.create({

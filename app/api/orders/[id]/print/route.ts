@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     await authorize(req, ["admin", "stock"]);
     const { id } = await params;
-    const { inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, ship, when, half } = await loadInvoiceView(id);
+    const { einv, inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, ship, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";
     const taxHead = intra
       ? `<div>SGST %</div><div>SGST AMT</div><div>CGST %</div><div>CGST AMT</div>`
@@ -27,6 +27,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const tline = (l: string, v: string, bold = false) => `<div style="display:flex;justify-content:space-between;padding:1px 0${bold ? ";font-weight:700" : ""}"><span>${l}</span><span>${v}</span></div>`;
     const taxLines = intra ? tline("SGST AMT", f2(half)) + tline("CGST AMT", f2(sumTax - half)) : tline("IGST AMT", f2(sumTax));
 
+    const field = (l: string, v: string) => `<div style="margin-top:3px"><div class="lbl">${l}</div><div style="font-weight:600;word-break:break-all">${esc(v)}</div></div>`;
+    const irnBlock = einv
+      ? `<div style="display:flex;gap:10px;align-items:center;padding:5px 0;border-top:1px solid #C9D3D2">
+${einv.qr ? `<img src="data:image/png;base64,${einv.qr}" alt="E-invoice QR code" style="width:27mm;height:27mm;image-rendering:pixelated;flex:0 0 auto">` : ""}
+<div style="min-width:0;font-size:8px">${einv.test ? `<div style="font-weight:700;font-size:11px;letter-spacing:.08em">TEST ONLY — NOT A VALID E-INVOICE</div>` : `<div class="lbl" style="letter-spacing:.14em">E-INVOICE</div>`}
+${field("IRN", einv.irn)}${field("ACK NO / DATE", [einv.ackNo, einv.ackDate].filter(Boolean).join("   "))}${einv.ewb ? field("E-WAY BILL NO / DATE / VALID UPTO", [einv.ewb.no, einv.ewb.date, einv.ewb.validUpto].filter(Boolean).join("   ")) : ""}</div></div>`
+      : "";
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(invoiceNumber)}</title>
 <style>
 @page{size:A5 portrait;margin:0}
@@ -34,7 +41,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 .page{width:148mm;height:210mm;padding:20px 22px 16px;display:flex;flex-direction:column;overflow:hidden}
 .lbl{font-size:7px;letter-spacing:.1em;color:#5A6D6C}.row{display:grid;grid-template-columns:${grid};gap:2px}
 @media screen{body{background:#e8e8e8;display:flex;justify-content:center;padding:16px}.page{background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2)}}
-</style></head><body><div class="page">
+</style>${einv && rows.length > 10 ? "<style>.page{height:auto;min-height:210mm;overflow:visible}</style>" : ""}</head><body><div class="page">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:9px;border-bottom:2px solid #0F2B2A">
 <div style="display:flex;gap:10px;align-items:center;min-width:0">
 <img src="/varasidhi-logo.png" style="width:52px;height:52px;border-radius:12px;flex:0 0 auto" alt="">
@@ -59,6 +66,7 @@ ${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-sp
 <div style="flex:1;min-height:0;font-size:8.5px">
 ${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${r.gst}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`).join("")}
 </div>
+${irnBlock}
 <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;border-top:1.5px solid #0F2B2A;padding-top:8px">
 <div style="font-size:8px">
 <div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;font-weight:700;font-size:7px;color:#5A6D6C;padding-bottom:2px;border-bottom:1px solid #C9D3D2"><div>GST %</div><div>SALE VAL</div>${taxHead}</div>
