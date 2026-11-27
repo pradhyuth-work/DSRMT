@@ -95,7 +95,8 @@ Running `npm run seed-admin` again with the same `ADMIN_USERNAME` resets that ac
 | `GET /api/reports` | ✓ | ✗ | ✗ | dashboard totals (all-time), outlet ledgers (all-time), staff performance (`?from=&to=` filters sales/collections to that date range) |
 | `GET /api/reports/sales` | ✓ | ✗ | ✗ | date + outlet filtered sales report: by-product, by-outlet and SKU-matrix breakdowns |
 | `GET /api/reports/sales/csv` | ✓ | ✗ | ✗ | the by-product and by-outlet breakdowns for the same filters, as one CSV download |
-| `GET /api/backup` | ✓ | ✗ | ✗ | downloads every core table as one JSON file (staff rows exclude passwordHash/tokenVersion) |
+| `GET /api/backup` | ✓ | ✗ | ✗ | downloads EVERY table (read from the Prisma model, so new tables are included automatically) as one JSON file, including staff password hashes |
+| `POST /api/backup/restore` | ✓ | ✗ | ✗ | replaces the whole database from a backup file; body `{confirm:"RESTORE", backup}`; all-or-nothing |
 
 ## Business logic
 
@@ -134,3 +135,23 @@ supabase/migrations/        SQL to run in the Supabase SQL editor
 scripts/seed-admin.ts       creates/resets the admin from ADMIN_USERNAME / ADMIN_PIN
 scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgres
 ```
+
+## GST invoices and e-invoice JSON (no GSP yet)
+
+- Run `supabase/migrations/0021_einvoice_fields.sql` in the Supabase SQL editor first.
+- Billing an order now has two paths: **Bill in the app** (next MTR number, item total, e-invoice JSON possible) and **Billed outside the app** (hand-entered number and amount, flagged, no GST invoice or e-invoice made here).
+- `GET /api/einvoice/export?from&to[&only=new][&format=report]` — admin; bulk e-invoice JSON (IRP schema 1.1 array) or a ready/blocked report.
+- `GET|PATCH /api/einvoice/series` — MTR number series (editable start; never lower than a used number).
+- `GET|PATCH /api/einvoice/setup` — HSN/MRP/GST % per product, pincode/city per outlet with a GSTIN.
+- Run `supabase/migrations/0022_pos_and_tax_snapshots.sql` after 0021 (POS, tax snapshots, tax reports).
+- `POST /api/pos/bill` — admin POS bill (3 tax options, new outlets stay pending review).
+- `POST /api/orders/[id]/reverse-bill` — admin cancel / return to Pending, optional number reuse, audit logged.
+- Run `supabase/migrations/0025_einvoice_records.sql` **before deploying** the GSP code (the cancel routes, export, tax report and full backup read the new table).
+- E-invoice + e-way bill through gstinapi.in: set `GSTINAPI_KEY`, `GSTINAPI_GSTIN`, `GSTINAPI_USERNAME`, `GSTINAPI_PASSWORD` (server only). Test mode is on unless `GSTINAPI_TEST_MODE` is exactly `false`; redeploy after changing it.
+- On Billing → To bill, **Generate invoice** also files the IRN (and, if ticked, the e-way bill) for outlets with a GSTIN. A refused filing keeps the invoice; retry it under Invoices. POS bills are filed from Invoices.
+- A real e-invoice QR arrives as signed text; `lib/qr.ts` draws it for print, PDF and image. Download image saves one PNG per page.
+  - `GET /api/einvoice/records` — admin, stock; set-up state and IRN records.
+  - `POST /api/orders/[id]/einvoice` — admin, stock; IRN, with the e-way bill in the same call when asked. `.../einvoice/ewaybill` makes or retries the e-way bill; `.../einvoice/cancel` (admin) cancels both on the portal.
+  - No automatic retries. A number is claimed in the database before sending (one row per number per mode). Pure helpers: `npm run test:einvoice-live`.
+- `GET /api/tax/report?type=gstr1|gstr3b|sales-register|hsn|einvoice-status|cancelled&month=YYYY-MM[&format=json]` — admin.
+

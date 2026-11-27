@@ -26,10 +26,13 @@ export default function OrdersView({
   data,
   user,
   onSaved,
+  onOpenBilling,
 }: {
   data: DashboardData;
   user: AuthUser;
   onSaved: () => Promise<void>;
+  /** Switches the app to Billing mode on this order. */
+  onOpenBilling?: (orderId: string) => void;
 }) {
   // Stock incharge works the pending queue; everyone else starts with the full list.
   const [filter, setFilter] = useState<Filter>(user.role === "stock" ? "PENDING" : "ALL");
@@ -40,7 +43,7 @@ export default function OrdersView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<OrderDTO | null>(null);
-  const [billing, setBilling] = useState<OrderDTO | null>(null);
+  const [billingOutside, setBillingOutside] = useState<OrderDTO | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<OrderDTO | null>(null);
   // Outlet whose details are open — set by tapping the outlet name on an order card.
   const [viewingOutlet, setViewingOutlet] = useState<{ name: string; outlet: OutletDTO | null } | null>(null);
@@ -291,6 +294,9 @@ export default function OrdersView({
                     <p className={`font-mono text-sm font-semibold ${o.invoiceNumber ? "" : "text-muted-foreground"}`}>
                       {o.invoiceNumber ? `Bill #${o.invoiceNumber}` : "Not billed yet"}
                     </p>
+                    {o.invoiceNumber && o.billedOutside && (
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Billed outside app — no GST invoice here</p>
+                    )}
                     <button
                       type="button"
                       className="focus-ring mt-0.5 inline-flex max-w-full items-center gap-2 border border-input bg-secondary px-3 py-2 text-left font-[family-name:var(--app-font-display)] text-[26px] font-semibold uppercase leading-none tracking-[.04em] transition active:scale-[.97] hover:border-accent"
@@ -425,8 +431,13 @@ export default function OrdersView({
 
                 <div className="mt-auto flex flex-wrap gap-2 pt-3">
                   {canBill && o.fulfilmentStatus === "PENDING" && (
-                    <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => setBilling(o)}>
-                      <FileCheck className="h-4 w-4" /> Bill order
+                    <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => onOpenBilling?.(o.id)}>
+                      <FileCheck className="h-4 w-4" /> Bill in Billing mode
+                    </button>
+                  )}
+                  {canBill && o.fulfilmentStatus === "PENDING" && (
+                    <button className="btn btn-secondary h-11 w-full text-sm" disabled={busy} onClick={() => setBillingOutside(o)}>
+                      Billed outside the app
                     </button>
                   )}
                   {canDispatch && o.fulfilmentStatus === "BILLED" && (
@@ -437,6 +448,16 @@ export default function OrdersView({
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                       Dispatch
+                    </button>
+                  )}
+                  {o.invoiceNumber && !o.billedOutside && o.fulfilmentStatus !== "CANCELLED" && (
+                    <button
+                      className="btn btn-secondary h-11 shrink-0 gap-1 !px-3 text-xs"
+                      onClick={() => { api.downloadInvoiceImage(o.id).catch((e) => setMessage({ kind: "error", text: e instanceof Error ? e.message : "Could not download the invoice" })); }}
+                      aria-label={`Invoice image for ${orderLabel(o)}`}
+                      title="Download the invoice as an image"
+                    >
+                      <Download className="h-4 w-4" /> Image
                     </button>
                   )}
                   {canEdit(o) && (
@@ -478,12 +499,12 @@ export default function OrdersView({
         </div>
       )}
 
-      <Modal open={!!billing} title="Bill this order" onClose={() => setBilling(null)}>
-        {billing && (
-          <BillOrderForm
-            order={billing}
+      <Modal open={!!billingOutside} title="Billed outside the app" onClose={() => setBillingOutside(null)}>
+        {billingOutside && (
+          <BillOutsideForm
+            order={billingOutside}
             onDone={async (text) => {
-              setBilling(null);
+              setBillingOutside(null);
               setMessage({ kind: "success", text });
               await onSaved();
             }}
@@ -664,7 +685,7 @@ interface EditLine {
   hasScheme: boolean;
 }
 
-function EditOrderForm({
+export function EditOrderForm({
   order,
   data,
   onDone,
@@ -819,13 +840,11 @@ function EditOrderForm({
 }
 
 /**
- * Copies in the physical bill-book number and amount by hand — neither is auto-generated.
- * The amount pre-fills with the system-computed total (the common case — nothing to
- * change) but is editable: whatever's entered here becomes the order's totalAmount and the
- * figure payments are collected against from now on, since the bill book is the paperwork
- * of record, not the line-item sum.
+ * For a bill already written in the bill book / Target: the number and amount are copied in by hand.
+ * The order is flagged "billed outside the app" and no GST invoice or e-invoice is made for it here.
+ * The amount becomes the order total payments are collected against.
  */
-function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
+function BillOutsideForm({ order, onDone }: { order: OrderDTO; onDone: (message: string) => Promise<void> }) {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState(String(order.totalAmount));
   const [busy, setBusy] = useState(false);
@@ -842,7 +861,7 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
     setError(null);
     try {
       await api.billOrder(order.id, { invoiceNumber: invoiceNumber.trim(), amount: amountNum });
-      await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} — ready to dispatch`);
+      await onDone(`Bill #${invoiceNumber.trim()} recorded for ${formatMoney(amountNum)} (billed outside the app) — ready to dispatch`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to bill order");
       setBusy(false);
@@ -855,33 +874,16 @@ function BillOrderForm({ order, onDone }: { order: OrderDTO; onDone: (message: s
         <p className="font-medium">{order.outletName}</p>
         <p className="text-muted-foreground">{formatMoney(order.totalAmount)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
       </div>
+      <Alert kind="warning">Recorded and flagged as billed outside the app. No GST invoice or e-invoice is made for it here.</Alert>
       <div>
-        <label className="label" htmlFor="bill-number">Bill book number</label>
-        <input
-          id="bill-number"
-          className="input"
-          value={invoiceNumber}
-          onChange={(e) => setInvoiceNumber(e.target.value)}
-          placeholder="e.g. 1042"
-          autoFocus
-        />
+        <label className="label" htmlFor="out-bill-number">Bill number</label>
+        <input id="out-bill-number" className="input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="e.g. SAC 1042" autoFocus />
         <p className="mt-1 text-xs text-muted-foreground">Copy this from the physical bill book — it can't be changed later.</p>
       </div>
       <div>
-        <label className="label" htmlFor="bill-amount">Bill amount</label>
-        <input
-          id="bill-amount"
-          type="number"
-          inputMode="decimal"
-          min={0}
-          step="0.01"
-          className="input"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-          Copy this from the physical bill book too — it becomes the order total payments are collected against.
-        </p>
+        <label className="label" htmlFor="out-bill-amount">Bill amount</label>
+        <input id="out-bill-amount" type="number" inputMode="decimal" min={0} step="0.01" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <p className="mt-1 text-xs text-muted-foreground">Copy this from the bill too — it becomes the order total payments are collected against.</p>
       </div>
       {tooLow && <Alert kind="warning">That's less than the {formatMoney(order.paidAmount)} already paid on this order.</Alert>}
       {error && <Alert kind="error">{error}</Alert>}

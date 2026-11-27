@@ -47,6 +47,10 @@ export interface ProductDTO {
   /** Omitted for field agents, who only see whether an item is in stock. */
   stockQty?: number;
   inStock: boolean;
+  /** Admin and stock: e-invoice details used for the draft invoice. */
+  mrp?: number | null;
+  gstRate?: number;
+  hsnCode?: string | null;
   createdAt: string;
 }
 
@@ -56,6 +60,9 @@ export interface OutletDTO {
   phone: string;
   address: string;
   gstNumber: string | null;
+  pincode: string | null;
+  /** Made at the POS and not yet approved by an admin. */
+  pendingReview?: boolean;
   routeId: string | null;
   routeName: string | null;
   /** Derived from the outlet's route, if any. */
@@ -265,14 +272,146 @@ export interface OrderDTO {
   dispatchedByName: string | null;
   cancelledAt: string | null;
   cancelledByName: string | null;
+  /** Written in the bill book / Target and only copied in — no GST invoice made here. */
+  billedOutside: boolean;
+  /** Made at the admin-only POS. */
+  posBill: boolean;
+  taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
+  vehicleNo: string | null;
+  /** The order owner's usual vehicle — pre-fills the vehicle number at billing. */
+  agentVehicleNo: string | null;
+  einvExportedAt: string | null;
   items: OrderItemDTO[];
 }
 
+/** Delivery address when it differs from the buyer's registered one. */
+export interface ShipToInput {
+  name?: string;
+  address: string;
+  city: string;
+  pincode: string;
+  /** GST state code of the delivery place; it becomes the place of supply. */
+  state: string;
+}
+
 export interface BillOrderInput {
-  invoiceNumber: string;
+  /** Hand-entered bill-book number = "billed outside the app" (flagged, no e-invoice).
+   * Leave out to bill in the app: the next number in the MTR series is used. */
+  invoiceNumber?: string;
   /** The bill-book amount, copied in by hand alongside the number — becomes the order's
-   * totalAmount/balanceDue from here on, the figure payments are collected against. */
-  amount: number;
+   * totalAmount/balanceDue from here on, the figure payments are collected against.
+   * Required with invoiceNumber; ignored when billing in the app (the item total is used). */
+  amount?: number;
+  /** Vehicle for the e-way bill part of the e-invoice (in-app billing only). */
+  vehicleNo?: string;
+  shipTo?: ShipToInput;
+}
+
+export interface InvoiceSeriesDTO {
+  prefix: string;
+  next: number | null;
+  /** Freed numbers waiting to be handed out again. */
+  reusable: number[];
+  /** Highest number already used under the prefix. */
+  highestUsed: number;
+}
+export interface TaxReportTable {
+  name: string;
+  header: string[];
+  rows: (string | number | null)[][];
+}
+export interface PosBillInput {
+  /** An existing outlet, or a new one made on the spot (it stays "pending review"). Exactly one. */
+  outletId?: string;
+  newOutlet?: { name: string; gstNumber?: string | null; address?: string; city?: string; pincode?: string; phone?: string };
+  /** State code for a B2C bill / new outlet without a GSTIN; a GSTIN's own state wins. Default 29. */
+  placeOfSupply?: string;
+  taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
+  /** Each line may carry its own tax option; `taxMode` above is the default for lines without one. */
+  shipTo?: ShipToInput;
+  items: { productId: string; quantity: number; price: number; mrp?: number | null; taxMode?: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
+}
+
+export interface ReverseBillInput {
+  reason: string;
+  /** true: back to Pending so it can be billed again; false: cancelled. */
+  returnToPending: boolean;
+  /** Hand the invoice number back to the series (never for an exported or outside-series number). */
+  reuseNumber: boolean;
+  /** The invoice number typed again to confirm. */
+  confirm: string;
+  /** Cancel in the app although a live IRN is still active (too late to cancel on the portal). */
+  force?: boolean;
+}
+export interface SetInvoiceSeriesInput {
+  next: number;
+}
+
+export interface EinvoiceSetupProduct {
+  id: string;
+  name: string;
+  unitPrice: number;
+  hsnCode: string | null;
+  gstRate: number;
+  mrp: number | null;
+  uqc: string;
+}
+export interface EinvoiceSetupOutlet {
+  id: string;
+  name: string;
+  gstNumber: string;
+  address: string;
+  pincode: string | null;
+  city: string | null;
+}
+export interface EinvoiceSetupDTO {
+  products: EinvoiceSetupProduct[];
+  /** Only outlets that have a GSTIN — the rest are B2C and need no e-invoice. */
+  outlets: EinvoiceSetupOutlet[];
+}
+export interface EinvoiceSetupInput {
+  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string }[];
+  outlets?: { id: string; pincode: string | null; city: string | null }[];
+}
+
+export interface EinvoiceReportRow {
+  invoiceNumber: string;
+  ready: boolean;
+  errors: string[];
+  warnings: string[];
+}
+export interface EinvoiceReportDTO {
+  ready: number;
+  blocked: number;
+  /** Bills to outlets without a GSTIN (B2C): no e-invoice is needed, so they are not "blocked". */
+  notApplicable: number;
+  rows: EinvoiceReportRow[];
+}
+
+export interface EInvoiceDTO {
+  invoiceId: string;
+  /** The number as filed, e.g. MTR-312. */
+  docNo: string;
+  testMode: boolean;
+  status: "SENDING" | "GENERATED" | "FAILED" | "UNKNOWN" | "CANCELLING" | "CANCELLED";
+  irn: string | null;
+  ackNo: string | null;
+  ackDate: string | null;
+  ewbStatus: "NOT_REQUESTED" | "SENDING" | "GENERATED" | "FAILED" | "UNKNOWN" | "CANCELLED";
+  ewbNo: string | null;
+  ewbDate: string | null;
+  ewbValidUpto: string | null;
+  ewbError: string | null;
+  vehicleNo: string | null;
+  error: string | null;
+  cancelledAt: string | null;
+}
+export interface EInvoiceListDTO {
+  testMode: boolean;
+  ready: boolean;
+  /** Why the GSP can't be used yet (null when ready). */
+  problem: string | null;
+  records: EInvoiceDTO[];
 }
 
 export interface UpdateOrderInput {
@@ -783,7 +922,7 @@ export interface AgentBalanceDTO {
 export interface AgentLedgerEntryDTO {
   id: string;
   date: string;
-  type: "ISSUE" | AgentSettlementType;
+  type: "ISSUE" | AgentSettlementType | "PAYMENT";
   /** The issue number for an ISSUE row, otherwise null. */
   ref: string | null;
   productName: string;
@@ -803,6 +942,17 @@ export interface SettleAgentInput {
   method: AgentSettlementType;
   /** Required for WRITE_OFF. */
   reason?: string;
+}
+
+/** Money received from an agent, any amount, not tied to products or units. */
+export interface RecordAgentPaymentInput {
+  amount: number;
+  note?: string;
+}
+
+export interface RecordAgentPaymentResponse {
+  amount: number;
+  balance: number;
 }
 
 export interface SettleAgentResponse {

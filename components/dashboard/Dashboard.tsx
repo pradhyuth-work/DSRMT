@@ -26,6 +26,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  X,
   Wallet2,
   type LucideIcon,
 } from "lucide-react";
@@ -60,6 +61,7 @@ import SalesReports from "./SalesReports";
 import SchemeSavings from "./SchemeSavings";
 import AgentBalancesView from "./AgentBalancesView";
 import AgentStockView from "./AgentStockView";
+import BillingMode, { billTabsFor, type BillTab } from "./BillingMode";
 
 type TabId =
   | "sale"
@@ -84,6 +86,8 @@ interface TabDef {
 }
 
 // Which tabs each role sees, in order. The server enforces the same rules on every route.
+const BILL_ICONS: Record<BillTab, LucideIcon> = { desk: ClipboardList, invoices: ReceiptText, pos: ShoppingCart, reports: BarChart3 };
+
 const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   admin: [
     { id: "sale", label: "New Sale", helper: "Record a sale", icon: ShoppingCart },
@@ -206,6 +210,10 @@ export default function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<TabId>("sale");
+  // Operations = the day-to-day views; Billing = the GST invoice desk (admin/stock only).
+  const [mode, setMode] = useState<"ops" | "bill">("ops");
+  const [billFocusId, setBillFocusId] = useState<string | null>(null);
+  const [billTab, setBillTab] = useState<BillTab>("desk");
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -269,6 +277,12 @@ export default function Dashboard() {
   const adminTabs = useMemo(() => tabs.filter((t) => ADMIN_CONTROL_TAB_IDS.has(t.id)), [tabs]);
   const isAdminGroupOpen = adminGroupOpen || adminTabs.some((t) => t.id === tab);
 
+  const inBillingMode = mode === "bill" && user?.role !== "agent" && !!user;
+  useEffect(() => {
+    document.documentElement.classList.toggle("billing-mode", inBillingMode);
+    return () => document.documentElement.classList.remove("billing-mode");
+  }, [inBillingMode]);
+
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
   }, [tabs, tab]);
@@ -314,6 +328,31 @@ export default function Dashboard() {
 
   const metrics = data?.reports?.dashboard;
   const isAgent = user.role === "agent";
+  const billingMode = mode === "bill" && !isAgent;
+  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "");
+  const billedToday = (data?.orders ?? []).filter((o) => o.invoiceNumber && o.fulfilmentStatus !== "CANCELLED" && dayOf(o.billedAt) === todayKey);
+  const todayStats = [
+    { label: "To bill", value: String((data?.orders ?? []).filter((o) => o.fulfilmentStatus === "PENDING").length) },
+    { label: "Invoices today", value: String(billedToday.filter((o) => !o.billedOutside).length) },
+    { label: "Outside app today", value: String(billedToday.filter((o) => o.billedOutside).length) },
+    { label: "Billed today", value: formatMoney(billedToday.reduce((s, o) => s + o.totalAmount, 0)) },
+  ];
+  const modeSwitch = (
+    <div role="group" aria-label="Switch mode" className="grid grid-cols-2 gap-1 rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-1">
+      {(["ops", "bill"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={mode === m}
+          onClick={() => { setMode(m); setMobileNav(false); }}
+          className={`focus-ring rounded-lg px-2 py-2 text-xs font-bold ${mode === m ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/70"}`}
+        >
+          {m === "ops" ? "Operations" : "Billing"}
+        </button>
+      ))}
+    </div>
+  );
   const initials = user.name
     .split(/\s+/)
     .map((p) => p[0])
@@ -327,7 +366,7 @@ export default function Dashboard() {
       {/* Desktop sidebar — admin/stock only. Agents are phone-first, so they never see it. */}
       {!isAgent && (
         <aside
-          className={`relative hidden shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
+          className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start overflow-y-auto bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
             sidebarCollapsed ? "w-[76px] items-center px-3" : "w-[248px]"
           }`}
         >
@@ -346,6 +385,32 @@ export default function Dashboard() {
             <Brand />
           )}
 
+          {!sidebarCollapsed && !isAgent && (
+            <div className="mt-6 w-full">
+              <p className="mb-2 px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Mode</p>
+              {modeSwitch}
+              <p className="mt-2 px-1 text-[11px] leading-snug text-sidebar-foreground/50">
+                {billingMode ? "Turn orders into GST invoices." : "Orders, stock, payments and reports."}
+              </p>
+            </div>
+          )}
+
+          {billingMode ? (
+            <div className="mt-8 w-full flex-1 space-y-1">
+              {!sidebarCollapsed && <p className="mb-2 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Billing</p>}
+              {billTabsFor(user.role === "admin").map((t) => (
+                <TabButton key={t.id} label={t.label} helper={t.helper} icon={BILL_ICONS[t.id]} active={billTab === t.id} collapsed={sidebarCollapsed} onClick={() => setBillTab(t.id)} />
+              ))}
+              {!sidebarCollapsed && (<div className="space-y-2 pt-6">
+              <p className="px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Today</p>
+              {todayStats.map((t) => (
+                <div key={t.label} className="flex items-center justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/50 px-3 py-2">
+                  <span className="text-xs text-sidebar-foreground/70">{t.label}</span>
+                  <span className="text-sm font-bold">{t.value}</span>
+                </div>
+              ))}</div>)}
+            </div>
+          ) : (
           <div className="mt-10 w-full flex-1">
             {!sidebarCollapsed && (
               <p className="mb-3 px-3 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Workspace</p>
@@ -396,6 +461,7 @@ export default function Dashboard() {
               )}
             </nav>
           </div>
+          )}
 
           {sidebarCollapsed ? (
             <span className="led h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" title="Connected" />
@@ -434,9 +500,24 @@ export default function Dashboard() {
         </aside>
       )}
 
-      <main className="ops-grid min-w-0 flex-1">
+      {billingMode && !isAgent && (
+        <nav aria-label="Billing sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-foreground/10 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          {billTabsFor(user.role === "admin").map(({ id, label }) => {
+            const Icon = BILL_ICONS[id];
+            const short = id === "desk" ? "To bill" : id === "pos" ? "POS" : id === "reports" ? "Reports" : label;
+            return (
+              <button key={id} type="button" onClick={() => setBillTab(id)} aria-current={billTab === id ? "page" : undefined}
+                className={`focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${billTab === id ? "text-accent" : "text-muted-foreground"}`}>
+                <Icon size={20} />{short}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      <main className={`ops-grid min-w-0 flex-1 ${billingMode && !isAgent ? "pb-20 md:pb-0" : ""}`}>
         <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
-          <header className="app-header flex h-[76px] items-center justify-between border-b border-foreground/10">
+          <header className="app-header sticky top-0 z-30 -mx-4 flex h-[76px] items-center justify-between border-b border-foreground/10 bg-background/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <BrandTile size={36} />
@@ -490,9 +571,26 @@ export default function Dashboard() {
           </header>
 
           {!isAgent && mobileNav && (
-            <div className="app-enter border-b border-foreground/10 py-3 md:hidden">
-              <nav className="grid grid-cols-2 gap-2">
-                {mainTabs.map(({ id, label, icon: Icon }) => {
+            <div className="md:hidden">
+              <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMobileNav(false)} aria-hidden="true" />
+              <aside aria-label="Menu" className="app-enter fixed bottom-0 left-0 top-0 z-50 flex w-[84%] max-w-[330px] flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-5 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-lg font-bold">Varasidhi Enterprises</span>
+                <button type="button" onClick={() => setMobileNav(false)} aria-label="Close menu" className="focus-ring rounded-lg p-2 text-sidebar-foreground/70"><X size={20} /></button>
+              </div>
+              <div className="mb-1 text-[10px] font-semibold tracking-widest text-sidebar-foreground/60">MODE</div>
+              <div className="mb-5">{modeSwitch}</div>
+              <nav className="grid grid-cols-1 gap-2">
+                {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
+                  const Icon = BILL_ICONS[id];
+                  return (
+                    <button key={id} onClick={() => { setBillTab(id); setMobileNav(false); }}
+                      className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${billTab === id ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>
+                      <Icon size={18} /><span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+                {!billingMode && mainTabs.map(({ id, label, icon: Icon }) => {
                   const active = tab === id;
                   return (
                     <button
@@ -511,11 +609,11 @@ export default function Dashboard() {
                   );
                 })}
 
-                {adminTabs.length > 0 && (
+                {!billingMode && adminTabs.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setAdminGroupOpen((v) => !v)}
-                    className="focus-ring col-span-2 flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
+                    className="focus-ring flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
                   >
                     <span className="flex items-center gap-3">
                       <ShieldCheck size={18} />
@@ -525,7 +623,7 @@ export default function Dashboard() {
                   </button>
                 )}
 
-                {isAdminGroupOpen &&
+                {!billingMode && isAdminGroupOpen &&
                   adminTabs.map(({ id, label, icon: Icon }) => {
                     const active = tab === id;
                     return (
@@ -547,16 +645,17 @@ export default function Dashboard() {
 
                 <button
                   onClick={() => signOut()}
-                  className="focus-ring col-span-2 flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
+                  className="focus-ring flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
                 >
                   <LogOut size={18} />
                   <span className="text-sm font-semibold">Sign out</span>
                 </button>
               </nav>
+              </aside>
             </div>
           )}
 
-          {user.role === "admin" && (
+          {user.role === "admin" && !billingMode && (
             <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
               <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" trend={metrics?.trends?.billed} />
               <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" trend={metrics?.trends?.collected} />
@@ -606,6 +705,8 @@ export default function Dashboard() {
                   <Loader2 className="h-5 w-5 animate-spin" /> Loading…
                 </div>
               )
+            ) : billingMode ? (
+              <BillingMode data={data} user={user} onSaved={refresh} focusOrderId={billFocusId} tab={billTab} />
             ) : (
               <>
                 {tab === "sale" &&
@@ -614,7 +715,7 @@ export default function Dashboard() {
                   ) : (
                     <SaleForm data={data} user={user} onSaved={refresh} />
                   ))}
-                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} />}
+                {tab === "orders" && <OrdersView data={data} user={user} onSaved={refresh} onOpenBilling={(id) => { setBillFocusId(id); setBillTab("desk"); setMode("bill"); }} />}
                 {tab === "ledgers" && data.reports && (
                   <OutletLedgers
                     data={{ reports: data.reports, staff: data.staff, outlets: data.outlets, routes: data.routes }}

@@ -19,7 +19,12 @@ export function toProductDTO(p: Product, role: Role): ProductDTO {
     inStock: p.stockQty > 0,
     createdAt: p.createdAt.toISOString(),
   };
-  if (role !== "agent") dto.stockQty = p.stockQty;
+  if (role !== "agent") {
+    dto.stockQty = p.stockQty;
+    dto.mrp = p.mrp;
+    dto.gstRate = p.gstRate;
+    dto.hsnCode = p.hsnCode;
+  }
   if (role === "admin") {
     dto.schemeActive = p.schemeActive;
     dto.schemeStoredPrice = p.schemePrice;

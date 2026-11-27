@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AdjustStockInput,
   CreateAgentIssueInput,
+  RecordAgentPaymentInput,
   SettleAgentInput,
   BillOrderInput,
   BounceChequeInput,
@@ -13,6 +14,10 @@ import type {
   CorrectBalanceInput,
   CreatePaymentInput,
   CreateProductInput,
+  EinvoiceSetupInput,
+  SetInvoiceSeriesInput,
+  ReverseBillInput,
+  PosBillInput,
   CreateRouteInput,
   CreateSaleInput,
   CreateStaffInput,
@@ -95,10 +100,120 @@ export const updateOrderSchema = z
 // The physical bill-book number, copied in by hand — free text (not every book uses plain
 // digits), but bounded so it can't be pasted-in garbage. `amount` is the bill-book total,
 // also copied in by hand — becomes the order's totalAmount from here on (see the route).
-export const billOrderSchema = z.object({
-  invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40),
-  amount: money.positive("Enter the bill amount"),
-}) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+const shipToSchema = z.object({
+  name: z.string().trim().max(100).optional(),
+  address: z.string().trim().min(1, "Enter the ship-to address").max(100),
+  city: z.string().trim().min(3, "Enter the ship-to city").max(50),
+  pincode: z.string().trim().regex(/^[0-9]{6}$/, "Ship-to pincode must be 6 digits"),
+  state: z.string().trim().regex(/^[0-9]{2}$/, "Choose the ship-to state"),
+});
+
+export const billOrderSchema = z
+  .object({
+    invoiceNumber: z.string().trim().min(1, "Enter the bill number").max(40).optional(),
+    amount: money.positive("Enter the bill amount").optional(),
+    vehicleNo: z.string().trim().max(20).optional(),
+    shipTo: shipToSchema.optional(),
+  })
+  .refine((v) => v.invoiceNumber === undefined || v.amount !== undefined, {
+    message: "Enter the bill amount",
+    path: ["amount"],
+  }) satisfies z.ZodType<BillOrderInput, z.ZodTypeDef, unknown>;
+
+export const posBillSchema = z
+  .object({
+    outletId: id.optional(),
+    newOutlet: z
+      .object({
+        name: z.string().trim().min(1, "Enter the outlet name").max(120),
+        gstNumber,
+        address: address.optional(),
+        city: z.string().trim().max(50).optional(),
+        pincode: z.string().trim().regex(/^[0-9]{6}$/, "Pincode must be 6 digits").optional(),
+        phone: phone.optional(),
+      })
+      .optional(),
+    placeOfSupply: z.string().trim().regex(/^[0-9]{2}$/, "Choose a state").optional(),
+    taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]),
+    shipTo: shipToSchema.optional(),
+    items: z
+      .array(
+        z.object({
+          productId: id,
+          quantity: z.coerce.number().int().positive("Quantity must be above 0"),
+          price: money,
+          taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]).optional(),
+          mrp: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()).optional(),
+        }),
+      )
+      .min(1, "Add at least one item")
+      .max(100),
+  })
+  .refine((v) => (v.outletId ? 1 : 0) + (v.newOutlet ? 1 : 0) === 1, { message: "Choose an outlet or enter a new one", path: ["outletId"] }) satisfies z.ZodType<
+  PosBillInput,
+  z.ZodTypeDef,
+  unknown
+>;
+
+export const reverseBillSchema = z.object({
+  reason: z.string().trim().min(1, "Choose a reason").max(120),
+  returnToPending: z.boolean(),
+  reuseNumber: z.boolean(),
+  force: z.boolean().optional(),
+  confirm: z.string().trim().min(1, "Type the invoice number to confirm").max(40),
+}) satisfies z.ZodType<ReverseBillInput, z.ZodTypeDef, unknown>;
+
+const ewbFields = {
+  vehicleNo: z.string().trim().max(20).optional(),
+  distance: z.coerce.number().int("Distance must be whole km").min(0).max(4000).optional(),
+};
+export const ewayBillSchema = z.object(ewbFields);
+export const generateEinvoiceSchema = z.object({
+  /** null = IRN only. */
+  ewayBill: z.object(ewbFields).nullable(),
+});
+export const cancelEinvoiceSchema = z.object({
+  reason: z.enum(["1", "2", "3", "4"]),
+  remark: z.string().trim().min(3, "Write a short remark").max(100),
+  confirm: z.string().trim().min(1, "Type the invoice number to confirm").max(40),
+});
+
+export const setInvoiceSeriesSchema = z.object({
+  next: z.coerce.number().int("Whole number").positive("Enter a number above 0").max(99_999_999),
+}) satisfies z.ZodType<SetInvoiceSeriesInput, z.ZodTypeDef, unknown>;
+
+const optText = (max: number) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), z.string().trim().max(max).nullable());
+export const einvoiceSetupSchema = z.object({
+  products: z
+    .array(
+      z.object({
+        id,
+        hsnCode: z.preprocess(
+          (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+          z.string().trim().regex(/^[0-9]{4,8}$/, "HSN must be 4–8 digits").nullable(),
+        ),
+        gstRate: z.coerce.number().min(0).max(100),
+        mrp: z.preprocess((v) => (v === "" ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()),
+        uqc: z.string().trim().toUpperCase().min(2).max(8),
+      }),
+    )
+    .max(500)
+    .optional(),
+  outlets: z
+    .array(
+      z.object({
+        id,
+        pincode: z.preprocess(
+          (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+          z.string().trim().regex(/^[0-9]{6}$/, "Pincode must be 6 digits").nullable(),
+        ),
+        city: optText(50),
+      }),
+    )
+    .max(1000)
+    .optional(),
+}) satisfies z.ZodType<EinvoiceSetupInput, z.ZodTypeDef, unknown>;
 
 export const dispatchBulkSchema = z.object({
   orderIds: z.array(id).min(1, "Select at least one order").max(100, "At most 100 orders at once"),
@@ -333,6 +448,12 @@ export const settleAgentSchema = z
     path: ["reason"],
     message: "A write-off needs a reason",
   }) satisfies z.ZodType<SettleAgentInput, z.ZodTypeDef, unknown>;
+
+/** Any amount received from an agent. Not calculated against items. */
+export const recordAgentPaymentSchema = z.object({
+  amount: z.coerce.number({ invalid_type_error: "Enter an amount" }).positive("Amount must be more than 0").max(100_000_000, "Amount is too large"),
+  note: z.string().trim().max(200, "Note is too long").optional(),
+}) satisfies z.ZodType<RecordAgentPaymentInput, z.ZodTypeDef, unknown>;
 
 // Query-string schemas: every value arrives as a string (or is absent).
 export const paymentsQuerySchema = z.object({

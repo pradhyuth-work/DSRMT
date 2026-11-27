@@ -82,6 +82,12 @@ model Product {
   schemeActive Boolean @default(true)
   /// Never negative: enforced by a CHECK constraint in the migration.
   stockQty    Int      @default(0)
+  /// E-invoice fields. hsnCode is required to build an e-invoice; mrp drives the Rule 31D
+  /// taxable value (MRP x 100 / (100 + gstRate)); uqc is the IRP unit code (NOS, PAC, ...).
+  hsnCode     String?
+  gstRate     Float    @default(40)
+  mrp         Float?
+  uqc         String   @default("NOS")
   createdAt   DateTime @default(now())
 
   invoiceItems     InvoiceItem[]
@@ -113,6 +119,11 @@ model Outlet {
   phone     String
   address   String   @default("")
   gstNumber String?
+  /// Needed for the e-invoice buyer block (the IRP rejects a buyer without them).
+  pincode   String?
+  city      String?
+  /// Created at the POS; stays flagged until an admin reviews it.
+  pendingReview Boolean @default(false)
   routeId   String?
   /**
    * Soft-hidden from the order-taking outlet pickers; nothing is deleted and every past report is unaffected.
@@ -138,6 +149,8 @@ model Staff {
   passwordHash String?
   role         Role     @default(agent)
   active       Boolean  @default(true)
+  /// Field agent's delivery vehicle; pre-fills the vehicle number when their orders are billed.
+  vehicleNo    String?
   /// Bumped on password reset so previously issued tokens stop working.
   tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
@@ -157,6 +170,9 @@ model Staff {
   /// Issues and settlements this person recorded.
   agentIssuesMade       AgentIssue[]      @relation("AgentIssueCreator")
   agentSettlementsMade  AgentSettlement[] @relation("AgentSettlementCreator")
+  /// Free-amount payments received from this agent, and ones this person recorded.
+  agentPayments         AgentPayment[]    @relation("AgentPaymentAgent")
+  agentPaymentsMade     AgentPayment[]    @relation("AgentPaymentCreator")
 }
 
 /// id is an internal cuid; invoiceNumber is the human-facing bill-book number, entered by
@@ -180,6 +196,25 @@ model Invoice {
   dispatchedById   String?
   cancelledAt      DateTime?
   cancelledById    String?
+  /// True when the bill was written in the physical bill book / Target and only copied in here
+  /// (the hand-entered number path). No GST invoice or e-invoice JSON is made for these.
+  billedOutside    Boolean          @default(false)
+  /// Vehicle for the e-way bill part of the e-invoice JSON (from the field agent). Optional.
+  vehicleNo        String?
+  /// Last time this bill went out in an e-invoice JSON file; null = never exported.
+  einvExportedAt   DateTime?
+  /// How tax was worked out: MRP (inclusive, Rule 31D), INCLUSIVE (price has tax) or EXCLUSIVE (tax on top).
+  taxMode          String           @default("MRP")
+  /// Made at the admin-only POS (walk-in / new outlet) rather than from an order.
+  posBill          Boolean          @default(false)
+  /// State code of the place of supply; 29 = Karnataka (CGST + SGST), anything else is IGST.
+  placeOfSupply    String           @default("29")
+  /// Optional delivery address when it differs from the buyer's (null = ship to the buyer's address).
+  shipToName       String?
+  shipToAddress    String?
+  shipToCity       String?
+  shipToPincode    String?
+  shipToState      String?
   createdAt        DateTime         @default(now())
 
   outlet         Outlet              @relation(fields: [outletId], references: [id])
@@ -190,6 +225,7 @@ model Invoice {
   items          InvoiceItem[]
   payments       PaymentCollection[]
   stockMovements StockMovement[]
+  einvoices      EInvoice[]
 
   @@index([outletId, createdAt])
   @@index([staffId])
@@ -225,6 +261,12 @@ model InvoiceItem {
   /// True when schemeUnitPrice was back-filled from the product's *current* scheme price by
   /// the 0019 migration rather than captured live at billing time.
   schemePriceEstimated Boolean @default(false)
+  /// Tax snapshot taken when an invoice is made in the app (null for bills written outside it).
+  mrp      Float?
+  hsnCode  String?
+  gstRate  Float?
+  taxable  Float?
+  taxAmt   Float?
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
@@ -390,4 +432,64 @@ model AgentSettlement {
   createdBy Staff   @relation("AgentSettlementCreator", fields: [createdById], references: [id])
 
   @@index([agentId, createdAt])
+}
+
+/// Money received from a field agent, entered as ANY amount and not tied to products or units.
+/// It simply reduces what the agent owes (units held x issue rates, minus every payment), so
+/// the balance can go below zero if more is paid than is owed. Rows are never edited or deleted.
+model AgentPayment {
+  id          String   @id @default(cuid())
+  agentId     String
+  amount      Float
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  agent     Staff @relation("AgentPaymentAgent", fields: [agentId], references: [id])
+  createdBy Staff @relation("AgentPaymentCreator", fields: [createdById], references: [id])
+
+  @@index([agentId, createdAt])
+}
+
+/// IRN / e-way bill made through the GSP. One row per invoice number per mode (test / live); the unique
+/// pair is what stops the same bill being sent twice. Never deleted.
+model EInvoice {
+  id            String    @id @default(cuid())
+  invoiceId     String
+  /// The number as sent to the government portal, e.g. MTR-312.
+  docNo         String
+  testMode      Boolean
+  /// SENDING | GENERATED | FAILED | UNKNOWN (no reply: may or may not be registered) | CANCELLING | CANCELLED
+  status        String
+  irn           String?
+  ackNo         String?
+  ackDate       String?
+  /// Base64 PNG of the signed QR code printed on the invoice.
+  qrImage       String?
+  signedInvoice String?
+  /// NOT_REQUESTED | SENDING | GENERATED | FAILED | UNKNOWN | CANCELLED
+  ewbStatus     String    @default("NOT_REQUESTED")
+  ewbNo         String?
+  ewbDate       String?
+  ewbValidUpto  String?
+  ewbError      String?
+  vehicleNo     String?
+  error         String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([docNo, testMode])
+  @@index([invoiceId])
+}
+
+/// Small key/value store for app settings. Holds the in-app invoice number series
+/// ("invoice_prefix" = MTR, "invoice_next" = next number to hand out).
+model AppSetting {
+  key   String @id
+  value String
 }

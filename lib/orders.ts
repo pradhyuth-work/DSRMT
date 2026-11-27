@@ -111,7 +111,7 @@ export async function lockInvoice(tx: Prisma.TransactionClient, id: string) {
 
 export const orderInclude = {
   outlet: { select: { name: true } },
-  staff: { select: { name: true } },
+  staff: { select: { name: true, vehicleNo: true } },
   billedBy: { select: { name: true } },
   dispatchedBy: { select: { name: true } },
   cancelledBy: { select: { name: true } },
@@ -140,6 +140,12 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
     dispatchedByName: o.dispatchedBy?.name ?? null,
     cancelledAt: o.cancelledAt?.toISOString() ?? null,
     cancelledByName: o.cancelledBy?.name ?? null,
+    billedOutside: o.billedOutside,
+    posBill: o.posBill,
+    taxMode: o.taxMode as OrderDTO["taxMode"],
+    vehicleNo: o.vehicleNo,
+    agentVehicleNo: o.staff.vehicleNo,
+    einvExportedAt: o.einvExportedAt?.toISOString() ?? null,
     items: o.items.map((i) => ({
       productId: i.productId,
       productName: i.product.name,

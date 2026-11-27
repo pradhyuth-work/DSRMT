@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardList, Download, FileSpreadsheet, HardDriveDownload, IndianRupee, Loader2, Wallet } from "lucide-react";
+import { ClipboardList, Download, FileSpreadsheet, HardDriveDownload, HardDriveUpload, IndianRupee, Loader2, Wallet } from "lucide-react";
 import type { OutletDTO, ProductDTO, SalesReportResponse } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
@@ -50,6 +50,10 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [downloadingDsr, setDownloadingDsr] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Restore: a chosen backup file waits here until the admin types RESTORE to confirm.
+  const [restoreFile, setRestoreFile] = useState<{ name: string; data: unknown; rows: number } | null>(null);
+  const [restoreWord, setRestoreWord] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +115,36 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
     }
   }
 
+  async function chooseRestoreFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    try {
+      const data: unknown = JSON.parse(await file.text());
+      const counts = (data as { rowCounts?: Record<string, number> } | null)?.rowCounts;
+      if ((data as { format?: string } | null)?.format !== "dsrmt-backup" || !counts) throw new Error("not a backup");
+      setRestoreFile({ name: file.name, data, rows: Object.values(counts).reduce((a, b) => a + b, 0) });
+      setRestoreWord("");
+    } catch {
+      setRestoreFile(null);
+      setError("That file is not a DSRMT backup.");
+    }
+  }
+
+  async function runRestore() {
+    if (!restoreFile || restoreWord !== "RESTORE") return;
+    setRestoring(true);
+    setError(null);
+    try {
+      // Safety net: save today's data first, so a wrong restore can itself be undone.
+      await api.downloadBackup();
+      await api.restoreBackup(restoreFile.data);
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Restore failed. Nothing was changed.");
+      setRestoring(false);
+    }
+  }
+
   async function downloadReportCsv() {
     setDownloadingReport(true);
     setError(null);
@@ -153,10 +187,15 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
           />
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadBackup()} disabled={backingUp} title="Download every table as one JSON file">
+          <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadBackup()} disabled={backingUp} title="Download every table as one file. Contains login password hashes, so keep it private.">
             {backingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveDownload className="h-4 w-4" />}
             Full backup
           </button>
+          <label className="btn btn-secondary cursor-pointer sm:w-auto" title="Replace everything with a backup file">
+            <HardDriveUpload className="h-4 w-4" />
+            Restore
+            <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => { void chooseRestoreFile(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
           <button className="btn btn-secondary sm:w-auto" onClick={exportCsv} disabled={view === "inventory" ? products.length === 0 : !report}>
             <Download className="h-4 w-4" /> Download CSV
           </button>
@@ -187,6 +226,24 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
 
       {error && <Alert kind="error">{error}</Alert>}
       {notice && <Alert kind="warning">{notice}</Alert>}
+      {restoreFile && (
+        <div className="card space-y-3 border-danger-foreground/40 p-4">
+          <Alert kind="error">
+            Restoring <b>{restoreFile.name}</b> ({restoreFile.rows.toLocaleString("en-IN")} rows) will replace EVERYTHING in the app with what is in that file. Anything entered since that backup was made will be lost. Your current data is downloaded first as a safety copy.
+          </Alert>
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="label" htmlFor="restore-word">Type RESTORE to confirm</label>
+              <input id="restore-word" className="input w-48" value={restoreWord} onChange={(e) => setRestoreWord(e.target.value)} autoComplete="off" />
+            </div>
+            <button className="btn btn-primary" disabled={restoring || restoreWord !== "RESTORE"} onClick={() => void runRestore()}>
+              {restoring ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveUpload className="h-4 w-4" />}
+              Restore everything
+            </button>
+            <button className="btn btn-secondary" disabled={restoring} onClick={() => { setRestoreFile(null); setRestoreWord(""); }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Orders" value={report ? String(report.ordersCount) : "—"} icon={ClipboardList} tone="teal" />

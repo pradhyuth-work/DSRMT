@@ -195,7 +195,7 @@ aside nav .nav-tab { border-radius: 6px; }
 }
 
 /* Header: a short gold sweep under the title on load; ringed avatar */
-.app-header { position: relative; }
+@media (min-width: 768px) { .app-header { position: relative; } }
 .app-header::after {
   content: ""; position: absolute; left: 0; bottom: -1px; height: 2px; width: 140px;
   background: linear-gradient(90deg, hsl(var(--accent)), transparent);
@@ -243,3 +243,9 @@ aside nav .nav-tab { border-radius: 6px; }
   .stat-spark .ln { animation: none; stroke-dashoffset: 0; }
   .nav-tab:hover, .order-card:hover { transform: none; }
 }
+
+/* Billing mode: teal in place of the orange gradients and tints. */
+html.billing-mode .nav-tab[data-active="true"] { background: linear-gradient(95deg, #5FE0D2, #2FB8A8); box-shadow: 0 4px 10px rgba(95,224,210,.28); }
+html.billing-mode .avatar-ring { background-image: linear-gradient(135deg, #5FE0D2, #2FB8A8); }
+html.billing-mode .card.stat-cell[data-tone="gold"] { --tone: #2FB8A8; }
+html.billing-mode .card.order-card[data-status="BILLED"] { --sc: #2FB8A8; }

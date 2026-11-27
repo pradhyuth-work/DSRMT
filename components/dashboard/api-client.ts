@@ -3,6 +3,7 @@ import type {
   AgentBalanceDTO,
   AgentIssueDTO,
   AgentLedgerEntryDTO,
+  RecordAgentPaymentResponse,
   CreateAgentIssueInput,
   SettleAgentInput,
   SettleAgentResponse,
@@ -10,6 +11,15 @@ import type {
   AuthUser,
   BalanceAdjustmentDTO,
   BillOrderInput,
+  EInvoiceDTO,
+  EInvoiceListDTO,
+  EinvoiceReportDTO,
+  EinvoiceSetupDTO,
+  EinvoiceSetupInput,
+  InvoiceSeriesDTO,
+  ReverseBillInput,
+  TaxReportTable,
+  PosBillInput,
   BounceChequeInput,
   BounceChequeResponse,
   ChequeEventDTO,
@@ -135,7 +145,144 @@ async function downloadFile(path: string, fallbackName: string): Promise<Headers
   return res.headers;
 }
 
+/** Downloads the invoice as a PDF file named after the invoice number (e.g. MTR-312.pdf). */
+async function downloadInvoicePdf(orderId: string): Promise<void> {
+  await downloadFile(`/api/orders/${encodeURIComponent(orderId)}/pdf`, "invoice.pdf");
+}
+
+type DrawCmd =
+  | { t: "text"; x: number; y: number; w: number; s: string; size: number; bold: boolean; right: boolean; gray: boolean }
+  | { t: "line"; x1: number; y1: number; x2: number; y2: number; width: number; gray: boolean }
+  | { t: "rect"; x: number; y: number; w: number; h: number; width: number }
+  | { t: "image"; x: number; y: number; w: number; h: number }
+  | { t: "qr"; x: number; y: number; w: number; h: number };
+
+/** Saves the invoice as PNG images named after the invoice number (MTR-312.png, or MTR-312-page-1.png and so on). */
+async function downloadInvoiceImage(orderId: string): Promise<void> {
+  const layout = await request<{ name: string; w: number; h: number; qr: string | null; pages: DrawCmd[][] }>(`/api/orders/${enc(orderId)}/image`);
+  const logo = await new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = "/varasidhi-logo.png";
+  });
+  const qr = await new Promise<HTMLImageElement | null>((resolve) => {
+    if (!layout.qr) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = layout.qr;
+  });
+  if (layout.qr && !qr) throw new ApiRequestError("Could not draw the QR code, so the image was not made. Use Print instead.");
+  // Ship the font with the app (Liberation Sans, same metrics as Helvetica) so the image looks identical on every phone and browser.
+  const faces = await Promise.all(
+    [["normal", "LiberationSans-Regular"], ["bold", "LiberationSans-Bold"]].map(async ([weight, file]) => {
+      try {
+        const f = new FontFace("InvoiceSans", `url(/fonts/${file}.ttf)`, { weight });
+        await f.load();
+        document.fonts.add(f);
+        return true;
+      } catch { return false; }
+    }),
+  );
+  const family = faces.every(Boolean) ? "InvoiceSans, Helvetica, Arial, sans-serif" : "Helvetica, Arial, sans-serif";
+  const scale = 4;
+  const ink = "#0F2B29";
+  const gray = "#5A6B6B";
+  const light = "#C7D4D2";
+  const drawPage = async (cmds: DrawCmd[]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(layout.w * scale);
+    canvas.height = Math.round(layout.h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new ApiRequestError("Could not make the image on this device");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.textBaseline = "alphabetic";
+    for (const c of cmds) {
+      if (c.t === "text") {
+        ctx.fillStyle = c.gray ? gray : ink;
+        ctx.font = `${c.bold ? "bold " : ""}${c.size}px ${family}`;
+        ctx.textAlign = c.right ? "right" : "left";
+        // The device font can be wider than the Helvetica metrics the layout was planned with; squeeze to the planned width so nothing overlaps.
+        const actual = ctx.measureText(c.s).width;
+        if (actual > c.w * 1.01 && c.w > 0) {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(c.w / actual, 1);
+          ctx.fillText(c.s, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(c.s, c.x, c.y);
+        }
+      } else if (c.t === "line") {
+        ctx.strokeStyle = c.gray ? light : ink;
+        ctx.lineWidth = c.width;
+        ctx.beginPath();
+        ctx.moveTo(c.x1, c.y1);
+        ctx.lineTo(c.x2, c.y2);
+        ctx.stroke();
+      } else if (c.t === "rect") {
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = c.width;
+        ctx.strokeRect(c.x, c.y, c.w, c.h);
+      } else if (c.t === "qr") {
+        if (qr) {
+          // Keep the squares sharp so the code scans.
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(qr, c.x, c.y, c.w, c.h);
+          ctx.imageSmoothingEnabled = true;
+        }
+      } else if (logo) {
+        ctx.drawImage(logo, c.x, c.y, c.w, c.h);
+      }
+    }
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new ApiRequestError("Could not make the image on this device");
+    return blob;
+  };
+  // One file per page. All are drawn first, so a failure can't leave half an invoice downloaded.
+  const blobs: Blob[] = [];
+  for (const cmds of layout.pages) blobs.push(await drawPage(cmds));
+  for (const [i, blob] of blobs.entries()) {
+    // Browsers drop downloads fired in the same instant.
+    if (i) await new Promise((resolve) => setTimeout(resolve, 600));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = blobs.length > 1 ? `${layout.name}-page-${i + 1}.png` : `${layout.name}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+}
+
+/** Opens the printable A5 invoice for a bill made in the app in a new window and starts printing. */
+async function printInvoice(orderId: string): Promise<void> {
+  const token = getToken();
+  const w = window.open("", "_blank");
+  if (!w) throw new ApiRequestError("Allow pop-ups to print the invoice");
+  try {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/print`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: "no-store" });
+    if (!res.ok) {
+      const data: unknown = await res.json().catch(() => null);
+      throw new ApiRequestError((data as ApiError | null)?.error ?? `Request failed (${res.status})`);
+    }
+    const html = (await res.text()).replace("<head>", `<head><base href="${window.location.origin}/">`);
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.addEventListener("load", () => setTimeout(() => w.print(), 300));
+  } catch (e) {
+    w.close();
+    throw e;
+  }
+}
+
 export const api = {
+  printInvoice,
+  downloadInvoicePdf,
+  downloadInvoiceImage,
   login: (input: LoginInput) => post<LoginResponse>("/api/auth/login", input),
   me: () => request<AuthUser>("/api/auth/me"),
 
@@ -187,6 +334,9 @@ export const api = {
   agentLedger: (agentId: string) => request<AgentLedgerEntryDTO[]>(`/api/agent-balances/${enc(agentId)}/ledger`),
   agentIssues: () => request<AgentIssueDTO[]>("/api/agent-issues"),
   createAgentIssue: (input: CreateAgentIssueInput) => post<AgentIssueDTO>("/api/agent-issues", input),
+  /** Any amount received from an agent, not calculated against items. */
+  recordAgentPayment: (agentId: string, input: { amount: number; note?: string }) =>
+    post<RecordAgentPaymentResponse>(`/api/agent-balances/${enc(agentId)}/payment`, input),
   settleAgent: (agentId: string, input: SettleAgentInput) =>
     post<SettleAgentResponse>(`/api/agent-balances/${enc(agentId)}/settle`, input),
 
@@ -198,6 +348,36 @@ export const api = {
   orders: (status?: FulfilmentStatus) => request<OrderDTO[]>(`/api/orders${status ? `?status=${status}` : ""}`),
   downloadOrdersCsv: (status?: FulfilmentStatus) => downloadFile(`/api/orders/csv${status ? `?status=${status}` : ""}`, "orders.csv"),
   updateOrder: (id: string, input: UpdateOrderInput) => patch<OrderDTO>(`/api/orders/${enc(id)}`, input),
+  getInvoiceSeries: () => request<InvoiceSeriesDTO>("/api/einvoice/series"),
+  setInvoiceSeries: (next: number) => patch<InvoiceSeriesDTO>("/api/einvoice/series", { next }),
+  getEinvoiceSetup: () => request<EinvoiceSetupDTO>("/api/einvoice/setup"),
+  saveEinvoiceSetup: (input: EinvoiceSetupInput) => patch<EinvoiceSetupDTO>("/api/einvoice/setup", input),
+  einvoiceReport: (q: { from: string; to: string; only?: "new" }) =>
+    request<EinvoiceReportDTO>(`/api/einvoice/export?${new URLSearchParams({ format: "report", from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`),
+  /** Downloads the e-invoice JSON array; resolves with how many bills were left out as blocked. */
+  downloadEinvoiceJson: async (q: { from: string; to: string; only?: "new" }) => {
+    const h = await downloadFile(`/api/einvoice/export?${new URLSearchParams({ from: q.from, to: q.to, ...(q.only ? { only: q.only } : {}) })}`, "einvoice.json");
+    return Number(h.get("X-Einvoice-Blocked") ?? 0);
+  },
+  /** One bill's e-invoice JSON. If it can't be made, says why (what the report lists as missing). */
+  downloadEinvoiceForBill: async (id: string) => {
+    try {
+      await downloadFile(`/api/einvoice/export?ids=${enc(id)}`, "einvoice.json");
+    } catch (e) {
+      const r = await request<EinvoiceReportDTO>(`/api/einvoice/export?ids=${enc(id)}&format=report`).catch(() => null);
+      const why = r?.rows[0]?.errors.join("; ");
+      throw new ApiRequestError(why || (e instanceof Error ? e.message : "Could not make the JSON"));
+    }
+  },
+  einvoiceRecords: () => request<EInvoiceListDTO>("/api/einvoice/records"),
+  generateIrn: (id: string, input: { ewayBill: { vehicleNo?: string; distance?: number } | null }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice`, input),
+  makeEwayBill: (id: string, input: { vehicleNo?: string; distance?: number }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice/ewaybill`, input),
+  cancelIrn: (id: string, input: { reason: string; remark: string; confirm: string }) => post<EInvoiceDTO>(`/api/orders/${enc(id)}/einvoice/cancel`, input),
+  posBill: (input: PosBillInput) => post<OrderDTO>("/api/pos/bill", input),
+  approveOutlet: (id: string) => post<OutletDTO>(`/api/outlets/${enc(id)}/approve`, {}),
+  taxReportView: (type: string, month: string) => request<{ tables: TaxReportTable[] }>(`/api/tax/report?type=${enc(type)}&month=${enc(month)}&format=json`),
+  taxReportDownload: (type: string, month: string) => downloadFile(`/api/tax/report?type=${enc(type)}&month=${enc(month)}`, `${type}-${month}`),
+  reverseBill: (id: string, input: ReverseBillInput) => post<OrderDTO>(`/api/orders/${enc(id)}/reverse-bill`, input),
   billOrder: (id: string, input: BillOrderInput) => post<OrderDTO>(`/api/orders/${enc(id)}/bill`, input),
   toggleScheme: (id: string, productId: string, hasScheme: boolean) =>
     patch<OrderDTO>(`/api/orders/${enc(id)}/scheme`, { productId, hasScheme }),
@@ -212,4 +392,7 @@ export const api = {
     post<ResetPinResponse>(`/api/staff/${enc(id)}/pin`, { pin }),
 
   downloadBackup: () => downloadFile("/api/backup", "dsrmt-backup.json"),
+  /** Replaces the whole database with a backup file made by downloadBackup. Admin only. */
+  restoreBackup: (backup: unknown) =>
+    post<{ restoredRows: Record<string, number>; emptied: string[] }>("/api/backup/restore", { confirm: "RESTORE", backup }),
 };
