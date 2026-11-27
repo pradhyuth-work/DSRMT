@@ -11,10 +11,11 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  * Printable A5 tax invoice (HTML) for a bill made in the app. The client fetches it with the
  * bearer token and opens it in a new window to print or save as PDF.
  * Bills written outside the app have no GST invoice, so there is nothing to print for them.
+ * Admin only (Billing mode).
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await authorize(req, ["admin", "stock"]);
+    await authorize(req, ["admin"]);
     const { id } = await params;
     const { einv, inv, invoiceNumber, o, pos, intra, stateName, rows, sumTax, subTotal, sumQty, mrpValue, net, discount, round, slabs, addr, ship, when, half } = await loadInvoiceView(id);
     const grid = "16px 128px 50px 26px 38px 34px 26px 46px 30px 1fr";

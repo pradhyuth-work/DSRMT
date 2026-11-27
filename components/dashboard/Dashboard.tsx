@@ -210,7 +210,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [booting, setBooting] = useState(true);
   const [tab, setTab] = useState<TabId>("sale");
-  // Operations = the day-to-day views; Billing = the GST invoice desk (admin/stock only).
+  // Operations = the day-to-day views; Billing = the GST invoice desk (admin only).
   const [mode, setMode] = useState<"ops" | "bill">("ops");
   const [billFocusId, setBillFocusId] = useState<string | null>(null);
   const [billTab, setBillTab] = useState<BillTab>("desk");
@@ -277,7 +277,7 @@ export default function Dashboard() {
   const adminTabs = useMemo(() => tabs.filter((t) => ADMIN_CONTROL_TAB_IDS.has(t.id)), [tabs]);
   const isAdminGroupOpen = adminGroupOpen || adminTabs.some((t) => t.id === tab);
 
-  const inBillingMode = mode === "bill" && user?.role !== "agent" && !!user;
+  const inBillingMode = mode === "bill" && user?.role === "admin";
   useEffect(() => {
     document.documentElement.classList.toggle("billing-mode", inBillingMode);
     return () => document.documentElement.classList.remove("billing-mode");
@@ -328,7 +328,7 @@ export default function Dashboard() {
 
   const metrics = data?.reports?.dashboard;
   const isAgent = user.role === "agent";
-  const billingMode = mode === "bill" && !isAgent;
+  const billingMode = mode === "bill" && user.role === "admin";
   const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const dayOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "");
   const billedToday = (data?.orders ?? []).filter((o) => o.invoiceNumber && o.fulfilmentStatus !== "CANCELLED" && dayOf(o.billedAt) === todayKey);
@@ -338,7 +338,8 @@ export default function Dashboard() {
     { label: "Outside app today", value: String(billedToday.filter((o) => o.billedOutside).length) },
     { label: "Billed today", value: formatMoney(billedToday.reduce((s, o) => s + o.totalAmount, 0)) },
   ];
-  const modeSwitch = (
+  // Billing mode is admin-only — stock/agents never see the switch at all, always in Operations.
+  const modeSwitch = user.role === "admin" && (
     <div role="group" aria-label="Switch mode" className="grid grid-cols-2 gap-1 rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-1">
       {(["ops", "bill"] as const).map((m) => (
         <button
@@ -385,7 +386,7 @@ export default function Dashboard() {
             <Brand />
           )}
 
-          {!sidebarCollapsed && !isAgent && (
+          {!sidebarCollapsed && user.role === "admin" && (
             <div className="mt-6 w-full">
               <p className="mb-2 px-1 font-mono-app text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/40">Mode</p>
               {modeSwitch}
@@ -578,8 +579,12 @@ export default function Dashboard() {
                 <span className="text-lg font-bold">Varasidhi Enterprises</span>
                 <button type="button" onClick={() => setMobileNav(false)} aria-label="Close menu" className="focus-ring rounded-lg p-2 text-sidebar-foreground/70"><X size={20} /></button>
               </div>
-              <div className="mb-1 text-[10px] font-semibold tracking-widest text-sidebar-foreground/60">MODE</div>
-              <div className="mb-5">{modeSwitch}</div>
+              {user.role === "admin" && (
+                <>
+                  <div className="mb-1 text-[10px] font-semibold tracking-widest text-sidebar-foreground/60">MODE</div>
+                  <div className="mb-5">{modeSwitch}</div>
+                </>
+              )}
               <nav className="grid grid-cols-1 gap-2">
                 {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
                   const Icon = BILL_ICONS[id];

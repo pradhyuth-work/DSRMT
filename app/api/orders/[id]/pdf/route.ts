@@ -5,10 +5,10 @@ import { renderInvoicePdf } from "@/lib/invoice-pdf";
 
 export const dynamic = "force-dynamic";
 
-/** The A5 tax invoice as a real PDF file, named after the invoice number (MTR 312 -> MTR-312.pdf). */
+/** The A5 tax invoice as a real PDF file, named after the invoice number (MTR 312 -> MTR-312.pdf). Admin only (Billing mode). */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await authorize(req, ["admin", "stock"]);
+    await authorize(req, ["admin"]);
     const { id } = await params;
     const v = await loadInvoiceView(id);
     const pdf = renderInvoicePdf(v);

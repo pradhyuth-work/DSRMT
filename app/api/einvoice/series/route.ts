@@ -13,10 +13,10 @@ async function state(tx: Parameters<typeof readSeries>[0]): Promise<InvoiceSerie
   return { prefix: s.prefix, next: s.next, reusable: s.reusable, highestUsed: await highestUsed(tx, s.prefix) };
 }
 
-/** The in-app invoice number series (MTR). Admin and stock can read it (the bill form shows the next number); only admin changes it. */
+/** The in-app invoice number series (MTR). Admin only — Billing mode (the bill form that shows the next number) is admin-only. */
 export async function GET(req: Request) {
   try {
-    await authorize(req, ["admin", "stock"]);
+    await authorize(req, ["admin"]);
     return NextResponse.json(await state(prisma));
   } catch (err) {
     return errorResponse(err);

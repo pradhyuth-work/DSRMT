@@ -89,6 +89,8 @@ export default function OrdersView({
 
   // Billing and dispatch are done by the same office/warehouse staff, in that order.
   const canBill = user.role === "admin" || user.role === "stock";
+  // Billing mode (the GST invoice desk) is admin-only; stock still logs bills made outside the app.
+  const canBillInApp = user.role === "admin";
   const canDispatch = user.role === "admin" || user.role === "stock";
 
   // When looking at the billed queue, group by the outlet's field agent so stock/admin can
@@ -430,7 +432,7 @@ export default function OrdersView({
                 )}
 
                 <div className="mt-auto flex flex-wrap gap-2 pt-3">
-                  {canBill && o.fulfilmentStatus === "PENDING" && (
+                  {canBillInApp && o.fulfilmentStatus === "PENDING" && (
                     <button className="btn btn-primary h-11 flex-1 text-sm" disabled={busy} onClick={() => onOpenBilling?.(o.id)}>
                       <FileCheck className="h-4 w-4" /> Bill in Billing mode
                     </button>
