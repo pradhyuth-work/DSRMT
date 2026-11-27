@@ -16,12 +16,12 @@ import { SELLER } from "@/lib/seller";
 import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import type { DashboardData } from "./Dashboard";
 
-export type BillTab = "desk" | "invoices" | "pos" | "reports";
+export type BillTab = "desk" | "invoices" | "pos" | "reports" | "setup";
 /** Billing sections, shown in the side panel (and the phone menu) rather than as tabs on the page. */
 export const billTabsFor = (isAdmin: boolean): { id: BillTab; label: string; helper: string }[] => [
   { id: "desk", label: "Orders to bill", helper: "Turn orders into invoices" },
   { id: "invoices", label: "Invoices", helper: "Print, cancel, correct" },
-  ...(isAdmin ? [{ id: "pos" as const, label: "POS billing", helper: "Counter sale" }, { id: "reports" as const, label: "Tax reports", helper: "GSTR-1, 3B, registers" }] : []),
+  ...(isAdmin ? [{ id: "pos" as const, label: "POS billing", helper: "Counter sale" }, { id: "reports" as const, label: "Tax reports", helper: "GSTR-1, 3B, registers" }, { id: "setup" as const, label: "E-invoice set-up", helper: "Numbering, JSON, details" }] : []),
 ];
 
 const SELLER_NAME = "VARASIDHI ENTERPRISES";
@@ -52,7 +52,7 @@ export default function BillingMode({
   const isAdmin = user.role === "admin";
 
   const loadSeries = () => api.getInvoiceSeries().then(setSeries).catch(() => setSeries(null));
-  useEffect(() => { void loadSeries(); }, [data.orders]);
+  useEffect(() => { void loadSeries(); }, [data.orders, tab]);
   // The result of billing shows at the top, which on a phone is well above the button that was pressed.
   const messageRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (message) messageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }, [message]);
@@ -71,6 +71,12 @@ export default function BillingMode({
           onError={(text) => setMessage({ kind: "error", text })} />
       )}
       {tab === "reports" && isAdmin && <TaxReports />}
+      {tab === "setup" && isAdmin && (
+        <div className="space-y-4">
+          <PageHead title="E-invoice set-up" sub="Invoice numbering, the JSON backup file, and the details every e-invoice needs." />
+          <EinvoicePanel />
+        </div>
+      )}
       {tab === "invoices" && (
         <Invoices data={data} series={series} isAdmin={isAdmin}
           onDone={async (text) => { setMessage({ kind: "success", text }); await onSaved(); await loadSeries(); }} />
@@ -329,7 +335,7 @@ function Desk({
             </div></div>
           </div>
         )}
-        {missingMrp.length > 0 && <div className="mt-2"><Alert kind="warning">MRP missing for {missingMrp.join(", ")} — add it under Invoices → E-invoice details so tax can be shown.</Alert></div>}
+        {missingMrp.length > 0 && <div className="mt-2"><Alert kind="warning">MRP missing for {missingMrp.join(", ")} — add it under E-invoice set-up so tax can be shown.</Alert></div>}
       </section>
 
       {/* actions */}
@@ -357,7 +363,7 @@ function Desk({
             {willFile && <p className="text-xs text-muted-foreground">{gsp.testMode ? "Test mode: the e-invoice is a trial and nothing reaches the government." : `LIVE: this also files the ${ewb ? "e-invoice and e-way bill" : "e-invoice"} with the government.`}</p>}
             {outlet?.gstNumber && gsp !== undefined && !gsp?.ready && <Alert kind="warning">This will make the invoice only, not the e-invoice: {gsp?.problem ?? "the e-invoice set-up could not be read"}</Alert>}
             {outlet && !outlet.gstNumber && <p className="text-xs text-muted-foreground">No GSTIN on this outlet: invoice only, no e-invoice or e-way bill.</p>}
-            {!nextLabel && <Alert kind="warning">Set the starting invoice number first (Invoices → numbering).</Alert>}
+            {!nextLabel && <Alert kind="warning">Set the starting invoice number first (under E-invoice set-up).</Alert>}
             <button type="button" className="btn btn-primary h-12 w-full text-sm" disabled={busy || !nextLabel || shipToIncomplete(shipTo) || gsp === undefined || !!ewbMissing} onClick={() => void generate()}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />} Generate invoice
             </button>
@@ -422,7 +428,6 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [dlErr, setDlErr] = useState<string | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
   const [force, setForce] = useState(false);
   const [gsp, setGsp] = useState<EInvoiceListDTO | null>(null);
   const [gspError, setGspError] = useState<string | null>(null);
@@ -510,9 +515,7 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
 
   return (
     <div className="space-y-4">
-      <PageHead title="Invoices" sub="Print, file, cancel or correct. Newest first.">
-        {isAdmin && <button type="button" className="btn btn-secondary w-full sm:w-auto" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
-      </PageHead>
+      <PageHead title="Invoices" sub="Print, file, cancel or correct. Newest first." />
       <Tiles items={[
         { label: "Next number", value: series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : "Not set", accent: true },
         { label: "To reuse", value: series?.reusable.length ?? 0 },
@@ -558,7 +561,6 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
         )}
       </div>
 
-      <Modal open={showSetup} title="E-invoice JSON, numbering & details" onClose={() => setShowSetup(false)}>{showSetup && <EinvoicePanel />}</Modal>
     </div>
   );
 }

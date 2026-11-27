@@ -16,7 +16,7 @@ const msg = (e: unknown, fallback: string) => (e instanceof Error ? e.message : 
  */
 export function EinvoicePanel() {
   return (
-    <div className="space-y-6">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
       <SeriesBlock />
       <ExportBlock />
       <SetupBlock />
@@ -45,7 +45,7 @@ function SeriesBlock() {
   }
 
   return (
-    <section className="space-y-2">
+    <section className="card space-y-3 p-5">
       <h3 className="font-semibold">Invoice numbering</h3>
       <p className="text-xs text-muted-foreground">
         Bills made in the app take the next number automatically. Enter the starting number once; you can raise it later, never below a number already used.
@@ -90,7 +90,7 @@ function ExportBlock() {
   }
 
   return (
-    <section className="space-y-2">
+    <section className="card space-y-3 p-5">
       <h3 className="font-semibold">E-invoice JSON</h3>
       <p className="text-xs text-muted-foreground">
         Backup for when direct filing is not working: one file for the bills in the date range, for the e-invoice portal's bulk upload. Bills written outside
@@ -163,9 +163,9 @@ function SetupBlock() {
     setBusy(false);
   }
 
-  if (!data) return <p className="text-sm text-muted-foreground">Loading set-up…</p>;
+  if (!data) return <p className="card p-5 text-sm text-muted-foreground lg:col-span-2">{note ? note.text : "Loading set-up…"}</p>;
   return (
-    <section className="space-y-3">
+    <section className="card space-y-3 p-5 lg:col-span-2">
       <h3 className="font-semibold">Details the e-invoice needs</h3>
       <p className="text-xs text-muted-foreground">HSN and MRP per product (tax is worked on MRP). Pincode and city for each outlet with a GSTIN.</p>
       <div className="space-y-2">

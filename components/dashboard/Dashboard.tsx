@@ -20,6 +20,7 @@ import {
   ReceiptText,
   RefreshCw,
   BarChart3,
+  Settings,
   ShieldCheck,
   ShoppingCart,
   Store,
@@ -85,7 +86,7 @@ interface TabDef {
 }
 
 // Which tabs each role sees, in order. The server enforces the same rules on every route.
-const BILL_ICONS: Record<BillTab, LucideIcon> = { desk: ClipboardList, invoices: ReceiptText, pos: ShoppingCart, reports: BarChart3 };
+const BILL_ICONS: Record<BillTab, LucideIcon> = { desk: ClipboardList, invoices: ReceiptText, pos: ShoppingCart, reports: BarChart3, setup: Settings };
 
 const TABS_BY_ROLE: Record<Role, TabDef[]> = {
   admin: [
@@ -512,7 +513,7 @@ export default function Dashboard() {
         <nav aria-label="Billing sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-foreground/10 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
           {billTabsFor(user.role === "admin").map(({ id, label }) => {
             const Icon = BILL_ICONS[id];
-            const short = id === "desk" ? "To bill" : id === "pos" ? "POS" : id === "reports" ? "Reports" : label;
+            const short = id === "desk" ? "To bill" : id === "pos" ? "POS" : id === "reports" ? "Reports" : id === "setup" ? "Set-up" : label;
             return (
               <button key={id} type="button" onClick={() => setBillTab(id)} aria-current={billTab === id ? "page" : undefined}
                 className={`focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${billTab === id ? "text-accent" : "text-muted-foreground"}`}>
