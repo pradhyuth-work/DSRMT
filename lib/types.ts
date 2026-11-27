@@ -376,7 +376,7 @@ export interface EinvoiceSetupDTO {
   outlets: EinvoiceSetupOutlet[];
 }
 export interface EinvoiceSetupInput {
-  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string; taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
+  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string; taxMode?: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
   outlets?: { id: string; pincode: string | null; city: string | null }[];
 }
 
