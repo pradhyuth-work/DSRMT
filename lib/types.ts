@@ -5,9 +5,9 @@ export type InvoiceStatus = "PAID" | "PARTIAL" | "UNPAID";
 /** ACTIVE counts as received; BOUNCED does not (the invoices it settled are open again). */
 export type ChequeStatus = "ACTIVE" | "BOUNCED";
 
-export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI";
+export type PaymentMethod = "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "SCHEME" | "UPI";
 /** Selectable when recording a new payment. */
-export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER"] as const satisfies readonly PaymentMethod[];
+export const PAYMENT_METHODS = ["CASH", "CHEQUE", "NET_BANKING", "VOUCHER", "SCHEME"] as const satisfies readonly PaymentMethod[];
 export type Role = "admin" | "stock" | "agent";
 export type FulfilmentStatus = "PENDING" | "BILLED" | "DISPATCHED" | "CANCELLED";
 export type StockMovementType = "RECEIVE" | "ADJUST" | "DISPATCH" | "BILL" | "AGENT_ISSUE" | "CANCEL_RETURN";
@@ -724,6 +724,7 @@ export interface StaffPerformance {
   chequeCollected: number;
   netBankingCollected: number;
   voucherCollected: number;
+  schemeCollected: number;
   uncollectedBalance: number;
 }
 

@@ -192,12 +192,13 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
     const inv = staffInvoices.find((g) => g.staffId === member.id);
     // UPI is excluded from the "new payment" flow but a historical row can still carry it —
     // fold it into totalCollected without giving it its own column.
-    const sumFor = (method: "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "UPI") =>
+    const sumFor = (method: "CASH" | "CHEQUE" | "NET_BANKING" | "VOUCHER" | "SCHEME" | "UPI") =>
       staffPayments.find((g) => g.staffId === member.id && g.paymentMethod === method)?._sum.amount ?? 0;
     const cashCollected = round2(sumFor("CASH"));
     const chequeCollected = round2(sumFor("CHEQUE"));
     const netBankingCollected = round2(sumFor("NET_BANKING"));
     const voucherCollected = round2(sumFor("VOUCHER"));
+    const schemeCollected = round2(sumFor("SCHEME"));
     const legacyUpiCollected = round2(sumFor("UPI"));
     return {
       staffId: member.id,
@@ -205,11 +206,12 @@ export async function buildReports(range: ReportsRange = {}): Promise<ReportsRes
       phone: member.phone,
       totalOrders: inv?._count._all ?? 0,
       totalSales: round2(inv?._sum.totalAmount ?? 0),
-      totalCollected: round2(cashCollected + chequeCollected + netBankingCollected + voucherCollected + legacyUpiCollected),
+      totalCollected: round2(cashCollected + chequeCollected + netBankingCollected + voucherCollected + schemeCollected + legacyUpiCollected),
       cashCollected,
       chequeCollected,
       netBankingCollected,
       voucherCollected,
+      schemeCollected,
       uncollectedBalance: round2(inv?._sum.balanceDue ?? 0),
     };
   });

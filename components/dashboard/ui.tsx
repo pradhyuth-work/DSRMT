@@ -2,18 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, Ticket, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BadgePercent, Banknote, CheckCircle2, ChevronLeft, ChevronRight, FileText, Landmark, Ticket, X, type LucideIcon } from "lucide-react";
 import { PAYMENT_METHODS, type FulfilmentStatus, type InvoiceStatus, type PaymentMethod } from "@/lib/types";
 import { DAYS_CRITICAL_THRESHOLD, DAYS_WARNING_THRESHOLD } from "@/lib/money";
 import { useCountUp } from "./useCountUp";
 
 type SelectableMethod = (typeof PAYMENT_METHODS)[number];
 
-const METHOD_ICON: Record<SelectableMethod, LucideIcon> = { CASH: Banknote, CHEQUE: FileText, NET_BANKING: Landmark, VOUCHER: Ticket };
-const METHOD_LABEL: Record<SelectableMethod, string> = { CASH: "Cash", CHEQUE: "Cheque", NET_BANKING: "Net Banking", VOUCHER: "Voucher" };
+const METHOD_ICON: Record<SelectableMethod, LucideIcon> = { CASH: Banknote, CHEQUE: FileText, NET_BANKING: Landmark, VOUCHER: Ticket, SCHEME: BadgePercent };
+const METHOD_LABEL: Record<SelectableMethod, string> = { CASH: "Cash", CHEQUE: "Cheque", NET_BANKING: "Net Banking", VOUCHER: "Voucher", SCHEME: "Scheme" };
 
-/** The CASH/CHEQUE/NET_BANKING/VOUCHER picker used everywhere a payment method is recorded.
- * UPI is deliberately never offered here — it only ever appears read-only on historical payments. */
+/** The CASH/CHEQUE/NET_BANKING/VOUCHER/SCHEME picker used everywhere a payment method is
+ * recorded. UPI is deliberately never offered here — it only ever appears read-only on
+ * historical payments. */
 export function PaymentMethodPicker({
   value,
   onChange,
@@ -25,7 +26,7 @@ export function PaymentMethodPicker({
   size?: "sm" | "lg";
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {PAYMENT_METHODS.map((m) => {
         const Icon = METHOD_ICON[m];
         return (

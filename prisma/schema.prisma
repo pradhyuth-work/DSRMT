@@ -23,6 +23,10 @@ enum PaymentMethod {
   CHEQUE
   NET_BANKING
   VOUCHER
+  /// Settles the outlet's balance via a scheme credit rather than a cash-equivalent
+  /// instrument. Scheme Savings only ever reads Invoice/InvoiceItem, never
+  /// PaymentCollection, so recording one here never affects it either way.
+  SCHEME
 }
 
 enum ChequeStatus {

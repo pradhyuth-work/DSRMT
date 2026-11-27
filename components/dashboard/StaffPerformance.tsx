@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Banknote, ClipboardList, FileText, Landmark, Loader2, Ticket, UserRound } from "lucide-react";
+import { BadgePercent, Banknote, ClipboardList, FileText, Landmark, Loader2, Ticket, UserRound } from "lucide-react";
 import type { StaffPerformance } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { api } from "./api-client";
@@ -67,6 +67,7 @@ export default function StaffPerformanceView() {
                 <Metric icon={FileText} label="Cheque collected" value={formatMoney(r.chequeCollected)} />
                 <Metric icon={Landmark} label="Net banking collected" value={formatMoney(r.netBankingCollected)} />
                 <Metric icon={Ticket} label="Voucher collected" value={formatMoney(r.voucherCollected)} />
+                <Metric icon={BadgePercent} label="Scheme collected" value={formatMoney(r.schemeCollected)} />
               </div>
               <div>
                 <div className="mb-1 flex justify-between text-xs text-muted-foreground">
@@ -97,6 +98,7 @@ export default function StaffPerformanceView() {
                 <th className="th text-right">Cheque</th>
                 <th className="th text-right">Net Banking</th>
                 <th className="th text-right">Voucher</th>
+                <th className="th text-right">Scheme</th>
                 <th className="th text-right">Total Collected</th>
                 <th className="th text-right">Uncollected</th>
               </tr>
@@ -118,6 +120,7 @@ export default function StaffPerformanceView() {
                   <td className="td text-right tabular-nums">{formatMoney(r.chequeCollected)}</td>
                   <td className="td text-right tabular-nums">{formatMoney(r.netBankingCollected)}</td>
                   <td className="td text-right tabular-nums">{formatMoney(r.voucherCollected)}</td>
+                  <td className="td text-right tabular-nums">{formatMoney(r.schemeCollected)}</td>
                   <td className="td text-right font-semibold tabular-nums text-success-foreground">{formatMoney(r.totalCollected)}</td>
                   <td className="td text-right tabular-nums text-warning-foreground">{formatMoney(r.uncollectedBalance)}</td>
                 </tr>
