@@ -9,7 +9,7 @@ import { round2, statusFor } from "@/lib/money";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { allocateNumber } from "@/lib/invoice-series";
 import { effectiveSchemePrice } from "@/lib/products";
-import { computeLine } from "@/lib/gst";
+import { billTaxMode, computeLine, lineAmount, type TaxMode } from "@/lib/gst";
 import type { OrderDTO } from "@/lib/types";
 
 /**
@@ -46,16 +46,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (invoice.fulfilmentStatus !== "PENDING") {
         throw new HttpError(409, `Order ${id} is already ${invoice.fulfilmentStatus.toLowerCase()}`);
       }
-      const amount = billedOutside
-        ? input.amount!
-        : Math.round(invoice.items.reduce((sum, i) => sum + i.subtotal, 0));
-      if (amount < invoice.paidAmount) {
-        throw new HttpError(400, `Bill amount (${amount}) is less than the amount already paid (${invoice.paidAmount})`);
-      }
-
       const invoiceNumber = billedOutside ? input.invoiceNumber! : await allocateNumber(tx);
       const clash = await tx.invoice.findUnique({ where: { invoiceNumber }, select: { id: true } });
       if (clash) throw new HttpError(409, `Bill number "${invoiceNumber}" is already used by another order`);
+
+      // Billed in the app, the amount is worked out below from each product's tax type.
+      let amount = billedOutside ? input.amount! : Math.round(invoice.items.reduce((sum, i) => sum + i.subtotal, 0));
+      let taxMode: TaxMode = "MRP";
 
       const needed = new Map<string, number>();
       for (const item of invoice.items) {
@@ -66,9 +63,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (productIds.length > 0) {
         // Lock in a consistent order so two bills sharing products can't deadlock.
         const stock = await tx.$queryRaw<
-          { id: string; name: string; stockQty: number; unitPrice: number; schemePrice: number | null; schemeActive: boolean; mrp: number | null; hsnCode: string | null; gstRate: number }[]
+          { id: string; name: string; stockQty: number; unitPrice: number; schemePrice: number | null; schemeActive: boolean; mrp: number | null; hsnCode: string | null; gstRate: number; taxMode: TaxMode }[]
         >`
-          SELECT "id", "name", "stockQty", "unitPrice", "schemePrice", "schemeActive", "mrp", "hsnCode", "gstRate" FROM "Product"
+          SELECT "id", "name", "stockQty", "unitPrice", "schemePrice", "schemeActive", "mrp", "hsnCode", "gstRate", "taxMode" FROM "Product"
           WHERE "id" IN (${Prisma.join(productIds)})
           ORDER BY "id"
           FOR UPDATE`;
@@ -98,15 +95,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         // In-app invoices keep a tax snapshot per line so reports and e-invoices never shift if a
         // product's MRP, HSN or rate is edited later. Lines with no MRP stay null (shown as missing).
         if (!billedOutside) {
-          const taxRows = invoice.items.map((item) => {
+          const lines = invoice.items.map((item) => {
             const product = productById.get(item.productId)!;
-            const t = computeLine("MRP", item.unitPrice, item.quantity, product.gstRate, product.mrp);
-            return Prisma.sql`(${item.id}::text, ${product.mrp}::double precision, ${product.hsnCode}::text, ${product.gstRate}::double precision, ${t ? t.taxable : null}::double precision, ${t ? t.tax : null}::double precision)`;
+            const t = computeLine(product.taxMode, item.unitPrice, item.quantity, product.gstRate, product.mrp);
+            // MRP type with no MRP has no tax figure yet; the line still costs price x quantity.
+            return { item, product, t, gross: t?.gross ?? lineAmount(item.unitPrice, item.quantity) };
           });
+          amount = Math.round(lines.reduce((sum, l) => sum + l.gross, 0));
+          taxMode = billTaxMode(lines.map((l) => l.product.taxMode));
+          const taxRows = lines.map(({ item, product, t, gross }) =>
+            Prisma.sql`(${item.id}::text, ${product.mrp}::double precision, ${product.hsnCode}::text, ${product.gstRate}::double precision, ${t ? t.taxable : null}::double precision, ${t ? t.tax : null}::double precision, ${gross}::double precision)`);
           await tx.$executeRaw`
             UPDATE "InvoiceItem" AS ii
-            SET "mrp" = v.mrp, "hsnCode" = v.hsn, "gstRate" = v.rate, "taxable" = v.taxable, "taxAmt" = v.tax
-            FROM (VALUES ${Prisma.join(taxRows)}) AS v(id, mrp, hsn, rate, taxable, tax)
+            SET "mrp" = v.mrp, "hsnCode" = v.hsn, "gstRate" = v.rate, "taxable" = v.taxable, "taxAmt" = v.tax, "subtotal" = v.gross
+            FROM (VALUES ${Prisma.join(taxRows)}) AS v(id, mrp, hsn, rate, taxable, tax, gross)
             WHERE ii."id" = v.id`;
         }
 
@@ -128,6 +130,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         });
       }
 
+      if (amount < invoice.paidAmount) {
+        throw new HttpError(400, `Bill amount (${amount}) is less than the amount already paid (${invoice.paidAmount})`);
+      }
+
       const outletRow = await tx.outlet.findUnique({ where: { id: invoice.outletId }, select: { gstNumber: true, pincode: true } });
       const ownerRow = await tx.staff.findUnique({ where: { id: invoice.staffId }, select: { vehicleNo: true } });
       const placeOfSupply = supplyState(outletRow?.gstNumber, outletRow?.pincode);
@@ -136,7 +142,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         data: {
           invoiceNumber,
           billedOutside,
-          taxMode: "MRP",
+          taxMode,
           placeOfSupply: !billedOutside && input.shipTo ? input.shipTo.state : placeOfSupply,
           ...(!billedOutside && input.shipTo
             ? { shipToName: input.shipTo.name || null, shipToAddress: input.shipTo.address, shipToCity: input.shipTo.city, shipToPincode: input.shipTo.pincode, shipToState: input.shipTo.state }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { TaxMode } from "@/lib/gst";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2, Save } from "lucide-react";
 import type { EinvoiceReportDTO, EinvoiceSetupDTO, InvoiceSeriesDTO } from "@/lib/types";
@@ -124,18 +125,21 @@ function ExportBlock() {
   );
 }
 
+/** One grid for the header and every product row on wider screens; phones stack with a label per field. */
+const PRODUCT_COLS = "md:grid md:grid-cols-[minmax(0,1.6fr)_1.2fr_.8fr_.7fr_.8fr_1.3fr] md:items-center md:gap-2";
+
 function SetupBlock() {
   const [data, setData] = useState<EinvoiceSetupDTO | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ kind: "error" | "success"; text: string } | null>(null);
-  const [prod, setProd] = useState<Record<string, { hsn: string; mrp: string; rate: string; uqc: string }>>({});
+  const [prod, setProd] = useState<Record<string, { hsn: string; mrp: string; rate: string; uqc: string; tax: TaxMode }>>({});
   const [out, setOut] = useState<Record<string, { pin: string; city: string }>>({});
   const [onlyMissing, setOnlyMissing] = useState(true);
 
   const load = useCallback(async () => {
     const d = await api.getEinvoiceSetup();
     setData(d);
-    setProd(Object.fromEntries(d.products.map((p) => [p.id, { hsn: p.hsnCode ?? "", mrp: p.mrp == null ? "" : String(p.mrp), rate: String(p.gstRate), uqc: p.uqc }])));
+    setProd(Object.fromEntries(d.products.map((p) => [p.id, { hsn: p.hsnCode ?? "", mrp: p.mrp == null ? "" : String(p.mrp), rate: String(p.gstRate), uqc: p.uqc, tax: p.taxMode }])));
     setOut(Object.fromEntries(d.outlets.map((o) => [o.id, { pin: o.pincode ?? "", city: o.city ?? "" }])));
   }, []);
   useEffect(() => { load().catch((e) => setNote({ kind: "error", text: msg(e, "Could not load") })); }, [load]);
@@ -149,12 +153,12 @@ function SetupBlock() {
       // Send only what was changed: saving every product and outlet at once could run past the database time limit.
       const prodChanged = data.products.filter((p) => {
         const x = prod[p.id];
-        return x.hsn.trim() !== (p.hsnCode ?? "") || x.mrp.trim() !== (p.mrp == null ? "" : String(p.mrp)) || Number(x.rate) !== p.gstRate || x.uqc !== p.uqc;
+        return x.hsn.trim() !== (p.hsnCode ?? "") || x.mrp.trim() !== (p.mrp == null ? "" : String(p.mrp)) || Number(x.rate) !== p.gstRate || x.uqc !== p.uqc || x.tax !== p.taxMode;
       });
       const outChanged = data.outlets.filter((o) => out[o.id].pin.trim() !== (o.pincode ?? "") || out[o.id].city.trim() !== (o.city ?? ""));
       if (prodChanged.length === 0 && outChanged.length === 0) { setNote({ kind: "success", text: "Nothing changed" }); setBusy(false); return; }
       const d = await api.saveEinvoiceSetup({
-        products: prodChanged.map((p) => ({ id: p.id, hsnCode: prod[p.id].hsn.trim() || null, mrp: prod[p.id].mrp.trim() === "" ? null : Number(prod[p.id].mrp), gstRate: Number(prod[p.id].rate), uqc: prod[p.id].uqc })),
+        products: prodChanged.map((p) => ({ id: p.id, hsnCode: prod[p.id].hsn.trim() || null, mrp: prod[p.id].mrp.trim() === "" ? null : Number(prod[p.id].mrp), gstRate: Number(prod[p.id].rate), uqc: prod[p.id].uqc, taxMode: prod[p.id].tax })),
         outlets: outChanged.map((o) => ({ id: o.id, pincode: out[o.id].pin.trim() || null, city: out[o.id].city.trim() || null })),
       });
       setData(d);
@@ -167,16 +171,29 @@ function SetupBlock() {
   return (
     <section className="card space-y-3 p-5 lg:col-span-2">
       <h3 className="font-semibold">Details the e-invoice needs</h3>
-      <p className="text-xs text-muted-foreground">HSN and MRP per product (tax is worked on MRP). Pincode and city for each outlet with a GSTIN.</p>
+      <p className="text-xs text-muted-foreground">HSN, MRP and tax type for each product. <b>Inclusive</b>: the price already has GST. <b>Exclusive</b>: GST is added on top of the price. <b>On MRP</b>: the price has GST, and tax is worked on the MRP. Also pincode and city for each outlet with a GSTIN.</p>
       <div className="space-y-2">
+        <div aria-hidden className={`hidden px-2 text-xs font-semibold text-muted-foreground ${PRODUCT_COLS}`}>
+          <span>Product</span><span>HSN</span><span>MRP</span><span>GST %</span><span>Unit</span><span>Tax type</span>
+        </div>
         {data.products.map((p) => (
-          <div key={p.id} className="rounded-lg bg-secondary p-2">
-            <p className="text-sm font-medium">{p.name}</p>
-            <div className="mt-1 grid grid-cols-4 gap-1">
-              <input className="input" aria-label={`${p.name} HSN`} placeholder="HSN" value={prod[p.id]?.hsn ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], hsn: e.target.value } })} />
-              <input className="input" aria-label={`${p.name} MRP`} placeholder="MRP" inputMode="decimal" value={prod[p.id]?.mrp ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], mrp: e.target.value } })} />
-              <input className="input" aria-label={`${p.name} GST %`} placeholder="GST %" inputMode="decimal" value={prod[p.id]?.rate ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], rate: e.target.value } })} />
-              <input className="input" aria-label={`${p.name} unit`} placeholder="Unit" value={prod[p.id]?.uqc ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], uqc: e.target.value } })} />
+          <div key={p.id} className={`rounded-lg bg-secondary p-2 ${PRODUCT_COLS}`}>
+            <p className="min-w-0 break-words text-sm font-medium">{p.name}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 md:contents">
+              <label className="block min-w-0"><span className="label md:sr-only">HSN</span>
+                <input className="input" aria-label={`${p.name} HSN`} placeholder="HSN" value={prod[p.id]?.hsn ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], hsn: e.target.value } })} /></label>
+              <label className="block min-w-0"><span className="label md:sr-only">MRP</span>
+                <input className="input" aria-label={`${p.name} MRP`} placeholder="MRP" inputMode="decimal" value={prod[p.id]?.mrp ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], mrp: e.target.value } })} /></label>
+              <label className="block min-w-0"><span className="label md:sr-only">GST %</span>
+                <input className="input" aria-label={`${p.name} GST %`} placeholder="GST %" inputMode="decimal" value={prod[p.id]?.rate ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], rate: e.target.value } })} /></label>
+              <label className="block min-w-0"><span className="label md:sr-only">Unit</span>
+                <input className="input" aria-label={`${p.name} unit`} placeholder="Unit" value={prod[p.id]?.uqc ?? ""} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], uqc: e.target.value } })} /></label>
+              <label className="col-span-2 block min-w-0 md:col-span-1"><span className="label md:sr-only">Tax type</span>
+                <select className="input" aria-label={`${p.name} tax type`} value={prod[p.id]?.tax ?? "MRP"} onChange={(e) => setProd({ ...prod, [p.id]: { ...prod[p.id], tax: e.target.value as TaxMode } })}>
+                  <option value="INCLUSIVE">Inclusive</option>
+                  <option value="EXCLUSIVE">Exclusive</option>
+                  <option value="MRP">On MRP</option>
+                </select></label>
             </div>
           </div>
         ))}

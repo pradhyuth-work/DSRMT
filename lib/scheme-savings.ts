@@ -257,6 +257,7 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
           productId: true,
           quantity: true,
           unitPrice: true,
+          subtotal: true,
           listUnitPrice: true,
           listPriceEstimated: true,
           schemeUnitPrice: true,
@@ -276,7 +277,9 @@ export async function buildSchemeSavings(filters: SchemeSavingsFilters = {}): Pr
     outletName: inv.outlet.name,
     staffId: inv.staffId,
     staffName: inv.staff.name,
-    totalAmount: inv.totalAmount,
+    // Scheme prices are before any GST added on top (tax-exclusive products), so take that tax out of
+    // the bill value before comparing. It is zero for every other line.
+    totalAmount: round2(inv.totalAmount - inv.items.reduce((sum, i) => sum + Math.max(0, i.subtotal - round2(i.unitPrice * i.quantity)), 0)),
     items: inv.items.map((i) => ({
       productId: i.productId,
       productName: i.product.name,

@@ -1,4 +1,4 @@
-import { computeLine } from "@/lib/gst";
+import { computeLine, lineAmount, type TaxMode } from "@/lib/gst";
 import type { Prisma } from "@prisma/client";
 import { HttpError } from "./api";
 import { round2 } from "./money";
@@ -96,7 +96,7 @@ export async function priceLines(
       productName: product.name,
       quantity,
       unitPrice,
-      subtotal: round2(unitPrice * quantity),
+      subtotal: lineAmount(unitPrice, quantity, product.taxMode === "EXCLUSIVE" ? product.gstRate : 0),
       hasScheme,
     };
   });
@@ -116,7 +116,7 @@ export const orderInclude = {
   billedBy: { select: { name: true } },
   dispatchedBy: { select: { name: true } },
   cancelledBy: { select: { name: true } },
-  items: { include: { product: { select: { name: true, mrp: true, gstRate: true } } } },
+  items: { include: { product: { select: { name: true, mrp: true, gstRate: true, taxMode: true } } } },
 } satisfies Prisma.InvoiceInclude;
 
 type OrderWithRelations = Prisma.InvoiceGetPayload<{ include: typeof orderInclude }>;
@@ -155,9 +155,9 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
       subtotal: i.subtotal,
       hasScheme: i.hasScheme,
       // The tax saved on the GST invoice; before that (or for bills written outside the app), the
-      // same MRP-based sum the invoice will use.
+      // same sum the invoice will use, from the product's tax type.
       gstAmount:
-        i.taxAmt ?? computeLine("MRP", i.unitPrice, i.quantity, i.gstRate ?? i.product.gstRate, i.mrp ?? i.product.mrp)?.tax ?? null,
+        i.taxAmt ?? computeLine(i.product.taxMode as TaxMode, i.unitPrice, i.quantity, i.gstRate ?? i.product.gstRate, i.mrp ?? i.product.mrp)?.tax ?? null,
     })),
   };
 }

@@ -47,6 +47,20 @@ export function computeLine(mode: TaxMode, price: number, qty: number, rate: num
   return { gross, taxable, tax: evenTax(taxable, rate) };
 }
 
+/**
+ * What an order line costs the buyer. Only a tax-exclusive product (onTopRate = its GST %) adds anything
+ * to price x quantity; the other tax types already have GST inside the price.
+ */
+export function lineAmount(price: number, qty: number, onTopRate?: number | null): number {
+  return onTopRate ? computeLine("EXCLUSIVE", price, qty, onTopRate, null)!.gross : round2(price * qty);
+}
+
+/** The one tax type recorded on a bill whose lines may differ. */
+export function billTaxMode(modes: Iterable<TaxMode>): TaxMode {
+  const set = new Set(modes);
+  return set.has("MRP") ? "MRP" : set.size === 1 ? [...set][0] : "INCLUSIVE";
+}
+
 /** Intra-state supplies split tax into CGST + SGST, everything else is IGST. */
 export function splitTax(tax: number, placeOfSupply: string): { cgst: number; sgst: number; igst: number } {
   if (placeOfSupply === HOME_STATE) {

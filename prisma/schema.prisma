@@ -92,6 +92,8 @@ model Product {
   gstRate     Float    @default(40)
   mrp         Float?
   uqc         String   @default("NOS")
+  /// How unitPrice relates to GST: MRP, INCLUSIVE or EXCLUSIVE (lib/gst.ts).
+  taxMode     String   @default("MRP")
   createdAt   DateTime @default(now())
 
   invoiceItems     InvoiceItem[]

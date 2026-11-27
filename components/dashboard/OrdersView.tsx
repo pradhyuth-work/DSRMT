@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
 import { formatMoney, round2, splitOrderGst } from "@/lib/money";
+import { lineAmount } from "@/lib/gst";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
@@ -708,7 +709,7 @@ export function EditOrderForm({
     lines.reduce((s, l) => {
       const p = productById.get(l.productId);
       const unitPrice = l.hasScheme && p?.schemePrice != null ? p.schemePrice : p?.unitPrice ?? 0;
-      return s + unitPrice * l.quantity;
+      return s + lineAmount(unitPrice, l.quantity, p?.taxOnTop);
     }, 0),
   );
   const tooLow = total < order.paidAmount;

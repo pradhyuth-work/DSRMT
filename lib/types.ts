@@ -51,6 +51,9 @@ export interface ProductDTO {
   mrp?: number | null;
   gstRate?: number;
   hsnCode?: string | null;
+  taxMode?: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
+  /** All roles: the GST % added on top of the price, set only for tax-exclusive products. */
+  taxOnTop?: number;
   createdAt: string;
 }
 
@@ -357,6 +360,7 @@ export interface EinvoiceSetupProduct {
   gstRate: number;
   mrp: number | null;
   uqc: string;
+  taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE";
 }
 export interface EinvoiceSetupOutlet {
   id: string;
@@ -372,7 +376,7 @@ export interface EinvoiceSetupDTO {
   outlets: EinvoiceSetupOutlet[];
 }
 export interface EinvoiceSetupInput {
-  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string }[];
+  products?: { id: string; hsnCode: string | null; gstRate: number; mrp: number | null; uqc: string; taxMode: "MRP" | "INCLUSIVE" | "EXCLUSIVE" }[];
   outlets?: { id: string; pincode: string | null; city: string | null }[];
 }
 

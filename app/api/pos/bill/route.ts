@@ -6,7 +6,7 @@ import { authorize } from "@/lib/auth";
 import { posBillSchema } from "@/lib/validation";
 import { orderInclude, toOrderDTO } from "@/lib/orders";
 import { allocateNumber } from "@/lib/invoice-series";
-import { computeLine } from "@/lib/gst";
+import { billTaxMode, computeLine } from "@/lib/gst";
 import { round2 } from "@/lib/money";
 import type { OrderDTO } from "@/lib/types";
 
@@ -61,8 +61,7 @@ export async function POST(req: Request) {
         return { it, p, mrp: mrp ?? null, t };
       });
       // Bill-level label: MRP if any line is on MRP (that is what drives the discount line), else the common option.
-      const modes = new Set(input.items.map((it) => it.taxMode ?? input.taxMode));
-      const billMode = modes.has("MRP") ? "MRP" : modes.size === 1 ? [...modes][0] : "INCLUSIVE";
+      const billMode = billTaxMode(input.items.map((it) => it.taxMode ?? input.taxMode));
       const total = Math.round(lines.reduce((s, l) => s + l.t.gross, 0));
       const invoiceNumber = await allocateNumber(tx);
       const now = new Date();

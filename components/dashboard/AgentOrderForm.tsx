@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2 } from "@/lib/money";
+import { lineAmount } from "@/lib/gst";
 import { api } from "./api-client";
 import { Alert, PaymentMethodPicker } from "./ui";
 import type { DashboardData } from "./Dashboard";
@@ -72,7 +73,7 @@ export default function AgentOrderForm({
           const product = products.find((p) => p.id === productId)!;
           const hasScheme = !!schemeByProduct[productId] && product.schemePrice != null;
           const unitPrice = hasScheme ? product.schemePrice! : product.unitPrice;
-          return { product, quantity, unitPrice, subtotal: round2(unitPrice * quantity), hasScheme };
+          return { product, quantity, unitPrice, subtotal: lineAmount(unitPrice, quantity, product.taxOnTop), hasScheme };
         }),
     [qtyByProduct, products, schemeByProduct],
   );

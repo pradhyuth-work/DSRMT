@@ -13,6 +13,7 @@ import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
 import { Chip, PageHead, Tiles, type Tone } from "./billing-ui";
 import { SELLER } from "@/lib/seller";
+import { computeLine } from "@/lib/gst";
 import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import type { DashboardData } from "./Dashboard";
 
@@ -28,15 +29,17 @@ const SELLER_NAME = "VARASIDHI ENTERPRISES";
 const SELLER_GSTIN = "29AEXPR8267H1ZC";
 const REASONS = ["Data entry mistake", "Wrong outlet", "Customer declined", "Other"] as const;
 
-/** Rule 31D split for one line: tax is worked on MRP, taxable value is what is billed minus that tax. */
+/** Tax split for one line under the product's tax type: taxable value shown is what is billed minus the tax. */
 function lineTax(item: OrderDTO["items"][number], product: ProductDTO | undefined) {
-  const gross = item.unitPrice * item.quantity;
+  const mode = product?.taxMode ?? "MRP";
   const rate = product?.gstRate ?? 40;
   const mrp = product?.mrp ?? null;
-  if (!mrp) return { gross, mrp: null, tax: null as number | null, net: null as number | null, rate };
-  const tax = round2((mrp * item.quantity * rate) / (100 + rate));
-  return { gross, mrp, tax, net: round2(gross - tax), rate };
+  const c = computeLine(mode, item.unitPrice, item.quantity, rate, mrp);
+  if (!c) return { mode, gross: item.unitPrice * item.quantity, mrp, tax: null as number | null, net: null as number | null, rate };
+  return { mode, gross: c.gross, mrp, tax: c.tax as number | null, net: round2(c.gross - c.tax) as number | null, rate };
 }
+
+const MODE_LABEL = { MRP: "On MRP", INCLUSIVE: "Inclusive", EXCLUSIVE: "Exclusive" } as const;
 
 const PAGE_SIZE = 20;
 
@@ -113,8 +116,8 @@ function QueueCard({ o, selected, productById, gstin, onPick, className = "" }: 
             </div>
             <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-muted-foreground">
               <span>{formatMoney(l.i.unitPrice)}/pc</span>
-              <span>{l.mrp ? `MRP ${formatMoney(l.mrp)}` : "MRP missing"}</span>
-              <span>GST {l.rate}%</span>
+              {(l.mrp || l.mode === "MRP") && <span>{l.mrp ? `MRP ${formatMoney(l.mrp)}` : "MRP missing"}</span>}
+              <span>GST {l.rate}% · {MODE_LABEL[l.mode]}</span>
               {l.tax !== null && <span>Tax {formatMoney(l.tax)}</span>}
               {l.i.hasScheme && <span className="font-bold uppercase tracking-wider text-accent">Scheme</span>}
             </div>
@@ -201,7 +204,7 @@ function Desk({
   const nextLabel = series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : null;
 
   const lines = order ? order.items.map((i) => ({ i, ...lineTax(i, productById.get(i.productId)) })) : [];
-  const missingMrp = lines.filter((l) => l.mrp === null).map((l) => l.i.productName);
+  const missingMrp = lines.filter((l) => l.tax === null).map((l) => l.i.productName);
   const gross = lines.reduce((s, l) => s + l.gross, 0);
   const taxSum = lines.reduce((s, l) => s + (l.tax ?? 0), 0);
   const netSum = lines.reduce((s, l) => s + (l.net ?? 0), 0);
@@ -330,7 +333,7 @@ function Desk({
             </div>
             <div className="mt-3 flex justify-end"><div className="w-full text-xs @lg:w-64">
               <div className="flex justify-between py-0.5"><span>Sub total</span><span className="tabular-nums">{missingMrp.length ? "—" : netSum.toFixed(2)}</span></div>
-              <div className="flex justify-between py-0.5"><span>GST (RSP based)</span><span className="tabular-nums">{missingMrp.length ? "—" : taxSum.toFixed(2)}</span></div>
+              <div className="flex justify-between py-0.5"><span>{lines.every((l) => l.mode === "MRP") ? "GST (RSP based)" : "GST"}</span><span className="tabular-nums">{missingMrp.length ? "—" : taxSum.toFixed(2)}</span></div>
               <div className="mt-2 flex items-baseline justify-between border-t-2 border-[#17151f] pt-2 font-bold"><span className="text-sm">NET AMOUNT</span><span className="text-2xl tabular-nums">{formatMoney(total)}</span></div>
             </div></div>
           </div>

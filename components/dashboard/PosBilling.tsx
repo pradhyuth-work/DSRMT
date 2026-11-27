@@ -59,7 +59,7 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const pickProduct = (i: number, productId: string) => {
     const p = productById.get(productId);
-    setRow(i, { productId, mrp: p?.mrp ? String(p.mrp) : "", price: rows[i].price || (p ? String(p.unitPrice) : "") });
+    setRow(i, { productId, mode: p?.taxMode ?? rows[i].mode, mrp: p?.mrp ? String(p.mrp) : "", price: rows[i].price || (p ? String(p.unitPrice) : "") });
   };
 
   async function create() {

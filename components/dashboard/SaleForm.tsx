@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import type { AuthUser, CreateSaleResponse, PaymentMethod } from "@/lib/types";
 import { formatMoney, round2, statusFor } from "@/lib/money";
+import { lineAmount } from "@/lib/gst";
 import { api } from "./api-client";
 import { Alert, PaymentMethodPicker, StatusBadge } from "./ui";
 import { Combobox } from "./Combobox";
@@ -70,7 +71,7 @@ export default function SaleForm({
     const product = productById.get(l.productId);
     const qty = Number.parseInt(l.quantity, 10);
     const validQty = Number.isInteger(qty) && qty > 0;
-    const subtotal = product && validQty ? round2(product.unitPrice * qty) : 0;
+    const subtotal = product && validQty ? lineAmount(product.unitPrice, qty, product.taxOnTop) : 0;
     const totalRequested = requested.get(l.productId) ?? 0;
     // Agents only know whether an item is in stock, not the count.
     const stockQty = product?.stockQty;

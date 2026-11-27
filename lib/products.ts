@@ -19,7 +19,9 @@ export function toProductDTO(p: Product, role: Role): ProductDTO {
     inStock: p.stockQty > 0,
     createdAt: p.createdAt.toISOString(),
   };
+  if (p.taxMode === "EXCLUSIVE") dto.taxOnTop = p.gstRate;
   if (role !== "agent") {
+    dto.taxMode = p.taxMode as ProductDTO["taxMode"];
     dto.stockQty = p.stockQty;
     dto.mrp = p.mrp;
     dto.gstRate = p.gstRate;

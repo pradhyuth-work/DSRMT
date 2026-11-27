@@ -196,6 +196,7 @@ export const einvoiceSetupSchema = z.object({
         gstRate: z.coerce.number().min(0).max(100),
         mrp: z.preprocess((v) => (v === "" ? null : v), z.coerce.number().positive("MRP must be above 0").nullable()),
         uqc: z.string().trim().toUpperCase().min(2).max(8),
+        taxMode: z.enum(["MRP", "INCLUSIVE", "EXCLUSIVE"]).optional(),
       }),
     )
     .max(500)

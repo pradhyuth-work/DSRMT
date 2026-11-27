@@ -4,6 +4,7 @@ import { HttpError, TRANSACTION_TIMEOUT_MS, errorResponse, parseBody } from "@/l
 import { authorize } from "@/lib/auth";
 import { lockInvoice, orderInclude, toOrderDTO } from "@/lib/orders";
 import { round2, statusFor } from "@/lib/money";
+import { lineAmount } from "@/lib/gst";
 import { effectiveSchemePrice } from "@/lib/products";
 import { toggleSchemeSchema } from "@/lib/validation";
 import type { OrderDTO } from "@/lib/types";
@@ -43,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       const unitPrice = hasScheme ? effectiveSchemePrice(product)! : product.unitPrice;
-      const subtotal = round2(unitPrice * item.quantity);
+      const subtotal = lineAmount(unitPrice, item.quantity, product.taxMode === "EXCLUSIVE" ? product.gstRate : 0);
       await tx.invoiceItem.update({ where: { id: item.id }, data: { unitPrice, subtotal, hasScheme } });
 
       const totalAmount = round2(

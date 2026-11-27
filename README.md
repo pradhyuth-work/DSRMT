@@ -147,6 +147,7 @@ scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgre
 - `POST /api/pos/bill` — admin POS bill (3 tax options, new outlets stay pending review).
 - `POST /api/orders/[id]/reverse-bill` — admin cancel / return to Pending, optional number reuse, audit logged.
 - Run `supabase/migrations/0025_einvoice_records.sql` **before deploying** the GSP code (the cancel routes, export, tax report and full backup read the new table).
+- Run `supabase/migrations/0027_product_tax_mode.sql` **before deploying** the per-product tax type (Billing → Set-up).
 - E-invoice + e-way bill through gstinapi.in: set `GSTINAPI_KEY`, `GSTINAPI_GSTIN`, `GSTINAPI_USERNAME`, `GSTINAPI_PASSWORD` (server only). Test mode is on unless `GSTINAPI_TEST_MODE` is exactly `false`; redeploy after changing it.
 - On Billing → To bill, **Generate invoice** also files the IRN (and, if ticked, the e-way bill) for outlets with a GSTIN. A refused filing keeps the invoice; retry it under Invoices. POS bills are filed from Invoices.
 - A real e-invoice QR arrives as signed text; `lib/qr.ts` draws it for print, PDF and image. Download image saves one PNG per page.
