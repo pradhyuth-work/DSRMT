@@ -37,6 +37,8 @@ function lineTax(item: OrderDTO["items"][number], product: ProductDTO | undefine
   return { gross, mrp, tax, net: round2(gross - tax), rate };
 }
 
+const PAGE_SIZE = 20;
+
 /**
  * The Billing mode: a desk that turns pending orders into GST invoices (queue, draft invoice, steps)
  * and an Invoices list with cancel / correct. Operations keeps the order cards as they were.
@@ -386,7 +388,13 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
     [data.orders],
   );
   const [selId, setSelId] = useState<string | null>(null);
-  const sel = list.find((o) => o.id === selId) ?? null;
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const at = Math.min(page, pages - 1); // the list can shrink under us
+  const shown = list.slice(at * PAGE_SIZE, (at + 1) * PAGE_SIZE);
+  const sel = shown.find((o) => o.id === selId) ?? null;
+  const toggle = (id: string) => setSelId((cur) => (cur === id ? null : id));
+  const turn = (to: number) => { setSelId(null); setPage(to); document.getElementById("invoice-list")?.scrollIntoView({ block: "start" }); };
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [back, setBack] = useState(true);
   const [reuse, setReuse] = useState(false);
@@ -405,8 +413,8 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
 
   useEffect(() => {
     setConfirm(""); setErr(null); setReuse(false); setBack(true); setForce(false);
-    // On a phone the cancel/correct panel sits below the list, so bring it into view once an invoice is picked.
-    if (selId && typeof window !== "undefined" && window.innerWidth < 1024) document.getElementById("cancel-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Closing a panel higher up can push the tapped bill off the screen.
+    if (selId) document.getElementById(`inv-${selId}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selId]);
 
   const live = sel ? irnFor(sel, gsp).live : undefined;
@@ -432,86 +440,92 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
     setBusy(false);
   }
 
+  // Opens directly under the tapped bill.
+  const detail = sel && (
+    <div className="grid items-start gap-3 bg-accent/10 px-3 pb-3 lg:grid-cols-2">
+      {!sel.billedOutside && (
+        <IrnPanel key={sel.id} order={sel} gstin={data.outlets.find((x) => x.id === sel.outletId)?.gstNumber ?? null}
+          list={gsp} loadError={gspError} isAdmin={isAdmin} onChanged={loadGsp} />
+      )}
+      {!isAdmin && sel.billedOutside && <div className="card p-4 text-sm text-muted-foreground">Written outside the app: no e-invoice here.</div>}
+      {isAdmin && (
+        <div className="card space-y-3 p-4">
+          <div className="text-xs font-semibold tracking-widest text-muted-foreground">CANCEL OR CORRECT</div>
+          {sel.fulfilmentStatus === "CANCELLED" ? (
+            <p className="text-sm">{sel.invoiceNumber} · {sel.outletName} is already cancelled.</p>
+          ) : (
+            <>
+              <p className="font-mono text-sm font-bold">{sel.invoiceNumber} · {sel.outletName}</p>
+              <div className="text-xs text-muted-foreground">Reason (kept in the audit log)</div>
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Reason">
+                {REASONS.map((r) => (<button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(r)} className={`btn h-8 px-3 text-xs ${reason === r ? "btn-primary" : "btn-secondary"}`}>{r}</button>))}
+              </div>
+              <label className="flex items-start justify-between gap-3 text-sm"><span><b>Return order to Pending</b><br /><span className="text-xs text-muted-foreground">Stock goes back and the order can be billed again.</span></span>
+                <input type="checkbox" role="switch" checked={back && !sel.posBill} disabled={sel.posBill} onChange={(e) => setBack(e.target.checked)} aria-label="Return order to Pending" /></label>
+              <label className="flex items-start justify-between gap-3 text-sm"><span><b>Reuse this invoice number</b><br /><span className="text-xs text-muted-foreground">{reuseBlock}</span></span>
+                <input type="checkbox" role="switch" checked={reuse && canReuse} disabled={!canReuse} onChange={(e) => setReuse(e.target.checked)} aria-label="Reuse this invoice number" /></label>
+              <div><label className="label" htmlFor="cfm">Type {sel.invoiceNumber} to confirm</label><input id="cfm" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={sel.invoiceNumber ?? ""} /></div>
+              {active && (
+                <label className="flex items-start justify-between gap-3 text-sm"><span><b>Cancel in the app anyway</b><br /><span className="text-xs text-muted-foreground">This bill has an IRN on the portal. Cancel the IRN above first. Tick this only if the portal no longer allows it: the IRN stays active there, so ask your CA about a credit note.</span></span>
+                  <input type="checkbox" role="switch" checked={force} onChange={(e) => setForce(e.target.checked)} aria-label="Cancel in the app anyway" /></label>
+              )}
+              {err && <Alert kind="error">{err}</Alert>}
+              <button type="button" className="btn btn-primary w-full" disabled={busy || confirm.trim() !== sel.invoiceNumber || (active && !force)} onClick={() => void submit()}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{back && !sel.posBill ? "Cancel and return to Pending" : "Cancel invoice"}
+              </button>
+            </>
+          )}
+          <p className="text-xs text-muted-foreground">Every cancel records who did it, when and why. Admin only.</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
         <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Next invoice number</div><div className="text-xl font-bold text-accent">{series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : "Not set"}</div></div>
         <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Numbers waiting to be reused</div><div className="text-xl font-bold">{series?.reusable.length ?? 0}</div></div>
-        {sel && !sel.billedOutside && sel.fulfilmentStatus !== "CANCELLED" && (
-          <button type="button" className="btn btn-primary self-center" onClick={() => { api.printInvoice(sel.id).catch((e) => setErr(e instanceof Error ? e.message : "Could not print")); }}>
-            Print {sel.invoiceNumber}
-          </button>
-        )}
         {isAdmin && <button type="button" className="btn btn-secondary self-center" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
       </div>
 
       {dlErr && <Alert kind="error">{dlErr}</Alert>}
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="card min-w-0 flex-1 basis-[420px]">
-          {list.length === 0 ? <EmptyState>No invoices yet.</EmptyState> : (
-            <div className="divide-y divide-border">
-              <div className="hidden grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[150px]">Download</div></div>
-              {list.map((o) => {
-                const inApp = !o.billedOutside && o.fulfilmentStatus !== "CANCELLED";
-                return (
-                  <div key={o.id} className={`flex flex-col gap-2 px-3 py-3 text-sm sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] sm:items-center sm:gap-2 sm:py-2 ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
-                    <button onClick={() => setSelId(o.id)} className="focus-ring flex min-w-0 flex-col gap-1 text-left sm:col-span-4 sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr] sm:gap-2" aria-label={`Select ${o.invoiceNumber}`}>
+      <div id="invoice-list" className="card min-w-0 scroll-mt-20">
+        {list.length === 0 ? <EmptyState>No invoices yet.</EmptyState> : (
+          <div className="divide-y divide-border">
+            <div className="hidden grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[170px]">Actions</div></div>
+            {shown.map((o) => {
+              const inApp = !o.billedOutside && o.fulfilmentStatus !== "CANCELLED";
+              return (
+                <div key={o.id}>
+                  <div id={`inv-${o.id}`} className={`scroll-mt-20 flex flex-col gap-2 px-3 py-3 text-sm sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] sm:items-center sm:gap-2 sm:py-2 ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
+                    <button type="button" onClick={() => toggle(o.id)} aria-expanded={sel?.id === o.id} className="focus-ring flex min-w-0 flex-col gap-1 text-left sm:col-span-4 sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr] sm:gap-2" aria-label={`Select ${o.invoiceNumber}`}>
                       <span className="flex items-baseline justify-between gap-2 sm:block"><span className="font-mono font-bold">{o.invoiceNumber}</span><span className="font-bold sm:hidden">{formatMoney(o.totalAmount)}</span></span>
                       <span className="truncate">{o.outletName}</span>
                       <span className="hidden sm:block">{formatMoney(o.totalAmount)}</span>
                       <span className="text-xs font-semibold uppercase text-muted-foreground sm:text-foreground">{label(o)}</span>
                     </button>
-                    <div className="flex gap-2 sm:w-[150px] sm:gap-1">
-                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="Download the invoice as an image"
-                        onClick={() => { setDlErr(null); api.downloadInvoiceImage(o.id).catch((e) => setDlErr(e instanceof Error ? e.message : "Could not download the invoice")); }}>Image</button>}
+                    <div className="flex gap-2 sm:w-[170px] sm:gap-1">
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="Print the invoice"
+                        onClick={() => { setDlErr(null); api.printInvoice(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not print"}`)); }}>Print invoice</button>}
                       {inApp && isAdmin && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="E-invoice JSON for this bill"
                         onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
-                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => { setSelId(o.id); }}>{isAdmin ? "IRN / cancel" : "IRN"}</button>}
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => toggle(o.id)}>{isAdmin ? "IRN / cancel" : "IRN"}</button>}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div id="cancel-panel" className="w-full shrink-0 scroll-mt-20 space-y-4 lg:w-80">
-        {sel && !sel.billedOutside && (
-          <IrnPanel key={sel.id} order={sel} gstin={data.outlets.find((x) => x.id === sel.outletId)?.gstNumber ?? null}
-            list={gsp} loadError={gspError} isAdmin={isAdmin} onChanged={loadGsp} />
-        )}
-        {!isAdmin && !sel && <div className="card p-4 text-sm text-muted-foreground">Select an invoice to file its e-invoice.</div>}
-        {isAdmin && (
-          <div className="card space-y-3 p-4">
-            <div className="text-xs font-semibold tracking-widest text-muted-foreground">CANCEL OR CORRECT</div>
-            {!sel ? <p className="text-sm text-muted-foreground">Select an invoice.</p> : sel.fulfilmentStatus === "CANCELLED" ? (
-              <p className="text-sm">{sel.invoiceNumber} · {sel.outletName} is already cancelled.</p>
-            ) : (
-              <>
-                <p className="font-mono text-sm font-bold">{sel.invoiceNumber} · {sel.outletName}</p>
-                <div className="text-xs text-muted-foreground">Reason (kept in the audit log)</div>
-                <div className="flex flex-wrap gap-1" role="group" aria-label="Reason">
-                  {REASONS.map((r) => (<button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(r)} className={`btn h-8 px-3 text-xs ${reason === r ? "btn-primary" : "btn-secondary"}`}>{r}</button>))}
+                {sel?.id === o.id && detail}
                 </div>
-                <label className="flex items-start justify-between gap-3 text-sm"><span><b>Return order to Pending</b><br /><span className="text-xs text-muted-foreground">Stock goes back and the order can be billed again.</span></span>
-                  <input type="checkbox" role="switch" checked={back && !sel.posBill} disabled={sel.posBill} onChange={(e) => setBack(e.target.checked)} aria-label="Return order to Pending" /></label>
-                <label className="flex items-start justify-between gap-3 text-sm"><span><b>Reuse this invoice number</b><br /><span className="text-xs text-muted-foreground">{reuseBlock}</span></span>
-                  <input type="checkbox" role="switch" checked={reuse && canReuse} disabled={!canReuse} onChange={(e) => setReuse(e.target.checked)} aria-label="Reuse this invoice number" /></label>
-                <div><label className="label" htmlFor="cfm">Type {sel.invoiceNumber} to confirm</label><input id="cfm" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={sel.invoiceNumber ?? ""} /></div>
-                {active && (
-                  <label className="flex items-start justify-between gap-3 text-sm"><span><b>Cancel in the app anyway</b><br /><span className="text-xs text-muted-foreground">This bill has an IRN on the portal. Cancel the IRN above first. Tick this only if the portal no longer allows it: the IRN stays active there, so ask your CA about a credit note.</span></span>
-                    <input type="checkbox" role="switch" checked={force} onChange={(e) => setForce(e.target.checked)} aria-label="Cancel in the app anyway" /></label>
-                )}
-                {err && <Alert kind="error">{err}</Alert>}
-                <button type="button" className="btn btn-primary w-full" disabled={busy || confirm.trim() !== sel.invoiceNumber || (active && !force)} onClick={() => void submit()}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{back && !sel.posBill ? "Cancel and return to Pending" : "Cancel invoice"}
-                </button>
-              </>
+              );
+            })}
+            {pages > 1 && (
+              <nav aria-label="Invoice pages" className="flex items-center justify-between gap-2 px-3 py-3">
+                <button type="button" className="btn btn-secondary h-10 text-xs" disabled={at === 0} onClick={() => turn(at - 1)}>Previous</button>
+                <span className="text-xs text-muted-foreground">{at * PAGE_SIZE + 1}–{at * PAGE_SIZE + shown.length} of {list.length} · page {at + 1} of {pages}</span>
+                <button type="button" className="btn btn-secondary h-10 text-xs" disabled={at >= pages - 1} onClick={() => turn(at + 1)}>Next</button>
+              </nav>
             )}
-            <p className="text-xs text-muted-foreground">Every cancel records who did it, when and why. Admin only.</p>
           </div>
         )}
-        </div>
       </div>
 
       <Modal open={showSetup} title="E-invoice JSON, numbering & details" onClose={() => setShowSetup(false)}>{showSetup && <EinvoicePanel />}</Modal>
