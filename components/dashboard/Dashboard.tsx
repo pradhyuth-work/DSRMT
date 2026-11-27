@@ -14,6 +14,7 @@ import {
   IndianRupee,
   Loader2,
   LogOut,
+  Menu,
   Package,
   PackagePlus,
   ReceiptText,
@@ -216,6 +217,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [mobileNav, setMobileNav] = useState(false);
   // Persisted per browser so the choice sticks across reloads; defaults to expanded (and
   // during SSR) to avoid a hydration mismatch, then syncs from storage right after mount.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -343,7 +345,7 @@ export default function Dashboard() {
           key={m}
           type="button"
           aria-pressed={mode === m}
-          onClick={() => setMode(m)}
+          onClick={() => { setMode(m); setMobileNav(false); }}
           className={`focus-ring rounded-lg px-2 py-2 text-xs font-bold ${mode === m ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/70"}`}
         >
           {m === "ops" ? "Operations" : "Billing"}
@@ -506,7 +508,22 @@ export default function Dashboard() {
         </aside>
       )}
 
-      <main className="ops-grid min-w-0 flex-1">
+      {billingMode && !isAgent && (
+        <nav aria-label="Billing sections" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-foreground/10 bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          {billTabsFor(user.role === "admin").map(({ id, label }) => {
+            const Icon = BILL_ICONS[id];
+            const short = id === "desk" ? "To bill" : id === "pos" ? "POS" : id === "reports" ? "Reports" : label;
+            return (
+              <button key={id} type="button" onClick={() => setBillTab(id)} aria-current={billTab === id ? "page" : undefined}
+                className={`focus-ring flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${billTab === id ? "text-accent" : "text-muted-foreground"}`}>
+                <Icon size={20} />{short}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      <main className={`ops-grid min-w-0 flex-1 ${billingMode && !isAgent ? "pb-20 md:pb-0" : ""}`}>
         <div className="mx-auto max-w-[1536px] px-4 pb-8 sm:px-6 lg:px-10">
           <header className="app-header sticky top-0 z-30 -mx-4 flex h-[76px] items-center justify-between border-b border-foreground/10 bg-background/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
             {isAgent ? (
@@ -517,6 +534,13 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="flex items-center gap-3 md:hidden">
+                  <button
+                    className="focus-ring rounded-lg p-2 hover:bg-foreground/5"
+                    onClick={() => setMobileNav((v) => !v)}
+                    aria-label="Open navigation"
+                  >
+                    <Menu size={20} />
+                  </button>
                   <Brand compact />
                 </div>
                 <div className="hidden md:block">
@@ -538,36 +562,100 @@ export default function Dashboard() {
               >
                 <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
               </button>
-              <button
-                className={`focus-ring rounded-full p-2.5 text-muted-foreground transition hover:bg-danger/20 hover:text-danger-foreground ${isAgent ? "" : "md:hidden"}`}
-                onClick={() => signOut()}
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <LogOut size={16} />
-              </button>
+              {isAgent && (
+                <button
+                  className="focus-ring rounded-full p-2.5 text-muted-foreground transition hover:bg-danger/20 hover:text-danger-foreground"
+                  onClick={() => signOut()}
+                  title="Sign out"
+                  aria-label="Sign out"
+                >
+                  <LogOut size={16} />
+                </button>
+              )}
               <div className="avatar-ring flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
                 {initials}
               </div>
             </div>
           </header>
 
-          {/* Phones: mode switch and every menu button stay frozen under the header. */}
-          {!isAgent && (
-            <div className="sticky top-[76px] z-20 -mx-4 space-y-2 border-b border-foreground/10 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">
-              {modeSwitch}
-              <nav aria-label={billingMode ? "Billing sections" : "Sections"} className="tabs-scroll flex gap-2 overflow-x-auto">
-                {(billingMode
-                  ? billTabsFor(true).map(({ id, label }) => ({ id, label, icon: BILL_ICONS[id], active: billTab === id, open: () => setBillTab(id) }))
-                  : [...mainTabs, ...adminTabs].map(({ id, label, icon }) => ({ id, label, icon, active: tab === id, open: () => setTab(id) }))
-                ).map(({ id, label, icon: Icon, active, open }) => (
-                  <button key={id} type="button" onClick={open} aria-current={active ? "page" : undefined}
-                    className={`focus-ring flex min-h-[44px] items-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold ${active ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>
-                    <Icon size={16} />{label}
+          {!isAgent && mobileNav && (
+            <div className="app-enter fixed inset-x-0 top-[76px] z-40 max-h-[calc(100dvh-76px)] overflow-y-auto border-b border-foreground/10 bg-background px-4 py-3 shadow-2xl sm:px-6 md:hidden">
+              <nav className="grid grid-cols-2 gap-2">
+                {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
+                  const Icon = BILL_ICONS[id];
+                  return (
+                    <button key={id} onClick={() => { setBillTab(id); setMobileNav(false); }}
+                      className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${billTab === id ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>
+                      <Icon size={18} /><span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+                {!billingMode && mainTabs.map(({ id, label, icon: Icon }) => {
+                  const active = tab === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setTab(id);
+                        setMobileNav(false);
+                      }}
+                      className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                        active ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span className="text-sm font-semibold">{label}</span>
+                    </button>
+                  );
+                })}
+
+                {!billingMode && adminTabs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAdminGroupOpen((v) => !v)}
+                    className="focus-ring col-span-2 flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-3 text-left text-foreground"
+                  >
+                    <span className="flex items-center gap-3">
+                      <ShieldCheck size={18} />
+                      <span className="text-sm font-semibold">Admin control</span>
+                    </span>
+                    <ChevronDown size={14} className={`transition-transform ${isAdminGroupOpen ? "rotate-180" : ""}`} />
                   </button>
-                ))}
+                )}
+
+                {!billingMode && isAdminGroupOpen &&
+                  adminTabs.map(({ id, label, icon: Icon }) => {
+                    const active = tab === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setTab(id);
+                          setMobileNav(false);
+                        }}
+                        className={`focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
+                          active ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
+                        }`}
+                      >
+                        <Icon size={18} />
+                        <span className="text-sm font-semibold">{label}</span>
+                      </button>
+                    );
+                  })}
+
+                <button
+                  onClick={() => signOut()}
+                  className="focus-ring col-span-2 flex items-center gap-3 rounded-xl bg-card px-3 py-3 text-left text-danger-foreground"
+                >
+                  <LogOut size={18} />
+                  <span className="text-sm font-semibold">Sign out</span>
+                </button>
               </nav>
             </div>
+          )}
+
+          {user.role === "admin" && (
+            <div className="sticky top-[76px] z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
           )}
 
           {user.role === "admin" && !billingMode && (
