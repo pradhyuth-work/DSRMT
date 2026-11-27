@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Ban, ClipboardList, Download, FileCheck, Loader2, Minus, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import type { AuthUser, FulfilmentStatus, OrderDTO, OutletDTO } from "@/lib/types";
-import { formatMoney, round2, splitBasicAndGst } from "@/lib/money";
+import { formatMoney, round2, splitOrderGst } from "@/lib/money";
 import { api } from "./api-client";
 import { Alert, EmptyState, FulfilmentBadge, Modal, PAGE_SIZE, Pagination, StatusBadge, formatDate, usePagination } from "./ui";
 import { Combobox } from "./Combobox";
@@ -322,7 +322,6 @@ export default function OrdersView({
 
                 <ul className="my-3 space-y-1.5 border-y border-border py-2 text-sm">
                   {o.items.map((i) => {
-                    const { gst } = splitBasicAndGst(i.unitPrice);
                     const schemeAvailable = productById.get(i.productId)?.schemePrice != null;
                     return (
                       <li key={i.productId}>
@@ -334,7 +333,7 @@ export default function OrdersView({
                         </div>
                         <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>Unit price {formatMoney(i.unitPrice)}/pc</span>
-                          <span className="tabular-nums">GST {formatMoney(gst)}/pc</span>
+                          <span className="tabular-nums">{i.gstAmount === null ? "GST: MRP missing" : `GST ${formatMoney(i.gstAmount / i.quantity)}/pc`}</span>
                         </div>
                         {user.role !== "stock" && (
                           <button
@@ -378,16 +377,16 @@ export default function OrdersView({
                 </ul>
 
                 {(() => {
-                  const { basic, gst } = splitBasicAndGst(o.totalAmount);
+                  const split = splitOrderGst(o.totalAmount, o.items);
                   return (
                     <dl className="mb-2 grid grid-cols-2 gap-2 border-b border-border pb-2 text-xs">
                       <div>
                         <dt className="text-muted-foreground">Basic price</dt>
-                        <dd className="tabular-nums">{formatMoney(basic)}</dd>
+                        <dd className="tabular-nums">{split ? formatMoney(split.basic) : "—"}</dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">GST</dt>
-                        <dd className="tabular-nums">{formatMoney(gst)}</dd>
+                        <dd className="tabular-nums">{split ? formatMoney(split.gst) : "—"}</dd>
                       </div>
                     </dl>
                   );

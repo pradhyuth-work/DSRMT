@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { HttpError, csvResponse, errorResponse, toCsv } from "@/lib/api";
 import { ALL_ROLES, authorize } from "@/lib/auth";
 import { orderInclude, toOrderDTO } from "@/lib/orders";
-import { formatMoney, splitBasicAndGst } from "@/lib/money";
+import { formatMoney, splitOrderGst } from "@/lib/money";
 import type { FulfilmentStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     const csv = toCsv(
       ["Date", "Bill #", "Outlet", "Staff", "Fulfilment", "Payment Status", "Scheme", "Item", "Quantity", "Basic Price", "GST", "Total", "Paid", "Balance"],
       orders.flatMap((o) => {
-        const { basic, gst } = splitBasicAndGst(o.totalAmount);
+        const split = splitOrderGst(o.totalAmount, o.items);
         return o.items.map((i) => [
           new Date(o.createdAt).toLocaleString("en-IN"),
           o.invoiceNumber ?? "Not billed",
@@ -48,8 +48,8 @@ export async function GET(req: Request) {
           i.hasScheme ? "Scheme" : "No Scheme",
           i.productName,
           i.quantity,
-          formatMoney(basic),
-          formatMoney(gst),
+          split ? formatMoney(split.basic) : "",
+          split ? formatMoney(split.gst) : "",
           formatMoney(o.totalAmount),
           formatMoney(o.paidAmount),
           formatMoney(o.balanceDue),

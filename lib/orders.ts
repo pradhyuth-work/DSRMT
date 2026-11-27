@@ -1,3 +1,4 @@
+import { computeLine } from "@/lib/gst";
 import type { Prisma } from "@prisma/client";
 import { HttpError } from "./api";
 import { round2 } from "./money";
@@ -115,7 +116,7 @@ export const orderInclude = {
   billedBy: { select: { name: true } },
   dispatchedBy: { select: { name: true } },
   cancelledBy: { select: { name: true } },
-  items: { include: { product: { select: { name: true } } } },
+  items: { include: { product: { select: { name: true, mrp: true, gstRate: true } } } },
 } satisfies Prisma.InvoiceInclude;
 
 type OrderWithRelations = Prisma.InvoiceGetPayload<{ include: typeof orderInclude }>;
@@ -153,6 +154,10 @@ export function toOrderDTO(o: OrderWithRelations): OrderDTO {
       unitPrice: i.unitPrice,
       subtotal: i.subtotal,
       hasScheme: i.hasScheme,
+      // The tax saved on the GST invoice; before that (or for bills written outside the app), the
+      // same MRP-based sum the invoice will use.
+      gstAmount:
+        i.taxAmt ?? computeLine("MRP", i.unitPrice, i.quantity, i.gstRate ?? i.product.gstRate, i.mrp ?? i.product.mrp)?.tax ?? null,
     })),
   };
 }

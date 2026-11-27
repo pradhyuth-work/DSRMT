@@ -14,16 +14,14 @@ export function formatMoney(value: number): string {
 }
 
 /**
- * GST is 40% of MRP for every product in this business (tobacco trade convention) — not a
- * per-product rate, so no schema field for it. Prices are GST-inclusive: `amount` is the
- * MRP already charged, and this splits it into what was basic price vs. tax, purely for
- * display (order cards, CSV export). Never changes the amount actually billed.
+ * An order's total split into basic price and GST, for display (order cards, CSV export). GST is the
+ * sum of the lines' tax (worked on MRP, see lib/gst.ts); basic is what is left of the amount charged.
+ * Null when any line's tax is unknown (no MRP on the product). Never changes the amount billed.
  */
-const GST_RATE_ON_MRP = 0.4;
-
-export function splitBasicAndGst(amount: number): { basic: number; gst: number } {
-  const gst = round2(amount * GST_RATE_ON_MRP);
-  return { basic: round2(amount - gst), gst };
+export function splitOrderGst(total: number, items: { gstAmount: number | null }[]): { basic: number; gst: number } | null {
+  if (items.some((i) => i.gstAmount === null)) return null;
+  const gst = round2(items.reduce((sum, i) => sum + (i.gstAmount ?? 0), 0));
+  return { basic: round2(total - gst), gst };
 }
 
 export function statusFor(total: number, paid: number): "PAID" | "PARTIAL" | "UNPAID" {

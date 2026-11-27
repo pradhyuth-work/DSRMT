@@ -250,6 +250,8 @@ export interface OrderItemDTO {
   subtotal: number;
   /** Whether this line is priced with scheme rates. Toggleable while PENDING; locked once billed. */
   hasScheme: boolean;
+  /** GST inside this line's amount, worked on MRP. Null when the product has no MRP. */
+  gstAmount: number | null;
 }
 
 export interface OrderDTO {
