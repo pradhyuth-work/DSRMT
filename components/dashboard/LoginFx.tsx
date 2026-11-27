@@ -33,8 +33,8 @@ export function LoginBackdrop() {
           const y = y0 + Math.sin(x / 70 + sp) * amp + Math.sin(x / 190 - sp * 0.7) * amp * 0.8 + (my - 0.5) * 14 * (k / 3);
           if (x) cx.lineTo(x, y); else cx.moveTo(x, y);
         }
-        // navy at low alpha; the middle line uses the theme lime
-        cx.strokeStyle = k === 1 ? "hsla(47,77%,55%,.45)" : "hsla(0,0%,100%,.08)";
+        // navy at low alpha; the middle line is blue
+        cx.strokeStyle = k === 1 ? "hsla(217,91%,60%,.45)" : "hsla(0,0%,100%,.08)";
         cx.lineWidth = k === 1 ? 1.5 : 1;
         cx.stroke();
       }
