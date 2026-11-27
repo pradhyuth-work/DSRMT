@@ -11,6 +11,7 @@ import { IrnPanel, irnActive, irnFor, irnLabel } from "./IrnPanel";
 import { EditOrderForm } from "./OrdersView";
 import PosBilling from "./PosBilling";
 import TaxReports from "./TaxReports";
+import { Chip, PageHead, Tiles, type Tone } from "./billing-ui";
 import { SELLER } from "@/lib/seller";
 import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import type { DashboardData } from "./Dashboard";
@@ -58,10 +59,6 @@ export default function BillingMode({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-accent/40 bg-accent/10 px-4 py-2 text-sm">
-        <span className="font-semibold text-accent">Billing mode</span>
-        <span className="ml-2 opacity-85">Turn orders into GST invoices. Everything here follows the invoice number series.</span>
-      </div>
       {message && <div ref={messageRef} className="scroll-mt-20"><Alert kind={message.kind}>{message.text}</Alert></div>}
       {tab === "desk" && (
         <Desk data={data} user={user} series={series} focusOrderId={focusOrderId ?? null}
@@ -91,13 +88,13 @@ function QueueCard({ o, selected, productById, gstin, onPick, className = "" }: 
   const qty = o.items.reduce((x, i) => x + i.quantity, 0);
   const sc = schemeState(o);
   return (
-    <article className={`card flex min-w-0 flex-col p-4 ${selected ? "ring-2 ring-accent" : ""} ${className}`}>
+    <article className={`card flex min-w-0 flex-col p-5 ${selected ? "ring-2 ring-accent" : ""} ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="break-words text-base font-bold leading-tight">{o.outletName}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">{o.staffName} · {formatDate(o.createdAt)}</p>
         </div>
-        <span className="shrink-0 rounded-full border border-warning/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-foreground">To bill</span>
+        <div className="shrink-0 text-right"><div className="bill-figure ml-auto text-xl tabular-nums">{formatMoney(o.totalAmount)}</div><div className="text-[11px] text-muted-foreground">{qty} pcs</div></div>
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">{gstin ? `GSTIN ${gstin}` : "No GSTIN — B2C, no e-invoice"}{o.agentVehicleNo ? ` · Vehicle ${o.agentVehicleNo}` : ""}</p>
 
@@ -119,15 +116,14 @@ function QueueCard({ o, selected, productById, gstin, onPick, className = "" }: 
         ))}
       </ul>
 
-      <dl className="grid grid-cols-3 gap-2 text-xs">
+      <dl className="grid grid-cols-2 gap-2 text-xs">
         <div><dt className="text-muted-foreground">Basic</dt><dd className="tabular-nums">{known ? formatMoney(round2(gross - tax)) : "—"}</dd></div>
-        <div><dt className="text-muted-foreground">GST</dt><dd className="tabular-nums">{known ? formatMoney(round2(tax)) : "—"}</dd></div>
-        <div><dt className="text-muted-foreground">Total</dt><dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd></div>
+        <div className="text-right"><dt className="text-muted-foreground">GST</dt><dd className="tabular-nums">{known ? formatMoney(round2(tax)) : "—"}</dd></div>
       </dl>
-      <p className="mt-2 text-[11px] text-muted-foreground">{o.items.length} item{o.items.length === 1 ? "" : "s"} · {qty} pcs · <span className={sc === "none" ? "" : "font-bold uppercase tracking-wider text-accent"}>{SCHEME_LABEL[sc]}</span></p>
+      <p className="mt-2 text-[11px] text-muted-foreground">{o.items.length} item{o.items.length === 1 ? "" : "s"} · <span className={sc === "none" ? "" : "font-bold uppercase tracking-wider text-accent"}>{SCHEME_LABEL[sc]}</span></p>
 
       <button type="button" onClick={onPick} className={`btn mt-3 h-11 w-full text-sm ${selected ? "btn-primary" : "btn-secondary"}`}>
-        <FileCheck className="h-4 w-4" /> {selected ? "Selected — bill below" : "Bill this order"}
+        <FileCheck className="h-4 w-4" /> {selected ? "Selected" : "Bill this order"}
       </button>
     </article>
   );
@@ -263,18 +259,25 @@ function Desk({
   ];
 
   return (
-    <div className="flex flex-wrap items-start gap-4">
+    <div className="space-y-4">
+      <PageHead title="Orders to bill" sub="Pick an order, check the draft, make the invoice. Oldest first." />
+      <Tiles items={[
+        { label: "Waiting", value: queue.length },
+        { label: "Value", value: formatMoney(queue.reduce((x, o) => x + o.totalAmount, 0)) },
+        { label: "Next invoice", value: nextLabel ?? "Not set", accent: true },
+      ]} />
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[320px_minmax(0,1fr)_320px]">
       {/* queue — one detailed card per order, like the order cards in Operations */}
-      <section aria-label="Queue" className="order-1 w-full">
+      <section aria-label="Queue" className="min-w-0 lg:col-span-2 2xl:sticky 2xl:top-4 2xl:col-span-1 2xl:max-h-[calc(100vh-2rem)] 2xl:overflow-y-auto">
         <div className="mb-2 flex items-center justify-between text-xs font-semibold tracking-widest text-muted-foreground">
-          <span>TO BILL</span>
+          <span>QUEUE</span>
           <span className="text-accent">
             <span className="sm:hidden">{Math.min(cardIdx + 1, queue.length)} / </span>{queue.length}
           </span>
         </div>
         {/* Phone: one card at a time, swipe sideways for the next. Wider screens keep the grid. */}
         <div ref={railRef} onScroll={onRailScroll}
-          className="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible xl:grid-cols-3">
+          className="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible xl:grid-cols-3 2xl:grid-cols-1 2xl:p-0.5">
           {queue.map((o) => (
             <QueueCard key={o.id} o={o} selected={order?.id === o.id} productById={productById}
               className="w-full shrink-0 snap-center [scroll-snap-stop:always] sm:w-auto sm:shrink"
@@ -292,47 +295,52 @@ function Desk({
       </section>
 
       {/* draft invoice paper */}
-      <section aria-label="Draft invoice" className="order-3 min-w-0 flex-1 basis-[400px] md:order-2">
+      <section aria-label="Draft invoice" className="@container min-w-0">
         {order && (
-          <div className="rounded-md bg-[#F4EFE3] p-3 text-[#1B2B2A] shadow sm:p-5">
-            <div className="flex items-start justify-between border-b-2 border-[#0F2B2A] pb-2">
-              <div className="flex items-center gap-2"><img src="/varasidhi-logo.png" alt="" className="h-10 w-10 rounded-lg" /><div><div className="text-lg font-bold tracking-wider">{SELLER_NAME}</div><div className="text-xs">GSTIN {SELLER_GSTIN}</div></div></div>
-              <div className="text-right"><div className="text-sm font-bold tracking-[.18em]">TAX INVOICE</div><div className="text-[10px] tracking-widest text-[#8a5a00]">DRAFT · NOT YET ISSUED</div></div>
+          <div className="rounded-3xl border-t-4 border-accent bg-white p-5 text-[#17151f] shadow-[0_24px_60px_-24px_rgba(214,53,106,.55)] @lg:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b-2 border-[#17151f] pb-3">
+              <div className="flex items-center gap-2"><img src="/varasidhi-logo.png" alt="" className="h-10 w-10 rounded-lg" /><div><div className="text-base font-bold tracking-wider @lg:text-lg">{SELLER_NAME}</div><div className="text-xs">GSTIN {SELLER_GSTIN}</div></div></div>
+              <div className="flex w-full items-center justify-between @lg:block @lg:w-auto @lg:text-right"><div className="text-sm font-bold tracking-[.18em]">TAX INVOICE</div><div className="text-[10px] tracking-widest text-[#8a5a00]">DRAFT · NOT YET ISSUED</div></div>
             </div>
             <div className="mt-3 flex justify-between gap-4">
-              <div><div className="text-[10px] tracking-widest opacity-70">BILLED TO</div><div className="font-bold">{order.outletName}</div>
-                <div className="text-xs">{outlet?.gstNumber ? `GSTIN: ${outlet.gstNumber}` : "No GSTIN — B2C, no e-invoice"}</div></div>
-              <div className="text-right"><div className="text-[10px] tracking-widest opacity-70">INVOICE NO</div><div className="text-xl font-bold">{nextLabel ?? "—"}</div><div className="text-xs">Supply: Karnataka</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#0F2B2A]">{SCHEME_LABEL[schemeState(order)]}</div></div>
+              <div className="min-w-0"><div className="text-[10px] tracking-widest opacity-70">BILLED TO</div><div className="break-words font-bold">{order.outletName}</div>
+                <div className="break-words text-xs">{outlet?.gstNumber ? `GSTIN: ${outlet.gstNumber}` : "No GSTIN — B2C, no e-invoice"}</div></div>
+              <div className="shrink-0 text-right"><div className="text-[10px] tracking-widest opacity-70">INVOICE NO</div><div className="text-xl font-bold">{nextLabel ?? "—"}</div><div className="text-xs">Supply: Karnataka</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#17151f]">{SCHEME_LABEL[schemeState(order)]}</div></div>
             </div>
-            <div className="mt-3 overflow-x-auto"><div className="min-w-[460px] text-xs">
-              <div className="grid grid-cols-[2fr_.6fr_.8fr_.8fr_1fr_1fr] gap-1 border-b border-[#0F2B2A]/40 pb-1 font-bold">
-                <div>ITEM</div><div className="text-right">QTY</div><div className="text-right">MRP</div><div className="text-right">RATE</div><div className="text-right">TAXABLE</div><div className="text-right">GST 40%</div>
+            <div className="mt-4 text-xs">
+              <div className="hidden grid-cols-[2fr_.5fr_.7fr_.7fr_1fr_1fr] gap-2 border-b border-[#17151f]/40 pb-1 font-bold @lg:grid">
+                <div>ITEM</div><div className="text-right">QTY</div><div className="text-right">MRP</div><div className="text-right">RATE</div><div className="text-right">TAXABLE</div><div className="text-right">GST</div>
               </div>
               {lines.map((l) => (
-                <div key={l.i.productId} className="grid grid-cols-[2fr_.6fr_.8fr_.8fr_1fr_1fr] gap-1 border-b border-[#0F2B2A]/10 py-1">
-                  <div>{l.i.productName}{l.i.hasScheme && <span className="ml-1 rounded bg-[#0F2B2A] px-1 text-[9px] font-bold text-white">SCHEME</span>}</div><div className="text-right">{l.i.quantity}</div>
-                  <div className="text-right">{l.mrp ?? "—"}</div><div className="text-right">{l.i.unitPrice}</div>
-                  <div className="text-right">{l.net === null ? "—" : l.net.toFixed(2)}</div><div className="text-right">{l.tax === null ? "—" : l.tax.toFixed(2)}</div>
+                <div key={l.i.productId} className="grid grid-cols-4 gap-x-2 gap-y-1 border-b border-[#17151f]/15 py-2 @lg:grid-cols-[2fr_.5fr_.7fr_.7fr_1fr_1fr]">
+                  <div className="col-span-4 font-semibold @lg:col-span-1 @lg:font-normal">{l.i.productName}{l.i.hasScheme && <span className="ml-1 rounded bg-[#17151f] px-1 text-[9px] font-bold text-white">SCHEME</span>}</div>
+                  {([["Qty", l.i.quantity], ["MRP", l.mrp ?? "—"], ["Rate", l.i.unitPrice]] as const).map(([k, v]) => (
+                    <div key={k} className="tabular-nums @lg:text-right"><span className="block text-[9px] uppercase opacity-60 @lg:hidden">{k}</span>{v}</div>
+                  ))}
+                  <div className="hidden text-right tabular-nums @lg:block">{l.net === null ? "—" : l.net.toFixed(2)}</div>
+                  <div className="text-right tabular-nums"><span className="block text-[9px] uppercase opacity-60 @lg:hidden">GST {l.rate}%</span>{l.tax === null ? "—" : l.tax.toFixed(2)}<span className="hidden text-[9px] opacity-60 @lg:block">{l.rate}%</span></div>
                 </div>
               ))}
-            </div></div>
-            <div className="mt-3 flex justify-end"><div className="w-64 text-xs">
-              <div className="flex justify-between py-0.5"><span>Sub total</span><span>{missingMrp.length ? "—" : netSum.toFixed(2)}</span></div>
-              <div className="flex justify-between py-0.5"><span>GST (RSP based)</span><span>{missingMrp.length ? "—" : taxSum.toFixed(2)}</span></div>
-              <div className="mt-1 flex justify-between border-t-2 border-[#0F2B2A] pt-1 text-sm font-bold"><span>NET AMOUNT</span><span>{formatMoney(total)}</span></div>
+            </div>
+            <div className="mt-3 flex justify-end"><div className="w-full text-xs @lg:w-64">
+              <div className="flex justify-between py-0.5"><span>Sub total</span><span className="tabular-nums">{missingMrp.length ? "—" : netSum.toFixed(2)}</span></div>
+              <div className="flex justify-between py-0.5"><span>GST (RSP based)</span><span className="tabular-nums">{missingMrp.length ? "—" : taxSum.toFixed(2)}</span></div>
+              <div className="mt-2 flex items-baseline justify-between border-t-2 border-[#17151f] pt-2 font-bold"><span className="text-sm">NET AMOUNT</span><span className="text-2xl tabular-nums">{formatMoney(total)}</span></div>
             </div></div>
           </div>
         )}
         {missingMrp.length > 0 && <div className="mt-2"><Alert kind="warning">MRP missing for {missingMrp.join(", ")} — add it under Invoices → E-invoice details so tax can be shown.</Alert></div>}
       </section>
 
-      {/* steps */}
-      <aside id="bill-actions" aria-label="Steps" className="card order-2 scroll-mt-20 w-full shrink-0 space-y-3 p-4 md:order-3 lg:w-72">
-        <div className="hidden text-xs font-semibold tracking-widest text-muted-foreground md:block">WHAT HAPPENS</div>
-        {steps.map((s, i) => (
-          <div key={s.t} className="hidden gap-3 md:flex"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] text-accent">{i + 1}</span>
-            <span className="text-sm leading-snug"><span className="block font-bold">{s.t}</span><span className="text-xs text-muted-foreground">{s.n}</span></span></div>
-        ))}
+      {/* actions */}
+      <aside id="bill-actions" aria-label="Steps" className="card scroll-mt-20 min-w-0 space-y-3 p-5 2xl:!sticky 2xl:top-4">
+        {order && (
+          <div className="border-b border-border pb-3">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{outside ? "Record outside bill" : `Make invoice ${nextLabel ?? ""}`}</div>
+            <div className="bill-figure mt-1 text-4xl tabular-nums">{formatMoney(total)}</div>
+            <div className="break-words text-sm">{order.outletName}</div>
+          </div>
+        )}
         {!outside ? (
           <>
             <div><label className="label" htmlFor="desk-veh">Vehicle number{ewb ? " (for the e-way bill)" : " (optional)"}</label>
@@ -350,13 +358,15 @@ function Desk({
             {outlet?.gstNumber && gsp !== undefined && !gsp?.ready && <Alert kind="warning">This will make the invoice only, not the e-invoice: {gsp?.problem ?? "the e-invoice set-up could not be read"}</Alert>}
             {outlet && !outlet.gstNumber && <p className="text-xs text-muted-foreground">No GSTIN on this outlet: invoice only, no e-invoice or e-way bill.</p>}
             {!nextLabel && <Alert kind="warning">Set the starting invoice number first (Invoices → numbering).</Alert>}
-            <button type="button" className="btn btn-primary w-full" disabled={busy || !nextLabel || shipToIncomplete(shipTo) || gsp === undefined || !!ewbMissing} onClick={() => void generate()}>
+            <button type="button" className="btn btn-primary h-12 w-full text-sm" disabled={busy || !nextLabel || shipToIncomplete(shipTo) || gsp === undefined || !!ewbMissing} onClick={() => void generate()}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck className="h-4 w-4" />} Generate invoice
             </button>
-            {canEdit && order && (
-              <button type="button" className="btn btn-secondary w-full" disabled={busy} onClick={() => setEditing(order)}><Pencil className="h-4 w-4" /> Edit order</button>
-            )}
-            <button type="button" className="btn btn-secondary w-full" disabled={busy} onClick={() => setOutside(true)}>Billed outside the app</button>
+            <div className="grid auto-cols-fr grid-flow-col gap-2">
+              {canEdit && order && (
+                <button type="button" className="btn btn-secondary !px-2" disabled={busy} onClick={() => setEditing(order)}><Pencil className="h-4 w-4" /> Edit order</button>
+              )}
+              <button type="button" className="btn btn-secondary !px-2" disabled={busy} onClick={() => setOutside(true)}>Billed outside the app</button>
+            </div>
           </>
         ) : (
           <>
@@ -367,8 +377,18 @@ function Desk({
             <button type="button" className="btn btn-secondary w-full" onClick={() => setOutside(false)}>Back</button>
           </>
         )}
+        <details className="border-t border-border pt-3">
+          <summary className="focus-ring cursor-pointer text-xs font-semibold uppercase tracking-widest text-muted-foreground">What happens</summary>
+          <ol className="mt-3 space-y-3">
+            {steps.map((s, i) => (
+              <li key={s.t} className="flex gap-3"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] text-accent">{i + 1}</span>
+                <span className="text-sm leading-snug"><span className="block font-bold">{s.t}</span><span className="text-xs text-muted-foreground">{s.n}</span></span></li>
+            ))}
+          </ol>
+        </details>
         <p className="text-xs text-muted-foreground">Once an invoice is made, mistakes go through Cancel or correct under Invoices.</p>
       </aside>
+    </div>
 
       <Modal open={!!editing} title={`Edit order — ${editing?.outletName ?? ""}`} onClose={() => setEditing(null)}>
         {editing && (
@@ -428,6 +448,13 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
     const r = irnFor(o, gsp).shown;
     return r ? irnLabel(r) : o.posBill ? "POS" : o.einvExportedAt ? "JSON exported" : "In app";
   };
+  const tone = (o: OrderDTO): Tone => {
+    if (o.fulfilmentStatus === "CANCELLED") return irnActive(irnFor(o, gsp).live) ? "warn" : "bad";
+    const r = o.billedOutside ? undefined : irnFor(o, gsp).shown;
+    if (!r) return "plain";
+    if (r.status === "GENERATED") return r.ewbStatus === "FAILED" || r.ewbStatus === "UNKNOWN" ? "warn" : "good";
+    return r.status === "FAILED" || r.status === "CANCELLED" ? "bad" : "warn";
+  };
 
   async function submit() {
     if (!sel) return;
@@ -483,34 +510,37 @@ function Invoices({ data, series, isAdmin, onDone }: { data: DashboardData; seri
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Next invoice number</div><div className="text-xl font-bold text-accent">{series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : "Not set"}</div></div>
-        <div className="card px-4 py-3"><div className="text-xs text-muted-foreground">Numbers waiting to be reused</div><div className="text-xl font-bold">{series?.reusable.length ?? 0}</div></div>
-        {isAdmin && <button type="button" className="btn btn-secondary self-center" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
-      </div>
+      <PageHead title="Invoices" sub="Print, file, cancel or correct. Newest first.">
+        {isAdmin && <button type="button" className="btn btn-secondary w-full sm:w-auto" onClick={() => setShowSetup(true)}>E-invoice JSON, numbering &amp; details</button>}
+      </PageHead>
+      <Tiles items={[
+        { label: "Next number", value: series?.next ? `${series.prefix} ${series.reusable[0] ?? series.next}` : "Not set", accent: true },
+        { label: "To reuse", value: series?.reusable.length ?? 0 },
+        { label: "Bills listed", value: list.length },
+      ]} />
 
       {dlErr && <Alert kind="error">{dlErr}</Alert>}
       <div id="invoice-list" className="card min-w-0 scroll-mt-20">
         {list.length === 0 ? <EmptyState>No invoices yet.</EmptyState> : (
           <div className="divide-y divide-border">
-            <div className="hidden grid-cols-[1fr_2fr_1fr_1fr_auto] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Invoice</div><div>Outlet</div><div>Amount</div><div>Status</div><div className="w-[170px]">Actions</div></div>
+            <div className="hidden grid-cols-[1fr_2fr_1fr_1.2fr_auto] gap-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground xl:grid"><div>Invoice</div><div>Outlet</div><div className="text-right">Amount</div><div className="pl-4">Status</div><div className="w-[270px]">Actions</div></div>
             {shown.map((o) => {
               const inApp = !o.billedOutside && o.fulfilmentStatus !== "CANCELLED";
               return (
                 <div key={o.id}>
-                  <div id={`inv-${o.id}`} className={`scroll-mt-20 flex flex-col gap-2 px-3 py-3 text-sm sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr_auto] sm:items-center sm:gap-2 sm:py-2 ${sel?.id === o.id ? "bg-accent/10" : ""}`}>
-                    <button type="button" onClick={() => toggle(o.id)} aria-expanded={sel?.id === o.id} className="focus-ring flex min-w-0 flex-col gap-1 text-left sm:col-span-4 sm:grid sm:grid-cols-[1fr_2fr_1fr_1fr] sm:gap-2" aria-label={`Select ${o.invoiceNumber}`}>
-                      <span className="flex items-baseline justify-between gap-2 sm:block"><span className="font-mono font-bold">{o.invoiceNumber}</span><span className="font-bold sm:hidden">{formatMoney(o.totalAmount)}</span></span>
-                      <span className="truncate">{o.outletName}</span>
-                      <span className="hidden sm:block">{formatMoney(o.totalAmount)}</span>
-                      <span className="text-xs font-semibold uppercase text-muted-foreground sm:text-foreground">{label(o)}</span>
+                  <div id={`inv-${o.id}`} className={`scroll-mt-20 flex flex-col gap-3 border-l-2 px-4 py-3 text-sm xl:grid xl:grid-cols-[1fr_2fr_1fr_1.2fr_auto] xl:items-center xl:gap-2 ${sel?.id === o.id ? "border-accent bg-accent/10" : "border-transparent"}`}>
+                    <button type="button" onClick={() => toggle(o.id)} aria-expanded={sel?.id === o.id} className="focus-ring grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-left xl:col-span-4 xl:grid-cols-[1fr_2fr_1fr_1.2fr] xl:items-center xl:gap-2" aria-label={`Select ${o.invoiceNumber}`}>
+                      <span className="order-3 xl:order-none"><span className="block font-mono font-bold xl:text-sm">{o.invoiceNumber}</span>{o.billedAt && <span className="hidden text-[11px] text-muted-foreground xl:block">{formatDate(o.billedAt)}</span>}</span>
+                      <span className="order-1 min-w-0 xl:order-none"><span className="block break-words font-semibold xl:truncate">{o.outletName}</span>{o.billedAt && <span className="block text-[11px] text-muted-foreground xl:hidden">{formatDate(o.billedAt)}</span>}</span>
+                      <span className={`order-2 text-right text-base font-bold tabular-nums xl:order-none xl:text-sm ${o.fulfilmentStatus === "CANCELLED" ? "text-muted-foreground line-through" : ""}`}>{formatMoney(o.totalAmount)}</span>
+                      <span className="order-4 justify-self-end xl:order-none xl:justify-self-start xl:pl-4"><Chip tone={tone(o)}>{label(o)}</Chip></span>
                     </button>
-                    <div className="flex gap-2 sm:w-[170px] sm:gap-1">
-                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="Print the invoice"
+                    <div className="flex gap-2 empty:hidden xl:w-[270px] xl:gap-1 xl:empty:flex">
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 whitespace-nowrap !px-2 text-xs xl:h-8 xl:!tracking-wide" title="Print the invoice"
                         onClick={() => { setDlErr(null); api.printInvoice(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not print"}`)); }}>Print invoice</button>}
-                      {inApp && isAdmin && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:h-8 sm:flex-none" title="E-invoice JSON for this bill"
+                      {inApp && isAdmin && <button type="button" className="btn btn-secondary h-10 flex-1 whitespace-nowrap !px-2 text-xs xl:h-8 xl:!tracking-wide" title="E-invoice JSON for this bill"
                         onClick={() => { setDlErr(null); api.downloadEinvoiceForBill(o.id).catch((e) => setDlErr(`${o.invoiceNumber}: ${e instanceof Error ? e.message : "Could not make the JSON"}`)); }}>JSON</button>}
-                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs sm:hidden" onClick={() => toggle(o.id)}>{isAdmin ? "IRN / cancel" : "IRN"}</button>}
+                      {inApp && <button type="button" className="btn btn-secondary h-10 flex-1 !px-2 text-xs xl:hidden" onClick={() => toggle(o.id)}>{isAdmin ? "IRN / cancel" : "IRN"}</button>}
                     </div>
                   </div>
                 {sel?.id === o.id && detail}

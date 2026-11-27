@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, ShoppingCart, Store, Trash2 } from "lucide-react";
 import type { OutletDTO } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { computeLine, splitTax, STATES, HOME_STATE, type TaxMode } from "@/lib/gst";
@@ -9,6 +9,7 @@ import { api } from "./api-client";
 import { Alert } from "./ui";
 import { ShipToFields, emptyShipTo, shipToIncomplete, shipToInput, type ShipToForm } from "./ShipTo";
 import { Combobox } from "./Combobox";
+import { Chip, PageHead, Panel, Segmented } from "./billing-ui";
 import type { DashboardData } from "./Dashboard";
 
 interface Row { productId: string; qty: string; mrp: string; price: string; mode: TaxMode }
@@ -85,13 +86,13 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
 
   return (
     <div className="space-y-4">
-      <div><h2 className="text-xl font-bold">POS billing</h2><p className="text-sm text-muted-foreground">Admin only. Walk-in or new outlet, price typed by you, tax option chosen per item.</p></div>
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="card min-w-0 flex-1 basis-[420px] space-y-4 p-4">
-          <div className="flex gap-2">
-            <button type="button" className={`btn h-9 text-sm ${existing ? "btn-primary" : "btn-secondary"}`} onClick={() => setExisting(true)}>Existing outlet</button>
-            <button type="button" className={`btn h-9 text-sm ${!existing ? "btn-primary" : "btn-secondary"}`} onClick={() => setExisting(false)}>New outlet</button>
-          </div>
+      <PageHead title="POS billing" sub="Walk-in or new outlet, price typed by you, tax option chosen per item.">
+        <Chip>Admin only</Chip>
+      </PageHead>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-4">
+          <Panel step={1} title="Customer" icon={Store}>
+          <Segmented label="Customer type" value={existing ? "old" : "new"} onChange={(v) => setExisting(v === "old")} options={[{ id: "old", label: "Existing outlet" }, { id: "new", label: "New outlet" }]} />
           {existing ? (
             <div><label className="label" htmlFor="pos-outlet">Outlet</label>
               <Combobox id="pos-outlet" value={outletId} onChange={setOutletId} placeholder="Choose an outlet"
@@ -117,34 +118,41 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
           </div>
 
           <ShipToFields idPrefix="pos" value={shipTo} onChange={setShipTo} />
+          </Panel>
 
-          <div><div className="mb-1 text-xs font-semibold tracking-widest text-muted-foreground">TAX OPTION FOR ALL ITEMS <span className="font-normal normal-case tracking-normal">— or change it item by item below</span></div>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Tax option">
-              {OPTIONS.map((o) => (<button key={o.id} type="button" aria-pressed={rows.every((r) => r.mode === o.id)} onClick={() => { setMode(o.id); setRows(rows.map((r) => ({ ...r, mode: o.id }))); }} className={`btn h-9 text-sm ${rows.every((r) => r.mode === o.id) ? "btn-primary" : "btn-secondary"}`}>{o.label}</button>))}
-            </div></div>
+          <Panel step={2} title="Items" icon={ShoppingCart}>
+          <div><div className="label">Tax option for all items</div>
+            <Segmented label="Tax option" value={rows.every((r) => r.mode === rows[0].mode) ? rows[0].mode : null} options={OPTIONS}
+              onChange={(id) => { setMode(id); setRows(rows.map((r) => ({ ...r, mode: id }))); }} />
+            <p className="mt-1 text-xs text-muted-foreground">{rows.every((r) => r.mode === rows[0].mode) ? OPTIONS.find((o) => o.id === rows[0].mode)?.explain : "Items use different tax options."} You can change it item by item.</p></div>
 
-          <div className="space-y-2">
-            <div className="hidden grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] gap-2 text-xs font-semibold text-muted-foreground sm:grid"><div>Item</div><div>Tax</div><div>Qty</div><div>MRP / pack</div><div>Your price / pack</div><div /></div>
+          <div className="space-y-3">
             {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-2 items-center gap-2 rounded-lg border border-border p-2 sm:grid-cols-[2fr_1.1fr_.7fr_.9fr_.9fr_auto] sm:border-0 sm:p-0">
-                <div className="col-span-2 sm:col-span-1"><Combobox value={r.productId} onChange={(v) => pickProduct(i, v)} ariaLabel="Item" placeholder="Choose item"
-                  options={data.products.map((p) => ({ value: p.id, label: p.name, description: p.stockQty != null ? `${p.stockQty} in stock` : undefined }))} /></div>
-                <select className="input" aria-label="Tax option" value={r.mode} onChange={(e) => setRow(i, { mode: e.target.value as TaxMode })}>
-                  {OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.id === "MRP" ? "On MRP" : o.label}</option>)}
-                </select>
-                <input className="input" aria-label="Quantity" placeholder="Qty" inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, { qty: e.target.value.replace(/\D/g, "") })} />
-                <input className="input" aria-label="MRP" placeholder="MRP / pack" inputMode="decimal" value={r.mrp} onChange={(e) => setRow(i, { mrp: e.target.value })} disabled={r.mode !== "MRP"} />
-                <input className="input" aria-label="Price" placeholder="Your price / pack" inputMode="decimal" value={r.price} onChange={(e) => setRow(i, { price: e.target.value })} />
-                <button type="button" className="btn btn-secondary col-span-2 h-10 sm:col-span-1 sm:w-10 !px-0" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></button>
+              <div key={i} className="space-y-3 rounded-2xl border border-border bg-white/[.02] p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Item {i + 1}</span>
+                  <span className="ml-auto text-sm font-bold tabular-nums text-accent">{calc[i] ? formatMoney(calc[i]!.gross) : ""}</span>
+                  <button type="button" className="btn btn-secondary h-9 w-9 !px-0" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></button>
+                </div>
+                <Combobox value={r.productId} onChange={(v) => pickProduct(i, v)} ariaLabel="Item" placeholder="Choose item"
+                  options={data.products.map((p) => ({ value: p.id, label: p.name, description: p.stockQty != null ? `${p.stockQty} in stock` : undefined }))} />
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  <label><span className="label">Tax</span><select className="input" aria-label="Tax option" value={r.mode} onChange={(e) => setRow(i, { mode: e.target.value as TaxMode })}>
+                    {OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.id === "MRP" ? "On MRP" : o.label}</option>)}
+                  </select></label>
+                  <label><span className="label">Qty</span><input className="input" aria-label="Quantity" placeholder="0" inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, { qty: e.target.value.replace(/\D/g, "") })} /></label>
+                  <label><span className="label">MRP / pack</span><input className="input" aria-label="MRP" placeholder="0.00" inputMode="decimal" value={r.mrp} onChange={(e) => setRow(i, { mrp: e.target.value })} disabled={r.mode !== "MRP"} /></label>
+                  <label><span className="label">Your price</span><input className="input" aria-label="Price" placeholder="0.00" inputMode="decimal" value={r.price} onChange={(e) => setRow(i, { price: e.target.value })} /></label>
+                </div>
               </div>
             ))}
-            <button type="button" className="btn btn-secondary h-9 text-sm" onClick={() => setRows([...rows, blank(mode)])}><Plus className="h-4 w-4" /> Add item</button>
+            <button type="button" className="btn btn-secondary h-11 w-full border-dashed text-sm" onClick={() => setRows([...rows, blank(mode)])}><Plus className="h-4 w-4" /> Add item</button>
           </div>
+          </Panel>
         </div>
 
-        <div className="card w-full shrink-0 space-y-2 p-4 lg:w-80">
-          <div className="text-xs font-semibold tracking-widest text-muted-foreground">WHAT THE BILL WILL SHOW</div>
-          <p className="text-sm text-muted-foreground">Each item uses its own tax option. Tax is shown by GST rate.</p>
+        <div className="card min-w-0 space-y-2 p-4 lg:!sticky lg:top-4">
+          <div className="text-xs font-semibold tracking-widest text-muted-foreground">BILL SUMMARY</div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sub total</span><span>{formatMoney(total - tax)}</span></div>
           {slabs.length === 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">GST</span><span>{formatMoney(0)}</span></div>}
           {slabs.map(([rate, amt]) => {
@@ -158,9 +166,9 @@ export default function PosBilling({ data, onDone, onError }: { data: DashboardD
               <div key={rate} className="flex justify-between text-sm"><span className="text-muted-foreground">IGST {rate}%</span><span>{formatMoney(x.igst)}</span></div>
             );
           })}
-          <div className="flex justify-between border-t border-border pt-2 text-lg font-bold"><span>Total</span><span>{formatMoney(total)}</span></div>
+          <div className="flex items-baseline justify-between border-t border-border pt-3 font-bold"><span>Total</span><span className="bill-figure text-4xl tabular-nums">{formatMoney(total)}</span></div>
           {anyRow && !complete && <Alert kind="warning">Fill quantity and price on every item{rows.some((r) => r.mode === "MRP") ? " (and MRP on MRP items)" : ""}.</Alert>}
-          <button type="button" className="btn btn-primary w-full" disabled={busy || !complete || !outletOk || shipToIncomplete(shipTo)} onClick={() => void create()}>
+          <button type="button" className="btn btn-primary h-12 w-full text-sm" disabled={busy || !complete || !outletOk || shipToIncomplete(shipTo)} onClick={() => void create()}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Create bill
           </button>
           <p className="text-xs text-muted-foreground">Makes the next MTR invoice, takes stock out and marks it handed over. Payment is collected under Payments.</p>

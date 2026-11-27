@@ -345,7 +345,7 @@ export default function Dashboard() {
           key={m}
           type="button"
           aria-pressed={mode === m}
-          onClick={() => { setMode(m); setMobileNav(false); }}
+          onClick={() => setMode(m)}
           className={`focus-ring rounded-lg px-2 py-2 text-xs font-bold ${mode === m ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/70"}`}
         >
           {m === "ops" ? "Operations" : "Billing"}

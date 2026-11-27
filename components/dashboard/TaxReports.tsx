@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Eye, Loader2 } from "lucide-react";
+import { BookOpen, Download, Eye, FileCheck, FileSpreadsheet, FileX, Hash, ReceiptText, Loader2, type LucideIcon } from "lucide-react";
 import type { TaxReportTable } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert, Modal } from "./ui";
+import { CardMark, PageHead } from "./billing-ui";
 
 const thisMonth = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }).slice(0, 7);
 
@@ -16,6 +17,8 @@ const REPORTS: { type: string; name: string; desc: string; download: string; vie
   { type: "einvoice-status", name: "E-invoice status", desc: "Every invoice with whether its JSON was made. IRN and ack no. fill in once the GSP is connected.", download: "Download CSV", view: true },
   { type: "cancelled", name: "Cancelled invoices", desc: "Every cancel with who, when and why, plus numbers reused.", download: "Download CSV", view: true },
 ];
+
+const ICONS: Record<string, LucideIcon> = { gstr1: FileSpreadsheet, gstr3b: BookOpen, "sales-register": ReceiptText, hsn: Hash, "einvoice-status": FileCheck, cancelled: FileX };
 
 /** Reports for the CA or the portal, for the invoices made in this app (MTR series), month by month. */
 export default function TaxReports() {
@@ -32,21 +35,23 @@ export default function TaxReports() {
 
   return (
     <div className="space-y-4">
-      <div><h2 className="text-xl font-bold">Tax reports</h2><p className="text-sm text-muted-foreground">Ready for your CA or the portal. Pick the month.</p></div>
-      <div className="max-w-xs"><label className="label" htmlFor="tax-month">Month</label><input id="tax-month" type="month" className="input" value={month} onChange={(e) => setMonth(e.target.value)} /></div>
+      <PageHead title="Tax reports" sub="Ready for your CA or the portal. Pick the month.">
+        <div className="w-full sm:w-56"><label className="label" htmlFor="tax-month">Month</label><input id="tax-month" type="month" className="input" value={month} onChange={(e) => setMonth(e.target.value)} /></div>
+      </PageHead>
       <p className="text-xs text-muted-foreground">Only invoices made in this app are included. Bills written in Target or the bill book are reported from there.</p>
       {err && <Alert kind="error">{err}</Alert>}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {REPORTS.map((r) => (
-          <div key={r.type} className="card space-y-2 p-4">
-            <div className="font-bold">{r.name}</div>
-            <div className="text-sm text-muted-foreground">{r.desc}</div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button type="button" className="btn btn-primary h-9 text-sm" disabled={!month || busy !== null} onClick={() => void run(`${r.type}-d`, async () => { await api.taxReportDownload(r.type, month); })}>
+        {REPORTS.map((r, i) => (
+          <div key={r.type} className="card flex flex-col gap-3 p-6">
+            <CardMark step={i + 1} icon={ICONS[r.type] ?? FileSpreadsheet} />
+            <h3 className="mt-2 text-xl font-semibold">{r.name}</h3>
+            <div className="flex-1 text-sm text-muted-foreground">{r.desc}</div>
+            <div className="mt-2 flex gap-2">
+              <button type="button" className="btn btn-primary h-10 flex-1 !px-2 text-sm" disabled={!month || busy !== null} onClick={() => void run(`${r.type}-d`, async () => { await api.taxReportDownload(r.type, month); })}>
                 {busy === `${r.type}-d` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {r.download}
               </button>
               {r.view && (
-                <button type="button" className="btn btn-secondary h-9 text-sm" disabled={!month || busy !== null} onClick={() => void run(`${r.type}-v`, async () => { const res = await api.taxReportView(r.type, month); setView({ title: `${r.name} — ${month}`, tables: res.tables }); })}>
+                <button type="button" className="btn btn-secondary h-10 !px-3 text-sm" disabled={!month || busy !== null} onClick={() => void run(`${r.type}-v`, async () => { const res = await api.taxReportView(r.type, month); setView({ title: `${r.name} — ${month}`, tables: res.tables }); })}>
                   {busy === `${r.type}-v` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />} View
                 </button>
               )}

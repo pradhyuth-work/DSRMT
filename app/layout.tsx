@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./enhance.css";
 import "./ticket.css";
+import "./billing.css";
 import Enhance from "@/components/dashboard/Enhance";
 
 export const metadata: Metadata = {
