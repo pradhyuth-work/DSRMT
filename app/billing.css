@@ -179,3 +179,19 @@ html.app-skin:not(.billing-mode) {
 html.app-skin:not(.billing-mode) .btn-primary, html.app-skin:not(.billing-mode) .nav-tab[data-active="true"] { color: #150f1f; }
 html.app-skin:not(.billing-mode) .input, html.app-skin:not(.billing-mode) .btn-secondary { background: hsl(var(--secondary)); }
 html.app-skin:not(.billing-mode) .avatar-ring { color: #150f1f; }
+
+/* Computer screens show dark plum flatter and greyer than phone screens do: go deeper there, keep the
+   corner glow phone-sized, and make the side menu text as bright as the phone menu */
+@media (min-width: 768px) {
+  html.app-skin:not(.billing-mode) {
+    --card-bg: #130e1b; --background: 266 32% 4%; --sidebar: 266 30% 5%; --card: 266 30% 7%;
+    --secondary: 266 26% 10%; --muted: 266 26% 10%; --sidebar-accent: 266 26% 10%;
+  }
+  html.app-skin:not(.billing-mode) body { background-image:
+    radial-gradient(420px 460px at 100% 0%, rgba(var(--acc-rgb), .26), transparent 70%),
+    linear-gradient(rgba(255, 255, 255, .03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, transparent 1px); }
+  html.app-skin:not(.billing-mode) aside nav button:not([data-active="true"]) { color: hsl(var(--sidebar-foreground)); }
+  html.app-skin:not(.billing-mode) aside nav button:not([data-active="true"]) * { opacity: 1; }
+  html.app-skin:not(.billing-mode) aside nav button:not([data-active="true"]) span span + span { color: hsl(var(--sidebar-foreground) / .6); }
+}
