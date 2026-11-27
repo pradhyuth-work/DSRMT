@@ -157,7 +157,7 @@ type DrawCmd =
   | { t: "image"; x: number; y: number; w: number; h: number }
   | { t: "qr"; x: number; y: number; w: number; h: number };
 
-/** Saves the invoice as a PNG image named after the invoice number (e.g. MTR-312.png). Several pages are stacked in one image. */
+/** Saves the invoice as PNG images named after the invoice number (MTR-312.png, or MTR-312-page-1.png and so on). */
 async function downloadInvoiceImage(orderId: string): Promise<void> {
   const layout = await request<{ name: string; w: number; h: number; qr: string | null; pages: DrawCmd[][] }>(`/api/orders/${enc(orderId)}/image`);
   const logo = await new Promise<HTMLImageElement | null>((resolve) => {
@@ -186,20 +186,18 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
     }),
   );
   const family = faces.every(Boolean) ? "InvoiceSans, Helvetica, Arial, sans-serif" : "Helvetica, Arial, sans-serif";
-  const scale = 3;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(layout.w * scale);
-  canvas.height = Math.round(layout.h * scale * layout.pages.length);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new ApiRequestError("Could not make the image on this device");
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const scale = 4;
   const ink = "#0F2B29";
   const gray = "#5A6B6B";
   const light = "#C7D4D2";
-  layout.pages.forEach((cmds, pi) => {
-    ctx.save();
-    ctx.translate(0, pi * layout.h * scale);
+  const drawPage = async (cmds: DrawCmd[]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(layout.w * scale);
+    canvas.height = Math.round(layout.h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new ApiRequestError("Could not make the image on this device");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.scale(scale, scale);
     ctx.textBaseline = "alphabetic";
     for (const c of cmds) {
@@ -240,16 +238,23 @@ async function downloadInvoiceImage(orderId: string): Promise<void> {
         ctx.drawImage(logo, c.x, c.y, c.w, c.h);
       }
     }
-    ctx.restore();
-  });
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) throw new ApiRequestError("Could not make the image on this device");
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${layout.name}.png`;
-  a.click();
-  URL.revokeObjectURL(url);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new ApiRequestError("Could not make the image on this device");
+    return blob;
+  };
+  // One file per page. All are drawn first, so a failure can't leave half an invoice downloaded.
+  const blobs: Blob[] = [];
+  for (const cmds of layout.pages) blobs.push(await drawPage(cmds));
+  for (const [i, blob] of blobs.entries()) {
+    // Browsers drop downloads fired in the same instant.
+    if (i) await new Promise((resolve) => setTimeout(resolve, 600));
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = blobs.length > 1 ? `${layout.name}-page-${i + 1}.png` : `${layout.name}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 }
 
 /** Opens the printable A5 invoice for a bill made in the app in a new window and starts printing. */

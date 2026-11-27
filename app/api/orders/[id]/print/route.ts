@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const field = (l: string, v: string) => `<div style="margin-top:3px"><div class="lbl">${l}</div><div style="font-weight:600;word-break:break-all">${esc(v)}</div></div>`;
     const irnBlock = einv
       ? `<div style="display:flex;gap:10px;align-items:center;padding:5px 0;border-top:1px solid #C9D3D2">
-${einv.qr ? `<img src="data:image/png;base64,${einv.qr}" alt="E-invoice QR code" style="width:27mm;height:27mm;image-rendering:pixelated;flex:0 0 auto">` : ""}
+${einv.qr ? `<img src="data:image/png;base64,${einv.qr}" alt="E-invoice QR code" style="width:30mm;height:30mm;image-rendering:pixelated;flex:0 0 auto">` : ""}
 <div style="min-width:0;font-size:8px">${einv.test ? `<div style="font-weight:700;font-size:11px;letter-spacing:.08em">TEST ONLY — NOT A VALID E-INVOICE</div>` : `<div class="lbl" style="letter-spacing:.14em">E-INVOICE</div>`}
 ${field("IRN", einv.irn)}${field("ACK NO / DATE", [einv.ackNo, einv.ackDate].filter(Boolean).join("   "))}${einv.ewb ? field("E-WAY BILL NO / DATE / VALID UPTO", [einv.ewb.no, einv.ewb.date, einv.ewb.validUpto].filter(Boolean).join("   ")) : ""}</div></div>`
       : "";

@@ -5,6 +5,7 @@ import { computeLine, STATES } from "@/lib/gst";
 import { einvoiceInclude } from "@/lib/einvoice";
 import { gspTestMode } from "@/lib/gstin-client";
 import { irpDocNumber } from "@/lib/invoice-series";
+import { qrFromGsp } from "@/lib/qr";
 
 export const round2n = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export const f2 = (n: number) => (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2);
@@ -25,9 +26,8 @@ async function loadIrnBlock(invoiceId: string, invoiceNumber: string) {
     .catch(() => []);
   const r = rows.find((x) => !x.testMode) ?? (gspTestMode() ? rows.find((x) => x.testMode) : undefined);
   if (!r) return null;
-  const qr = (r.qrImage ?? "").replace(/^data:image\/png;base64,/, "").replace(/\s+/g, "");
   const ewb = r.ewbStatus === "GENERATED" && r.ewbNo ? { no: r.ewbNo, date: r.ewbDate ?? "", validUpto: r.ewbValidUpto ?? "" } : null;
-  return { test: r.testMode, irn: r.irn!, ackNo: r.ackNo ?? "", ackDate: r.ackDate ?? "", qr: /^[A-Za-z0-9+/]+=*$/.test(qr) ? qr : null, ewb };
+  return { test: r.testMode, irn: r.irn!, ackNo: r.ackNo ?? "", ackDate: r.ackDate ?? "", qr: qrFromGsp(r.qrImage), ewb };
 }
 
 /** Everything the printed / PDF invoice shows, worked out once. Throws if the order has no in-app GST invoice. */

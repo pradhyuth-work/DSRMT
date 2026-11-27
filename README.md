@@ -149,6 +149,7 @@ scripts/import-sqlite.ts    one-time copy of old prisma/dev.db data into Postgre
 - Run `supabase/migrations/0025_einvoice_records.sql` **before deploying** the GSP code (the cancel routes, export, tax report and full backup read the new table).
 - E-invoice + e-way bill through gstinapi.in: set `GSTINAPI_KEY`, `GSTINAPI_GSTIN`, `GSTINAPI_USERNAME`, `GSTINAPI_PASSWORD` (server only). Test mode is on unless `GSTINAPI_TEST_MODE` is exactly `false`; redeploy after changing it.
 - On Billing → To bill, **Generate invoice** also files the IRN (and, if ticked, the e-way bill) for outlets with a GSTIN. A refused filing keeps the invoice; retry it under Invoices. POS bills are filed from Invoices.
+- A real e-invoice QR arrives as signed text; `lib/qr.ts` draws it for print, PDF and image. Download image saves one PNG per page.
   - `GET /api/einvoice/records` — admin, stock; set-up state and IRN records.
   - `POST /api/orders/[id]/einvoice` — admin, stock; IRN, with the e-way bill in the same call when asked. `.../einvoice/ewaybill` makes or retries the e-way bill; `.../einvoice/cancel` (admin) cancels both on the portal.
   - No automatic retries. A number is claimed in the database before sending (one row per number per mode). Pure helpers: `npm run test:einvoice-live`.

@@ -92,8 +92,9 @@ function lines(pg: PdfPage, v: View, from: number, to: number) {
 /** QR code, IRN and e-way bill, above the totals on the last page. */
 function irnBlock(pg: PdfPage, v: View, hasQr: boolean) {
   const e = v.einv!;
-  const x = hasQr ? M + 84 : M;
-  if (hasQr) pg.qr(M, 366, 76);
+  const x = hasQr ? M + 92 : M;
+  // As large as the space allows: the signed code is dense.
+  if (hasQr) pg.qr(M, 363, 85);
   if (!hasQr) pg.text(M, 441, "QR code could not be drawn here: use Print.", 5.5, { gray: true });
   pg.text(x, 374, e.test ? "TEST ONLY - NOT A VALID E-INVOICE" : "E-INVOICE", e.test ? 9 : 6, { bold: true, gray: !e.test });
   const field = (label: string, val: string, y: number) => { pg.text(x, y, label, 5.5, { gray: true }); pg.text(x, y + 8, fit(val, 6.5, R - x, true), 6.5, { bold: true }); };
@@ -153,6 +154,8 @@ function buildPages(v: View, hasQr: boolean): PdfPage[] {
     pages.push(pg);
     if (last) break;
   }
+  // Pages can be saved and sent one by one, so each says which it is.
+  if (pages.length > 1) pages.forEach((pg, i) => pg.text(R, 58, `PAGE ${i + 1} OF ${pages.length}`, 6, { bold: true, align: "right" }));
   const end = pages[pages.length - 1];
   if (v.einv) irnBlock(end, v, hasQr);
   footer(end, v);
