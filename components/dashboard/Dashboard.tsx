@@ -579,6 +579,13 @@ export default function Dashboard() {
             </div>
           </header>
 
+          {/* Tap anywhere outside the open menu to close it; the tap does not reach the page underneath. */}
+          {!isAgent && mobileNav && (
+            <div aria-hidden="true" onClick={() => setMobileNav(false)} className="fixed inset-0 z-[35] cursor-pointer md:hidden">
+              <div className="absolute inset-x-0 bottom-0 top-[76px] bg-black/50" />
+            </div>
+          )}
+
           {!isAgent && mobileNav && (
             <div className="app-enter fixed inset-x-0 top-[76px] z-40 max-h-[calc(100dvh-76px)] overflow-y-auto border-b border-foreground/10 bg-background px-4 py-3 shadow-2xl sm:px-6 md:hidden">
               {user.role === "admin" && <div className="mb-3">{modeSwitch}</div>}
