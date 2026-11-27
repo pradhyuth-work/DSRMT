@@ -580,6 +580,7 @@ export default function Dashboard() {
 
           {!isAgent && mobileNav && (
             <div className="app-enter fixed inset-x-0 top-[76px] z-40 max-h-[calc(100dvh-76px)] overflow-y-auto border-b border-foreground/10 bg-background px-4 py-3 shadow-2xl sm:px-6 md:hidden">
+              {user.role === "admin" && <div className="mb-3">{modeSwitch}</div>}
               <nav className="grid grid-cols-2 gap-2">
                 {billingMode && billTabsFor(user.role === "admin").map(({ id, label }) => {
                   const Icon = BILL_ICONS[id];
@@ -652,10 +653,6 @@ export default function Dashboard() {
                 </button>
               </nav>
             </div>
-          )}
-
-          {user.role === "admin" && (
-            <div className="sticky top-[76px] z-20 -mx-4 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:hidden">{modeSwitch}</div>
           )}
 
           {user.role === "admin" && !billingMode && (
