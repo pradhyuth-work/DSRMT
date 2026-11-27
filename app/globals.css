@@ -44,6 +44,10 @@
 }
 
 :root {
+  /* Dark theme only, no toggle — tells the browser to render native chrome (date/time
+     picker icons and popovers, select dropdowns, the default scrollbar) in its dark variant
+     instead of defaulting to light controls that are invisible or jarring against this UI. */
+  color-scheme: dark;
   /* "Blade Runner" colours: teal-black panels, bone text, sodium orange accent, teal and red status. Same token names, new values. */
   --background: 197 33% 6%;
   --foreground: 40 42% 85%;
