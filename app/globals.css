@@ -90,14 +90,6 @@
   --shadow-float: 0 18px 45px hsl(0 0% 8% / .14);
 }
 
-/* Billing mode swaps the orange accent for the mockup teal; the class sits on <html> so dialogs (rendered outside the app shell) follow too. */
-html.billing-mode {
-  --sidebar-primary: 173 68% 63%;
-  --primary: 173 68% 63%;
-  --accent: 173 68% 63%;
-  --ring: 173 68% 63%;
-}
-
 body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--app-font-sans);

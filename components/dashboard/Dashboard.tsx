@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
 import {
   AlarmClockCheck,
   BadgePercent,
@@ -283,6 +284,13 @@ export default function Dashboard() {
     return () => document.documentElement.classList.remove("billing-mode");
   }, [inBillingMode]);
 
+  // The shared skin applies once signed in; the sign-in screen keeps its own look.
+  const signedIn = !!user;
+  useEffect(() => {
+    document.documentElement.classList.toggle("app-skin", signedIn);
+    return () => document.documentElement.classList.remove("app-skin");
+  }, [signedIn]);
+
   useEffect(() => {
     if (tabs.length && !tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
   }, [tabs, tab]);
@@ -338,6 +346,25 @@ export default function Dashboard() {
     { label: "Outside app today", value: String(billedToday.filter((o) => o.billedOutside).length) },
     { label: "Billed today", value: formatMoney(billedToday.reduce((s, o) => s + o.totalAmount, 0)) },
   ];
+  // Swaps mode with a circular reveal from the tapped button; browsers without view transitions
+  // (and people who ask for reduced motion) get an instant swap.
+  const switchMode = (next: "ops" | "bill", e: MouseEvent<HTMLButtonElement>) => {
+    if (next === mode) return;
+    const root = document.documentElement;
+    if (!("startViewTransition" in document) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setMode(next);
+      return;
+    }
+    const box = e.currentTarget.getBoundingClientRect();
+    root.style.setProperty("--swap-x", `${box.left + box.width / 2}px`);
+    root.style.setProperty("--swap-y", `${box.top + box.height / 2}px`);
+    root.classList.add("mode-swap");
+    const transition = document.startViewTransition(() => {
+      flushSync(() => setMode(next));
+      root.classList.toggle("billing-mode", next === "bill");
+    });
+    void transition.finished.finally(() => root.classList.remove("mode-swap"));
+  };
   // Billing mode is admin-only — stock/agents never see the switch at all, always in Operations.
   const modeSwitch = user.role === "admin" && (
     <div role="group" aria-label="Switch mode" className="grid grid-cols-2 gap-1 rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-1">
@@ -346,7 +373,7 @@ export default function Dashboard() {
           key={m}
           type="button"
           aria-pressed={mode === m}
-          onClick={() => setMode(m)}
+          onClick={(e) => switchMode(m, e)}
           className={`focus-ring rounded-lg px-2 py-2 text-xs font-bold ${mode === m ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/70"}`}
         >
           {m === "ops" ? "Operations" : "Billing"}
@@ -664,7 +691,7 @@ export default function Dashboard() {
           )}
 
           {user.role === "admin" && !billingMode && (
-            <section className="grid gap-3 py-6 sm:grid-cols-2 xl:grid-cols-5">
+            <section className="grid gap-3 py-6 sm:grid-cols-2 lg:grid-cols-3 min-[1700px]:grid-cols-5">
               <StatCard label={`Billed · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthBilled) : "—"} icon={IndianRupee} tone="lime" trend={metrics?.trends?.billed} />
               <StatCard label={`Collected · ${metrics?.monthLabel ?? "this month"}`} value={metrics ? formatMoney(metrics.monthCollected) : "—"} icon={Wallet} tone="gold" trend={metrics?.trends?.collected} />
               <StatCard label="Outstanding" value={metrics ? formatMoney(metrics.totalOutstanding) : "—"} icon={ReceiptText} tone="rose" />
