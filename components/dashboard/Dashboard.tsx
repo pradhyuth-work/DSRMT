@@ -367,8 +367,8 @@ export default function Dashboard() {
       {/* Desktop sidebar — admin/stock only. Agents are phone-first, so they never see it. */}
       {!isAgent && (
         <aside
-          className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start overflow-y-auto bg-sidebar px-4 py-5 text-sidebar-foreground transition-[width] duration-200 md:flex ${
-            sidebarCollapsed ? "w-[76px] items-center px-3" : "w-[248px]"
+          className={`sticky top-0 hidden h-screen shrink-0 self-start bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex ${
+            sidebarCollapsed ? "w-[76px]" : "w-[248px]"
           }`}
         >
           <button
@@ -380,6 +380,13 @@ export default function Dashboard() {
             {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
 
+          {/* Scrolling and padding live here, not on the aside itself — the toggle button
+              above intentionally straddles the aside's edge, and overflow-y-auto on a box
+              with an overflowing sibling forces a phantom horizontal scrollbar too (per the
+              CSS overflow-x: visible + overflow-y: auto computed-value quirk). */}
+          <div
+            className={`flex h-full w-full flex-col overflow-y-auto px-4 py-5 ${sidebarCollapsed ? "items-center px-3" : ""}`}
+          >
           {sidebarCollapsed ? (
             <BrandTile size={36} />
           ) : (
@@ -497,6 +504,7 @@ export default function Dashboard() {
             >
               <LogOut size={16} />
             </button>
+          </div>
           </div>
         </aside>
       )}
