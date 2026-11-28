@@ -86,7 +86,7 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter value={range} onChange={setRange} />
           <Combobox
-            className="w-44"
+            className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
             value={outletId}
             onChange={setOutletId}
             placeholder="All outlets"
@@ -94,7 +94,7 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
             options={[{ value: "", label: "All outlets" }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
           />
           <Combobox
-            className="w-44"
+            className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
             value={productId}
             onChange={setProductId}
             placeholder="All products"
@@ -102,7 +102,7 @@ export default function SchemeSavings({ outlets, products, staff }: { outlets: O
             options={[{ value: "", label: "All products" }, ...products.map((p) => ({ value: p.id, label: p.name }))]}
           />
           <Combobox
-            className="w-44"
+            className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
             value={staffId}
             onChange={setStaffId}
             placeholder="All field agents"

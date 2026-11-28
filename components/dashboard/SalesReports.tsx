@@ -174,11 +174,11 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter value={range} onChange={setRange} />
           <Combobox
-            className="w-48"
+            className="w-full sm:w-48"
             value={outletId}
             onChange={setOutletId}
             placeholder="All outlets"
@@ -186,7 +186,7 @@ export default function SalesReports({ outlets, products }: { outlets: OutletDTO
             options={[{ value: "", label: "All outlets" }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
           />
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>*:last-child]:col-span-2">
           <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadBackup()} disabled={backingUp} title="Download every table as one file. Contains login password hashes, so keep it private.">
             {backingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <HardDriveDownload className="h-4 w-4" />}
             Full backup

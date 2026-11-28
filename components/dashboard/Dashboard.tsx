@@ -561,7 +561,7 @@ export default function Dashboard() {
             {isAgent ? (
               <div className="flex items-center gap-3">
                 <BrandTile size={36} />
-                <h1 className="text-lg font-bold tracking-[-.03em]">Varasidhi Enterprises</h1>
+                <h1 className="whitespace-nowrap text-base font-bold tracking-[-.03em] sm:text-lg">Varasidhi Enterprises</h1>
               </div>
             ) : (
               <>

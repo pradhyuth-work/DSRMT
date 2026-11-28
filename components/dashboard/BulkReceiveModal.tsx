@@ -223,7 +223,7 @@ export default function BulkReceiveModal({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button type="button" className="btn btn-primary" disabled={scanning} onClick={() => billInput.current?.click()}>
           {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
           {scanning ? scanStatus : "Upload bill (PDF / photo)"}

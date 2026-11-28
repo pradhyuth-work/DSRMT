@@ -237,3 +237,7 @@ html.app-skin:not(.billing-mode) aside :is(.text-sidebar-foreground\/40, .text-s
 /* Dialogs dim the page instead of washing it out */
 html.app-skin:not(.billing-mode) .bg-background\/75 { background-color: rgba(18, 16, 30, .45); }
 html.app-skin:not(.billing-mode) [role="dialog"] { background-color: #fff; box-shadow: 0 24px 60px -20px rgba(18, 16, 30, .35); }
+
+/* Phones: the five date presets stay on one line, and an order total is never split. */
+@media (max-width: 639px) { html.app-skin .date-presets .btn { font-size: 11px; padding-inline: 6px; white-space: nowrap; letter-spacing: 0; } }
+html.app-skin .order-card dd.font-semibold { overflow-wrap: normal; }

@@ -41,8 +41,8 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      <div className="date-presets grid w-full grid-cols-[repeat(5,auto)] justify-between gap-1 sm:flex sm:w-auto sm:flex-wrap sm:gap-1.5">
         {PRESETS.map((p) => (
           <button key={p.label} type="button" className="btn btn-secondary px-2.5 py-1 text-xs" onClick={() => applyPreset(p.days)}>
             {p.label}
@@ -50,7 +50,7 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
         ))}
       </div>
       <RangePicker
-        className="w-auto max-w-full"
+        className="w-full sm:w-auto sm:max-w-full"
         from={toDateInput(value.from)}
         to={toDateInput(value.to)}
         onChange={(from, to) => onChange({ from: startOfDayIso(from), to: endOfDayIso(to) })}

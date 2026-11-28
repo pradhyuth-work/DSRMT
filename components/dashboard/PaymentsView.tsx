@@ -149,7 +149,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-56">
+          <div className="relative w-full sm:w-56">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               className="input pl-9"
@@ -159,7 +159,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
             />
           </div>
           <Combobox
-            className="w-44"
+            className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
             value={outletId}
             onChange={setOutletId}
             ariaLabel="Filter by outlet"
@@ -168,7 +168,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
           />
           {isAdmin && (
             <Combobox
-              className="w-44"
+              className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
               value={staffId}
               onChange={setStaffId}
               ariaLabel="Filter by who collected it"
@@ -177,7 +177,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
             />
           )}
           <Combobox
-            className="w-44"
+            className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
             value={status}
             onChange={(v) => setStatus(v as StatusFilter)}
             ariaLabel="Filter by cheque status"
@@ -190,7 +190,7 @@ export default function PaymentsView({ user, outlets, staff }: { user: AuthUser;
           />
           <DateRangeFilter value={range} onChange={setRange} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
           <button className="btn btn-secondary sm:w-auto" onClick={() => void downloadCsv()} disabled={downloading}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download CSV

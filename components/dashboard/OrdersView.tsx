@@ -224,11 +224,11 @@ export default function OrdersView({
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
-              className="input h-10 w-44 pl-9"
+              className="input h-10 w-full pl-9 sm:w-44"
               placeholder="Search bill number…"
               aria-label="Search by bill number"
               value={billSearch}
@@ -237,7 +237,7 @@ export default function OrdersView({
           </div>
           {user.role !== "agent" && agentOptions.length > 0 && (
             <Combobox
-              className="w-44"
+              className="min-w-[calc(50%-0.25rem)] flex-1 sm:w-44 sm:min-w-0 sm:flex-none"
               value={agentFilter}
               onChange={setAgentFilter}
               ariaLabel="Filter by field agent"
@@ -392,7 +392,7 @@ export default function OrdersView({
                     </dl>
                   );
                 })()}
-                <dl className="grid grid-cols-3 gap-2 text-xs">
+                <dl className="grid grid-cols-[repeat(3,auto)] justify-between gap-2 whitespace-nowrap text-xs">
                   <div>
                     <dt className="text-muted-foreground">Total</dt>
                     <dd className="font-semibold tabular-nums">{formatMoney(o.totalAmount)}</dd>

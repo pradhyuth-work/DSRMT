@@ -24,7 +24,7 @@ export function Tiles({ items }: { items: { label: string; value: React.ReactNod
     <dl className="grid auto-cols-fr grid-flow-col gap-2 border-y border-border py-4 text-center">
       {items.map((t) => (
         <div key={t.label} className="flex min-w-0 flex-col items-center">
-          <dd className={`bill-figure order-1 truncate text-xl tabular-nums sm:text-3xl ${t.accent ? "alt" : ""}`}>{t.value}</dd>
+          <dd className={`bill-figure order-1 truncate text-base tabular-nums min-[420px]:text-xl sm:text-3xl ${t.accent ? "alt" : ""}`}>{t.value}</dd>
           <div className={`bill-rule order-2 ${t.accent ? "alt" : ""}`} aria-hidden />
           <dt className="order-3 text-xs text-muted-foreground sm:text-sm">{t.label}</dt>
         </div>
