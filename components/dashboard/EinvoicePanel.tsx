@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2, Save } from "lucide-react";
 import type { EinvoiceReportDTO, EinvoiceSetupDTO, InvoiceSeriesDTO } from "@/lib/types";
 import { api } from "./api-client";
+import { RangePicker } from "./RangePicker";
 import { Alert } from "./ui";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -97,10 +98,7 @@ function ExportBlock() {
         Backup for when direct filing is not working: one file for the bills in the date range, for the e-invoice portal's bulk upload. Bills written outside
         the app, cancelled bills, bills already filed from the app and outlets without a GSTIN are never included.
       </p>
-      <div className="grid grid-cols-2 gap-2">
-        <div><label className="label" htmlFor="ei-from">From</label><input id="ei-from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-        <div><label className="label" htmlFor="ei-to">To</label><input id="ei-to" type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-      </div>
+      <div><label className="label" htmlFor="ei-range">Date range</label><RangePicker id="ei-range" from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} /></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} /> Only bills not exported before</label>
       <div className="flex gap-2">
         <button type="button" className="btn btn-secondary flex-1" disabled={busy} onClick={() => void check()}>Check what's ready</button>

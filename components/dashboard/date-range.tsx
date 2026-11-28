@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar } from "lucide-react";
+import { RangePicker } from "./RangePicker";
 
 /** Full ISO datetime strings (or undefined for "no bound"), ready to send to the API. */
 export interface DateRange {
@@ -27,24 +27,21 @@ const PRESETS: { label: string; days: number | "month" | "all" }[] = [
   { label: "All time", days: "all" },
 ];
 
-/** A small date-range filter: quick presets plus custom from/to date inputs. */
+/** A small date-range filter: quick presets plus a single-calendar range picker. */
 export function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (range: DateRange) => void }) {
   function applyPreset(days: (typeof PRESETS)[number]["days"]) {
     if (days === "all") return onChange({});
-    const now = new Date();
-    const to = endOfDayIso(now.toISOString().slice(0, 10));
-    if (days === "month") {
-      const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      return onChange({ from: startOfDayIso(from.toISOString().slice(0, 10)), to });
-    }
-    const from = new Date(now);
+    // Today's date in India: the UTC date is still yesterday until 5:30 am.
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const to = endOfDayIso(today);
+    if (days === "month") return onChange({ from: startOfDayIso(`${today.slice(0, 7)}-01`), to });
+    const from = new Date(`${today}T00:00:00.000Z`);
     from.setUTCDate(from.getUTCDate() - days);
     return onChange({ from: startOfDayIso(from.toISOString().slice(0, 10)), to });
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
           <button key={p.label} type="button" className="btn btn-secondary px-2.5 py-1 text-xs" onClick={() => applyPreset(p.days)}>
@@ -52,23 +49,12 @@ export function DateRangeFilter({ value, onChange }: { value: DateRange; onChang
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1.5 text-sm">
-        <input
-          type="date"
-          className="input w-auto py-1.5 text-sm"
-          value={toDateInput(value.from)}
-          onChange={(e) => onChange({ ...value, from: e.target.value ? startOfDayIso(e.target.value) : undefined })}
-          aria-label="From date"
-        />
-        <span className="text-muted-foreground">–</span>
-        <input
-          type="date"
-          className="input w-auto py-1.5 text-sm"
-          value={toDateInput(value.to)}
-          onChange={(e) => onChange({ ...value, to: e.target.value ? endOfDayIso(e.target.value) : undefined })}
-          aria-label="To date"
-        />
-      </div>
+      <RangePicker
+        className="w-auto max-w-full"
+        from={toDateInput(value.from)}
+        to={toDateInput(value.to)}
+        onChange={(from, to) => onChange({ from: startOfDayIso(from), to: endOfDayIso(to) })}
+      />
     </div>
   );
 }
