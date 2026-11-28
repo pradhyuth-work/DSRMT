@@ -244,3 +244,18 @@ aside nav .nav-tab { border-radius: 6px; }
   .stat-spark .ln { animation: none; stroke-dashoffset: 0; }
   .nav-tab:hover, .order-card:hover { transform: none; }
 }
+
+/* Loading screen shown while the sign-in is checked: the logo fills with crimson. It carries its
+   own colours because the signed-in skin is not applied yet at that point. */
+.boot {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+  text-align: center; font-family: Poppins, system-ui, sans-serif; color: #0e0d16; background-color: #f2f1f7;
+  background-image: radial-gradient(70% 40% at 100% 0%, rgba(214,53,102,.22), transparent 70%), linear-gradient(rgba(35,30,70,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(35,30,70,.055) 1px, transparent 1px);
+  background-size: auto, 36px 36px, 36px 36px;
+}
+.boot-logo { width: 150px; height: 150px; background: #d9d6e3; -webkit-mask: url(/brand-glyph.png) center / contain no-repeat; mask: url(/brand-glyph.png) center / contain no-repeat; }
+.boot-fill { height: 100%; background: linear-gradient(#e0457a, #9e1840); animation: boot-fill 2.2s ease-in-out infinite; }
+.boot-name { font-size: 17px; font-weight: 600; }
+.boot-sub { margin-top: 4px; font-size: 13px; color: #5c586b; }
+@keyframes boot-fill { 0% { clip-path: inset(100% 0 0 0); opacity: 1; } 65%, 85% { clip-path: inset(0); opacity: 1; } 100% { clip-path: inset(0); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .boot-fill { animation: none; } }

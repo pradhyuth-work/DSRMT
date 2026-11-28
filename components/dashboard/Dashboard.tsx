@@ -314,8 +314,12 @@ export default function Dashboard() {
 
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+      <div className="boot" role="status">
+        <div className="boot-logo" aria-hidden="true"><div className="boot-fill" /></div>
+        <div>
+          <div className="boot-name">Varasidhi Enterprises</div>
+          <div className="boot-sub">Getting your data</div>
+        </div>
       </div>
     );
   }
