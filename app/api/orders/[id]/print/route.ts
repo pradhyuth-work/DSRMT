@@ -12,6 +12,10 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  * bearer token and opens it in a new window to print or save as PDF.
  * Bills written outside the app have no GST invoice, so there is nothing to print for them.
  * Admin only (Billing mode).
+ *
+ * The A5 sheet is fed into the printer in landscape (long edge across), so each invoice page is
+ * turned once and placed on the top 210 x 148 mm of an A4 print page, which is where that sheet is.
+ * An A5 print page is only 148 mm wide and would cut the invoice in half.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -35,15 +39,7 @@ ${einv.qr ? `<img src="data:image/png;base64,${einv.qr}" alt="E-invoice QR code"
 <div style="min-width:0;font-size:8px">${einv.test ? `<div style="font-weight:700;font-size:11px;letter-spacing:.08em">TEST ONLY — NOT A VALID E-INVOICE</div>` : `<div class="lbl" style="letter-spacing:.14em">E-INVOICE</div>`}
 ${field("IRN", einv.irn)}${field("ACK NO / DATE", [einv.ackNo, einv.ackDate].filter(Boolean).join("   "))}${einv.ewb ? field("E-WAY BILL NO / DATE / VALID UPTO", [einv.ewb.no, einv.ewb.date, einv.ewb.validUpto].filter(Boolean).join("   ")) : ""}</div></div>`
       : "";
-    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(invoiceNumber)}</title>
-<style>
-@page{size:A5 portrait;margin:0}
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#1B2B2A;font-family:Barlow,Segoe UI,Arial,sans-serif;font-size:9px;line-height:1.35}
-.page{width:148mm;height:210mm;padding:20px 22px 16px;display:flex;flex-direction:column;overflow:hidden}
-.lbl{font-size:7px;letter-spacing:.1em;color:#5A6D6C}.row{display:grid;grid-template-columns:${grid};gap:2px}
-@media screen{body{background:#e8e8e8;display:flex;justify-content:center;padding:16px}.page{background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2)}}
-</style>${einv && rows.length > 10 ? "<style>.page{height:auto;min-height:210mm;overflow:visible}</style>" : ""}</head><body><div class="page">
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:9px;border-bottom:2px solid #0F2B2A">
+    const header = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:9px;border-bottom:2px solid #0F2B2A">
 <div style="display:flex;gap:10px;align-items:center;min-width:0">
 <img src="/varasidhi-logo.png" style="width:52px;height:52px;border-radius:12px;flex:0 0 auto" alt="">
 <div><div style="font-weight:700;font-size:20px;letter-spacing:.07em;line-height:1;color:#0F2B2A">VARASIDHI ENTERPRISES</div>
@@ -63,11 +59,9 @@ ${field("IRN", einv.irn)}${field("ACK NO / DATE", [einv.ackNo, einv.ackDate].fil
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:8px 0;border-bottom:1px solid #C9D3D2">
 ${["BILLED TO", "SHIPPED TO"].map((t) => `<div><div class="lbl" style="letter-spacing:.14em;margin-bottom:2px">${t}</div><div style="font-weight:700;font-size:10.5px">${esc(t === "BILLED TO" ? o.name : ship.name)}</div><div style="font-size:8.5px">${esc(t === "BILLED TO" ? addr : ship.addr)}</div>${o.gstNumber ? `<div style="font-size:8.5px;margin-top:2px">GSTIN: <b>${esc(o.gstNumber)}</b></div>` : ""}</div>`).join("")}</div>
 <div class="row" style="margin-top:8px;padding:5px 0;border-top:1.5px solid #0F2B2A;border-bottom:1.5px solid #0F2B2A;font-weight:700;font-size:7px;letter-spacing:.06em">
-<div>#</div><div>DESCRIPTION</div><div>HSN</div><div style="text-align:right">PKNG</div><div style="text-align:right">M.R.P</div><div style="text-align:right">QTY</div><div style="text-align:right">FREE</div><div style="text-align:right">RATE</div><div style="text-align:right">GST%</div><div style="text-align:right">AMOUNT</div></div>
-<div style="flex:1;min-height:0;font-size:8.5px">
-${rows.map((r) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${r.gst}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`).join("")}
-</div>
-${irnBlock}
+<div>#</div><div>DESCRIPTION</div><div>HSN</div><div style="text-align:right">PKNG</div><div style="text-align:right">M.R.P</div><div style="text-align:right">QTY</div><div style="text-align:right">FREE</div><div style="text-align:right">RATE</div><div style="text-align:right">GST%</div><div style="text-align:right">AMOUNT</div></div>`;
+    const row = (r: (typeof rows)[number]) => `<div class="row" style="padding:4px 0;border-bottom:1px solid #E3E9E8"><div style="color:#5A6D6C">${r.n}</div><div style="font-weight:600">${esc(r.name)}</div><div>${esc(r.hsn)}</div><div style="text-align:right">${r.pk}</div><div style="text-align:right">${f2(r.mrp)}</div><div style="text-align:right">${r.qty}</div><div style="text-align:right">0</div><div style="text-align:right">${f2(r.rate)}</div><div style="text-align:right">${r.gst}</div><div style="text-align:right;font-weight:700">${f2(r.amt)}</div></div>`;
+    const footer = `${irnBlock}
 <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;border-top:1.5px solid #0F2B2A;padding-top:8px">
 <div style="font-size:8px">
 <div style="display:grid;grid-template-columns:.7fr 1.3fr .7fr 1fr .7fr 1fr;gap:2px;font-weight:700;font-size:7px;color:#5A6D6C;padding-bottom:2px;border-bottom:1px solid #C9D3D2"><div>GST %</div><div>SALE VAL</div>${taxHead}</div>
@@ -77,8 +71,36 @@ ${slabRows}
 <div style="display:flex;flex-direction:column;justify-content:space-between">
 <div style="font-size:8.5px">${tline("SUB TOTAL", f2(subTotal))}${taxLines}${discount > 0 ? tline("LESS: DISCOUNT", "-" + f2(discount)) : ""}${tline("ROUND OFF", f2(round))}</div>
 <div style="border:1.5px solid #0F2B2A;padding:6px 10px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:8px;letter-spacing:.12em;font-weight:700">NET AMT</span><span style="font-weight:700;font-size:20px">₹ ${f2(net)}</span></div>
-<div style="text-align:right;margin-top:24px"><div style="font-weight:700;font-size:8.5px">For VARASIDHI ENTERPRISES</div><div style="border-top:1px solid #8A9B9A;margin-top:18px;padding-top:2px;font-size:7px;letter-spacing:.1em;color:#5A6D6C">AUTHORISED SIGNATORY</div></div></div></div>
-</div></body></html>`;
+<div style="text-align:right;margin-top:24px"><div style="font-weight:700;font-size:8.5px">For VARASIDHI ENTERPRISES</div><div style="border-top:1px solid #8A9B9A;margin-top:18px;padding-top:2px;font-size:7px;letter-spacing:.1em;color:#5A6D6C">AUTHORISED SIGNATORY</div></div></div></div>`;
+
+    // Long bills continue on more sheets: the header repeats, and the QR and totals go on the last one.
+    const lastMax = einv ? 10 : 15;
+    const fullMax = 24;
+    const chunks: (typeof rows)[] = [];
+    let rest = rows;
+    while (rest.length > lastMax) {
+      const take = Math.min(fullMax, rest.length - 1);
+      chunks.push(rest.slice(0, take));
+      rest = rest.slice(take);
+    }
+    chunks.push(rest);
+    const pages = chunks.map((chunk, i) => `<div class="sheet"><div class="page">
+${header}
+<div style="flex:1;min-height:0;font-size:8.5px">
+${chunk.map(row).join("")}
+</div>
+${i === chunks.length - 1 ? footer : `<div class="lbl" style="text-align:right;border-top:1px solid #C9D3D2;padding-top:5px">CONTINUED — PAGE ${i + 1} OF ${chunks.length}</div>`}
+</div></div>`).join("");
+
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(invoiceNumber)}</title>
+<style>
+@page{size:A4 portrait;margin:0}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#1B2B2A;font-family:Barlow,Segoe UI,Arial,sans-serif;font-size:9px;line-height:1.35}
+.sheet{position:relative;width:210mm;height:148mm;overflow:hidden;break-after:page}.sheet:last-child{break-after:auto}
+.page{position:absolute;top:0;left:0;width:148mm;height:210mm;padding:20px 22px 16px;display:flex;flex-direction:column;overflow:hidden;transform-origin:0 0;transform:translate(210mm,0) rotate(90deg)}
+.lbl{font-size:7px;letter-spacing:.1em;color:#5A6D6C}.row{display:grid;grid-template-columns:${grid};gap:2px}
+@media screen{body{background:#e8e8e8;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px}.sheet{flex:0 0 auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.2)}}
+</style></head><body>${pages}</body></html>`;
     return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
   } catch (e) {
     return errorResponse(e);
