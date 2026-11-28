@@ -188,6 +188,8 @@ export interface StaffDTO {
   active: boolean;
   /** True when the person has both a username and a PIN set. */
   canLogin: boolean;
+  /** Usual delivery vehicle; pre-fills the vehicle number when their orders are billed. */
+  vehicleNo: string | null;
 }
 
 export interface CreateStaffInput {
@@ -196,6 +198,7 @@ export interface CreateStaffInput {
   username: string;
   pin: string;
   role: Role;
+  vehicleNo?: string;
 }
 
 export interface UpdateStaffInput {
@@ -204,6 +207,8 @@ export interface UpdateStaffInput {
   username?: string;
   role?: Role;
   active?: boolean;
+  /** "" clears it. */
+  vehicleNo?: string;
 }
 
 export interface ResetPinInput {

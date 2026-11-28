@@ -341,12 +341,19 @@ export const adjustStockSchema = z.object({
   reason: z.string().trim().min(3, "Give a reason for the adjustment").max(200),
 }) satisfies z.ZodType<AdjustStockInput, z.ZodTypeDef, unknown>;
 
+/** Stored as billing uses it: capitals, no spaces or dashes. "" means none. */
+const staffVehicle = z
+  .string()
+  .transform((v) => v.replace(/[^A-Za-z0-9]/g, "").toUpperCase())
+  .refine((v) => v === "" || (v.length >= 7 && v.length <= 12), "Enter the full vehicle number, e.g. KA01AB1234");
+
 export const createStaffSchema = z.object({
   name: personName,
   phone: phone.default(""),
   username,
   pin,
   role,
+  vehicleNo: staffVehicle.optional(),
 }) satisfies z.ZodType<CreateStaffInput, z.ZodTypeDef, unknown>;
 
 export const updateStaffSchema = z.object({
@@ -355,6 +362,7 @@ export const updateStaffSchema = z.object({
   username: username.optional(),
   role: role.optional(),
   active: z.boolean().optional(),
+  vehicleNo: staffVehicle.optional(),
 }) satisfies z.ZodType<UpdateStaffInput, z.ZodTypeDef, unknown>;
 
 export const resetPinSchema = z.object({ pin }) satisfies z.ZodType<

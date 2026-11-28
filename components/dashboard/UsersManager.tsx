@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { KeyRound, Loader2, UserPlus, UserRound } from "lucide-react";
-import type { AuthUser, Role, StaffDTO } from "@/lib/types";
+import { KeyRound, Loader2, Save, UserPlus, UserRound } from "lucide-react";
+import type { AuthUser, Role, StaffDTO, UpdateStaffInput } from "@/lib/types";
 import { api } from "./api-client";
 import { Alert, EmptyState, Modal, PAGE_SIZE, Pagination, usePagination } from "./ui";
 
@@ -11,6 +11,10 @@ const ROLES: { id: Role; label: string }[] = [
   { id: "stock", label: "Stock incharge" },
   { id: "agent", label: "Field agent" },
 ];
+
+const cleanVehicle = (v: string) => v.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+/** Empty (none) or a full registration number — the same limits the server applies. */
+const vehicleOk = (v: string) => v === "" || (v.length >= 7 && v.length <= 12);
 
 export default function UsersManager({
   staff,
@@ -29,7 +33,7 @@ export default function UsersManager({
   const closeCredentials = useCallback(() => setCredentialsFor(null), []);
   const staffPage = usePagination(staff);
 
-  async function update(s: StaffDTO, patch: { role?: Role; active?: boolean }, text: string) {
+  async function update(s: StaffDTO, patch: UpdateStaffInput, text: string) {
     setBusyId(s.id);
     setMessage(null);
     try {
@@ -82,6 +86,15 @@ export default function UsersManager({
                 </div>
                 {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </div>
+
+              <VehicleField
+                key={s.vehicleNo ?? ""}
+                person={s}
+                busy={busy}
+                onSave={(vehicleNo) =>
+                  void update(s, { vehicleNo }, vehicleNo ? `Vehicle ${vehicleNo} saved for ${s.name}` : `Vehicle number removed for ${s.name}`)
+                }
+              />
 
               <div className="grid gap-2 sm:grid-cols-3">
                 <select
@@ -149,6 +162,48 @@ export default function UsersManager({
         )}
       </Modal>
     </div>
+  );
+}
+
+/** The saved vehicle number, editable in place. Save lights up only once it differs. */
+function VehicleField({ person, busy, onSave }: { person: StaffDTO; busy: boolean; onSave: (vehicleNo: string) => void }) {
+  const saved = person.vehicleNo ?? "";
+  const [value, setValue] = useState(saved);
+  const next = cleanVehicle(value);
+  const changed = next !== saved;
+  const id = `veh-${person.id}`;
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (changed && vehicleOk(next) && !busy) onSave(next);
+      }}
+    >
+      <label className="label" htmlFor={id}>Vehicle number</label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          className="input min-w-0 flex-1 uppercase placeholder:normal-case"
+          value={value}
+          onChange={(e) => setValue(e.target.value.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={20}
+          placeholder="Not set"
+        />
+        <button type="submit" className="btn btn-secondary" disabled={!changed || !vehicleOk(next) || busy} aria-label={`Save vehicle number for ${person.name}`}>
+          <Save className="h-4 w-4" /> Save
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {!changed
+          ? saved ? `Saved: ${saved}` : "Nothing saved yet"
+          : !vehicleOk(next) ? "Enter the full number, e.g. KA01AB1234" : `Not saved yet${saved ? ` — currently ${saved}` : ""}`}
+      </p>
+    </form>
   );
 }
 
@@ -229,9 +284,10 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("agent");
+  const [vehicle, setVehicle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const valid = name.trim().length > 0 && username.trim().length >= 3 && /^\d{4,8}$/.test(pin);
+  const valid = name.trim().length > 0 && username.trim().length >= 3 && /^\d{4,8}$/.test(pin) && vehicleOk(cleanVehicle(vehicle));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -239,12 +295,13 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
     setBusy(true);
     setError(null);
     try {
-      const created = await api.createStaff({ name: name.trim(), phone: phone.trim(), username: username.trim(), pin, role });
+      const created = await api.createStaff({ name: name.trim(), phone: phone.trim(), username: username.trim(), pin, role, vehicleNo: cleanVehicle(vehicle) });
       setName("");
       setPhone("");
       setUsername("");
       setPin("");
       setRole("agent");
+      setVehicle("");
       await onSaved(`Created ${created.name} (@${created.username})`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create user");
@@ -300,6 +357,22 @@ function CreateUserForm({ onSaved }: { onSaved: (text: string) => Promise<void> 
             <option key={r.id} value={r.id}>{r.label}</option>
           ))}
         </select>
+      </div>
+      <div>
+        <label className="label" htmlFor="u-vehicle">Vehicle number</label>
+        <input
+          id="u-vehicle"
+          className="input uppercase placeholder:normal-case"
+          value={vehicle}
+          onChange={(e) => setVehicle(e.target.value.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={20}
+          placeholder="Optional"
+        />
+        {!vehicleOk(cleanVehicle(vehicle)) && <p className="mt-1 text-xs text-muted-foreground">Enter the full number, e.g. KA01AB1234</p>}
       </div>
       {error && <Alert kind="error">{error}</Alert>}
       <button type="submit" className="btn btn-primary w-full" disabled={!valid || busy}>

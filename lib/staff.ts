@@ -10,6 +10,7 @@ export const staffSelect = {
   role: true,
   active: true,
   passwordHash: true,
+  vehicleNo: true,
 } satisfies Prisma.StaffSelect;
 
 export function toStaffDTO(s: Prisma.StaffGetPayload<{ select: typeof staffSelect }>): StaffDTO {
@@ -21,5 +22,6 @@ export function toStaffDTO(s: Prisma.StaffGetPayload<{ select: typeof staffSelec
     role: s.role,
     active: s.active,
     canLogin: Boolean(s.username && s.passwordHash),
+    vehicleNo: s.vehicleNo,
   };
 }

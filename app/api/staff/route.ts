@@ -30,6 +30,7 @@ export async function POST(req: Request) {
         passwordHash: await hashPassword(input.pin),
         role: input.role,
         active: true,
+        vehicleNo: input.vehicleNo || null,
       },
       select: staffSelect,
     });

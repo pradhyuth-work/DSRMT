@@ -30,6 +30,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         username: input.username,
         role: input.role,
         active: input.active,
+        vehicleNo: input.vehicleNo === undefined ? undefined : input.vehicleNo || null,
       },
       select: staffSelect,
     });
