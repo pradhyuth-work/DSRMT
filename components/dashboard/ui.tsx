@@ -26,23 +26,27 @@ export function PaymentMethodPicker({
   size?: "sm" | "lg";
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-      {PAYMENT_METHODS.map((m) => {
-        const Icon = METHOD_ICON[m];
-        return (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onChange(m)}
-            className={`btn flex-col gap-1 text-xs ${size === "lg" ? "h-14 text-sm" : "py-2"} ${
-              value === m ? "btn-primary" : "btn-secondary"
-            }`}
-          >
-            <Icon className={size === "lg" ? "h-5 w-5" : "h-4 w-4"} />
-            {METHOD_LABEL[m]}
-          </button>
-        );
-      })}
+    // Laid out by the room the picker has, not the screen: three over two (both rows full) when
+    // narrow, as in side panels and phones, and one row of five only when every label fits.
+    <div className="@container">
+      <div className="grid grid-cols-6 gap-2 @md:grid-cols-5">
+        {PAYMENT_METHODS.map((m, i) => {
+          const Icon = METHOD_ICON[m];
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onChange(m)}
+              className={`btn min-w-0 flex-col !gap-1.5 whitespace-nowrap @md:col-span-1 ${i < 3 ? "col-span-2" : "col-span-3"} ${
+                size === "lg" ? "h-16 text-sm" : "h-14 text-xs"
+              } ${value === m ? "btn-primary" : "btn-secondary"}`}
+            >
+              <Icon className={`shrink-0 ${size === "lg" ? "h-5 w-5" : "h-4 w-4"}`} />
+              {METHOD_LABEL[m]}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
